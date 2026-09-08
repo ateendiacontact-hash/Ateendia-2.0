@@ -28,6 +28,8 @@ import {
 } from 'lucide-react';
 import { useTenant } from '../../context/TenantContext';
 import { WhatsAppAccountConfig, WhatsAppAlertRecipient } from '../../types';
+import { useWhatsAppSocket } from '../../services/whatsappSocketService';
+import { getEvolutionConfig } from '../../services/evolutionApi';
 
 // Configuración de Evolution API
 const EVOLUTION_API_URL = import.meta.env.VITE_WHATSAPP_API_URL;
@@ -929,6 +931,67 @@ export const WhatsAppAccountsConfigSection: React.FC = () => {
       clearInterval(pollInterval);
     };
   }, [activeAccountTab]);
+
+  // Subscribe to Evolution API Socket.io events for real-time connection updates
+  const socketService = useWhatsAppSocket();
+
+  useEffect(() => {
+    const unsubscribeConnection = socketService?.on('connection.update', (data: any) => {
+      const { instance, connectionStatus } = data;
+      const instanceName = instance || '';
+
+      if (evolutionStatus[instanceName as 'WA1' | 'WA2'] === connectionStatus) return;
+
+      if (connectionStatus === 'open' || connectionStatus === 'connected') {
+        // Conexión exitosa
+        setEvolutionStatus(prev => ({ ...prev, [instanceName as 'WA1' | 'WA2']: 'connected' }));
+        updateWhatsAppAccountConfig(instanceName as 'WA1' | 'WA2', {
+          qrConnected: true,
+          qrStatus: 'connected',
+          qrGeneratedAt: 'Sesión activa'
+        });
+        // Limpiar countdown
+        if (qrTimerRef.current[instanceName as 'WA1' | 'WA2']!) {
+          clearInterval(qrTimerRef.current[instanceName as 'WA1' | 'WA2']!);
+          qrTimerRef.current[instanceName as 'WA1' | 'WA2'] = null;
+        }
+        // Notificar al TenantContext para habilitar envío de mensajes
+        console.log(`✅ WhatsApp ${instanceName} conectado vía Socket.io`);
+      } else if (connectionStatus === 'close' || connectionStatus === 'disconnected' || connectionStatus === 'logged_out') {
+        // Desconexión
+        setEvolutionStatus(prev => ({ ...prev, [instanceName as 'WA1' | 'WA2']: 'disconnected' }));
+        alert(`La sesión de WhatsApp ${instanceName} ha sido desconectada. ${data.lastDisconnect?.reason || ''}`);
+        qrTimerRef.current[instanceName as 'WA1' | 'WA2'] = null;
+        // Permitir regenerar QR automáticamente
+        setEvolutionQrCode(prev => ({ ...prev, [instanceName as 'WA1' | 'WA2']: null }));
+      }
+    });
+
+    const unsubscribeQr = socketService?.on('qrcode', (data: any) => {
+      const { instance, qrCode } = data;
+      if (qrCode) {
+        setEvolutionQrCode(prev => ({ ...prev, [instance as 'WA1' | 'WA2']: qrCode }));
+        setEvolutionStatus(prev => ({ ...prev, [instance as 'WA1' | 'WA2']: 'connecting' }));
+        startQrCountdown(instance as 'WA1' | 'WA2');
+      }
+    });
+
+    const unsubscribeCreds = socketService?.on('creds.update', (data: any) => {
+      const { instance, creds } = data;
+      // Actualizar credenciales persistidas si es necesario
+      console.log('🔄 Credenciales actualizadas para', instance);
+    });
+
+    // Conectar al socket.io del Evolution API
+    socketService?.connect();
+
+    return () => {
+      unsubscribeConnection();
+      unsubscribeQr();
+      unsubscribeCreds();
+      socketService?.disconnect();
+    };
+  }, [socketService, evolutionStatus, updateWhatsAppAccountConfig, qrTimerRef, startQrCountdown, qrCountdown, activeAccountTab]);
 
   return (
     <div className="space-y-6">

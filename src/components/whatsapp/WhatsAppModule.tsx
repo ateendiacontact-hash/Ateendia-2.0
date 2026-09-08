@@ -35,6 +35,7 @@ import { EmojiPickerPopup, QUICK_EMOJIS } from '../chat/EmojiPickerPopup';
 import { StickerGifPicker } from '../chat/StickerGifPicker';
 import { VoiceAudioRecorder } from '../chat/VoiceAudioRecorder';
 import { WhatsAppConversation } from '../../types';
+import { useWhatsAppSocket } from '../../services/whatsappSocketService';
 
 interface WhatsAppModuleProps {
   onNavigateToTab?: (tab: string) => void;
@@ -167,7 +168,70 @@ export const WhatsAppModule: React.FC<WhatsAppModuleProps> = ({ onNavigateToTab 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [activeConv?.messages]);
-  // Verificar estado de WhatsApp al entrar
+
+  // Socket-based real-time connection status updates (with polling fallback)
+  const socketService = useWhatsAppSocket();
+
+  useEffect(() => {
+    // Conectar al socket al montar
+    socketService?.connect();
+
+    const account: 'WA1' | 'WA2' = selectedLineFilter === 'WA2' ? 'WA2' : 'WA1';
+    const instanceName = getInstanceName(currentTenant.id, account);
+
+    const unsubscribeConnection = socketService?.on('connection.update', (data: any) => {
+      const { connectionStatus } = data;
+      
+      // Actualizar estado local inmediatamente sin polling
+      if (connectionStatus === 'open' || connectionStatus === 'connected') {
+        setConnectionStatus('connected');
+        console.log(`✅ ${account} conectado vía Socket.io`);
+      } else if (connectionStatus === 'close' || connectionStatus === 'disconnected' || connectionStatus === 'logged_out') {
+        setConnectionStatus('disconnected');
+        alert(`La sesión de WhatsApp ${account} ha sido desconectada. Por favor vuelve a escanear el código QR.`);
+        // Mostrar modal de QR automáticamente
+        setShowQRModal(true);
+        setQrModalTab(account);
+        console.log(`⚠️ ${account} desconectado vía Socket.io`);
+      } else if (connectionStatus === 'qr' || connectionStatus === 'connecting') {
+        setConnectionStatus('qr');
+        console.log(`🔄 ${account} en estado de escaneo QR`);
+      }
+    });
+
+    const unsubscribeQr = socketService?.on('qrcode', (data: any) => {
+      const { qrCode } = data;
+      if (qrCode) {
+        setQrCode(qrCode);
+        setConnectionStatus('qr');
+        if (showQRModal && qrModalTab !== 'WA1' && qrModalTab !== 'WA2') {
+          // Auto-open modal if user is viewing QR section
+          const tab = selectedLineFilter === 'WA2' ? 'WA2' : 'WA1';
+          setQrModalTab(tab);
+          setShowQRModal(true);
+        }
+      }
+    });
+
+    // Fallback polling cada 30 segundos (reduced from 10s)
+    const pollInterval = setInterval(async () => {
+      const status = await checkWhatsAppConnection(instanceName);
+      if (status !== connectionStatus) {
+        setConnectionStatus(status);
+        if (status === 'connected') {
+          console.log(`✅ ${account} verificado conectado por polling`);
+        }
+      }
+    }, 30000);
+
+    return () => {
+      unsubscribeConnection();
+      unsubscribeQr();
+      clearInterval(pollInterval);
+    };
+  }, [selectedLineFilter, currentTenant.id, socketService, connectionStatus, showQRModal, qrModalTab, checkWhatsAppConnection]);
+
+  // Initialize connection state on mount / tab change - NO auto-generate QR
   useEffect(() => {
     const checkStatus = async () => {
       // Check based on selected line filter, default to WA1
@@ -178,10 +242,11 @@ export const WhatsAppModule: React.FC<WhatsAppModuleProps> = ({ onNavigateToTab 
       // NO abrir modal automáticamente; el usuario decide vincular manualmente
     };
     checkStatus();
-    const interval = setInterval(checkStatus, 10000); // Revisa cada 10 segundos
+    const interval = setInterval(checkStatus, 30000); // Revisa cada 30 segundos
     return () => clearInterval(interval);
-  }, [selectedLineFilter, currentTenant.id]);
-    const handleSendInboxMessage = async (e: React.FormEvent) => {
+  }, [selectedLineFilter, currentTenant.id, checkWhatsAppConnection]);
+
+  const handleSendInboxMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inboxInput.trim() || !activeConv) return;
     
