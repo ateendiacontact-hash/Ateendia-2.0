@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Mail,
   Server,
@@ -15,28 +15,29 @@ import {
   Clock,
   Zap,
   Save,
-  RotateCcw
+  RotateCcw,
+  Info
 } from 'lucide-react';
 import { useTenant } from '../../context/TenantContext';
+import { smtpService } from '../../services/smtpService';
 import { SaasSmtpConfig, SaasNotificationTemplates, SaasEmailTemplateItem } from '../../types';
-import { DEFAULT_SAAS_EMAIL_TEMPLATES } from '../../domain/saasDefaults';
+import { DEFAULT_SAAS_SMTP_CONFIG, DEFAULT_SAAS_EMAIL_TEMPLATES } from '../../domain/saasDefaults';
 
 export const SaasSmtpConfigSection: React.FC = () => {
   const {
-    saasSmtpConfig,
-    updateSaasSmtpConfig,
     saasNotificationTemplates,
-    updateSaasNotificationTemplates,
-    testSaasSmtpConnection
+    updateSaasNotificationTemplates
   } = useTenant();
 
   // Local Form for SMTP Settings
-  const [smtpForm, setSmtpForm] = useState<SaasSmtpConfig>(saasSmtpConfig);
+  const [smtpForm, setSmtpForm] = useState<SaasSmtpConfig>({ ...DEFAULT_SAAS_SMTP_CONFIG });
   const [showPassword, setShowPassword] = useState(false);
   const [testEmailRecipient, setTestEmailRecipient] = useState('director.saas@atomscloud.com');
   const [isTestingSmtp, setIsTestingSmtp] = useState(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [savedSuccessAlert, setSavedSuccessAlert] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   // Active Template Tab for editing
   const [selectedTemplateKey, setSelectedTemplateKey] = useState<keyof SaasNotificationTemplates>('paymentPending');
@@ -47,11 +48,34 @@ export const SaasSmtpConfigSection: React.FC = () => {
 
   const activeTemplate = templatesForm[selectedTemplateKey];
 
-  const handleSaveSmtp = (e: React.FormEvent) => {
+  useEffect(() => {
+    const loadSmtpConfig = async () => {
+      const result = await smtpService.getSaasConfig();
+      if (result.success && result.data) {
+        setSmtpForm(prev => ({
+          ...prev,
+          ...result.data,
+          isConfigured: result.data.isConfigured || false
+        }));
+      }
+    };
+    loadSmtpConfig();
+  }, []);
+
+  const handleSaveSmtp = async (e: React.FormEvent) => {
     e.preventDefault();
-    updateSaasSmtpConfig(smtpForm);
-    setSavedSuccessAlert(true);
-    setTimeout(() => setSavedSuccessAlert(false), 3000);
+    setError(null);
+    setSavedSuccessAlert(false);
+    try {
+      const result = await smtpService.updateSaasConfig(smtpForm);
+      if (result.success) {
+        setSavedSuccessAlert(true);
+      } else {
+        setError(`Error al guardar: ${result.error}`);
+      }
+    } catch (err) {
+      setError(`Error inesperado: ${err instanceof Error ? err.message : 'Error desconocido'}`);
+    }
   };
 
   const handleSendTestEmail = async () => {
@@ -59,7 +83,7 @@ export const SaasSmtpConfigSection: React.FC = () => {
     setIsTestingSmtp(true);
     setTestResult(null);
     try {
-      const result = await testSaasSmtpConnection(testEmailRecipient, smtpForm);
+      const result = await smtpService.testSaasConnection(testEmailRecipient, smtpForm);
       setTestResult(result);
     } catch (err: any) {
       setTestResult({
@@ -71,10 +95,13 @@ export const SaasSmtpConfigSection: React.FC = () => {
     }
   };
 
-  const handleSaveTemplates = () => {
-    updateSaasNotificationTemplates(templatesForm);
-    setTemplateSaveSuccess(true);
-    setTimeout(() => setTemplateSaveSuccess(false), 3000);
+  const handleSaveTemplates = async () => {
+    try {
+      await smtpService.updateSaasTemplates(templatesForm);
+      setTemplateSaveSuccess(true);
+    } catch (err) {
+      console.error('Error updating templates:', err);
+    }
   };
 
   const handleResetTemplate = (key: keyof SaasNotificationTemplates) => {
@@ -128,6 +155,13 @@ export const SaasSmtpConfigSection: React.FC = () => {
               <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4" />
                 <span>Configuración SMTP guardada exitosamente.</span>
+              </div>
+            )}
+
+            {error && (
+              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bold flex items-center gap-2">
+                <AlertCircle className="w-4 h-4" />
+                <span>{error}</span>
               </div>
             )}
 

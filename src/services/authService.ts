@@ -504,22 +504,15 @@ class AuthService {
     }
   }
 
-  // Request password reset - sends reset email via PocketBase
+  // Request password reset - uses PocketBase native SDK
   async requestPasswordReset(email: string): Promise<{ success: boolean; error?: string }> {
     try {
-      // Use PocketBase's built-in password reset request with timeout
-      const resetPromise = pb.collection(COLLECTIONS.USERS).requestPasswordReset(email);
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Timeout')), 3000)
-      );
-      await Promise.race([resetPromise, timeoutPromise]);
+      // Use PocketBase's built-in password reset request
+      await pb.collection(COLLECTIONS.USERS).requestPasswordReset(email);
       return { success: true };
     } catch (e: any) {
       console.error('Password reset request error:', e);
-      // In mock mode, still succeed for demo users
-      if (this.findDemoUser(email, '')) {
-        return { success: true, error: 'Modo Local: Enlace de restablecimiento simulado (SMTP no configurado).' };
-      }
+      // Return real PocketBase error message
       return { success: false, error: this.parseAuthError(e) };
     }
   }

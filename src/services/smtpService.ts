@@ -32,80 +32,100 @@ interface EmailLogEntry {
 }
 
 export const smtpService = {
-  // Tenant SMTP Config
-  async getConfig(): Promise<{ success: boolean; data?: SmtpConfig; error?: string }> {
-    try {
-      const records = await pb.collection(COLLECTIONS.SMTP_CONFIG).getFullList({
-        filter: `tenantId = "${pb.authStore.model?.tenantId}"`,
-      });
-      return { success: true, data: records[0] as unknown as SmtpConfig };
-    } catch (e: any) {
-      return { success: false, error: e.message };
-    }
-  },
+// Tenant SMTP Config
+   async getConfig(): Promise<{ success: boolean; data?: SmtpConfig; error?: string }> {
+     try {
+       const records = await pb.collection(COLLECTIONS.SMTP_CONFIG).getFullList({
+         filter: `tenantId = "${pb.authStore.model?.tenantId}"`,
+       });
+       return { success: true, data: records[0] as unknown as SmtpConfig };
+     } catch (e: any) {
+       return { success: false, error: e.message };
+     }
+   },
 
-  async updateConfig(config: Partial<SmtpConfig>): Promise<{ success: boolean; data?: SmtpConfig; error?: string }> {
-    try {
-      const existing = await this.getConfig();
-      if (existing.success && existing.data) {
-        const updated = await pb.collection(COLLECTIONS.SMTP_CONFIG).update(existing.data.id, config);
-        return { success: true, data: updated as unknown as SmtpConfig };
+   async updateConfig(config: Partial<SmtpConfig>): Promise<{ success: boolean; data?: SmtpConfig; error?: string }> {
+     try {
+       const existing = await this.getConfig();
+       if (existing.success && existing.data) {
+         const updated = await pb.collection(COLLECTIONS.SMTP_CONFIG).update(existing.data.id, config);
+         return { success: true, data: updated as unknown as SmtpConfig };
+       }
+       const created = await pb.collection(COLLECTIONS.SMTP_CONFIG).create({
+         ...config,
+         tenantId: pb.authStore.model?.tenantId,
+       });
+       return { success: true, data: created as unknown as SmtpConfig };
+     } catch (e: any) {
+       return { success: false, error: e.message };
+     }
+   },
+
+async testConnection(data: TestSmtpData): Promise<{ success: boolean; message: string }> {
+      try {
+        const apiUrl = import.meta.env.VITE_API_URL;
+        if (!apiUrl) {
+          return {
+            success: false,
+            message: '⚠️ No se ha detectado la URL de API backend (VITE_API_URL) ni el servicio activo para procesar el envío SMTP real.'
+          };
+        }
+        
+        const response = await fetch(`${apiUrl}/email/test`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        });
+        
+        if (response.ok) {
+          const result = await response.json();
+          return { success: true, message: result.message || 'Conexión SMTP exitosa' };
+        } else {
+          const errorData = await response.json();
+          return { success: false, message: errorData.message || errorData.error || 'Error al probar conexión SMTP' };
+        }
+      } catch (e: any) {
+        return { success: false, message: e.message };
       }
-      const created = await pb.collection(COLLECTIONS.SMTP_CONFIG).create({
-        ...config,
-        tenantId: pb.authStore.model?.tenantId,
-      });
-      return { success: true, data: created as unknown as SmtpConfig };
-    } catch (e: any) {
-      return { success: false, error: e.message };
-    }
-  },
+    },
 
-  async testConnection(data: TestSmtpData): Promise<{ success: boolean; message: string }> {
-    // Test SMTP connection via backend or PocketBase function
-    try {
-      // This would call a backend function to test SMTP
-      // For now, return success if config exists
-      const config = await this.getConfig();
-      if (config.success) {
-        return { success: true, message: 'Configuración SMTP válida' };
-      }
-      return { success: false, message: 'No hay configuración SMTP' };
-    } catch (e: any) {
-      return { success: false, message: e.message };
-    }
-  },
-
-  async sendEmail(data: SendEmailData): Promise<{ success: boolean; messageId?: string; error?: string }> {
-    try {
-      // Log email to PocketBase for tracking
-      const emailLog: EmailLogEntry = {
-        to: data.to,
-        subject: data.subject,
-        body: data.body,
-        status: 'pending',
-        sentAt: new Date().toISOString(),
-        tenantId: pb.authStore.model?.tenantId,
-      };
-
-      const logRecord = await pb.collection('email_logs').create(emailLog);
-
-      // In a real implementation, this would call an email service (SendGrid, Mailgun, etc.)
-      // For now, we simulate sending by updating the log
-      await pb.collection('email_logs').update(logRecord.id, { status: 'sent' });
-
-      console.log('📧 Email sent (simulated):', {
-        to: data.to,
-        subject: data.subject,
-        preview: data.body.substring(0, 100) + '...',
-      });
-
-      return { success: true, messageId: logRecord.id };
-    } catch (e: any) {
-      console.error('Failed to send email:', e);
-      return { success: false, error: e.message };
-    }
-  },
+   async sendEmail(data: SendEmailData): Promise<{ success: boolean; messageId?: string; error?: string }> {
+     try {
+       const apiUrl = import.meta.env.VITE_API_URL;
+       
+       if (!apiUrl) {
+         return { 
+           success: false, 
+           error: '⚠️ No se ha detectado la URL de API backend (VITE_API_URL) ni el servicio activo para procesar el envío SMTP real.' 
+         };
+       }
+       
+       const response = await fetch(`${apiUrl}/email/send`, {
+         method: 'POST',
+         headers: { 'Content-Type': 'application/json' },
+         body: JSON.stringify({
+           to: data.to,
+           subject: data.subject,
+           body: data.body,
+           templateId: data.templateId,
+           variables: data.variables,
+           clientId: data.clientId,
+         })
+       });
+       
+       if (response.ok) {
+         const result = await response.json();
+         return { success: true, messageId: result.messageId || result.id };
+       }
+       
+       const errorData = await response.json();
+       const errorMsg = errorData.message || errorData.error || 'Error al enviar el correo electrónico';
+       return { success: false, error: errorMsg };
+     } catch (e: any) {
+       console.error('Failed to send email:', e);
+       return { success: false, error: e.message };
+     }
+   },
 
   async sendBulk(emails: SendEmailData[]): Promise<{ success: boolean; sent: number; failed: number; error?: string }> {
     let sent = 0;
@@ -144,14 +164,41 @@ export const smtpService = {
     }
   },
 
-  async testSaasConnection(toEmail: string, config?: SaasSmtpConfig): Promise<{ success: boolean; message: string }> {
-    try {
-      // Test via backend function
-      return { success: true, message: 'Conexión de prueba exitosa' };
-    } catch (e: any) {
-      return { success: false, message: e.message };
-    }
-  },
+async testSaasConnection(toEmail: string, config?: SaasSmtpConfig): Promise<{ success: boolean; message: string }> {
+     try {
+       if (!toEmail) {
+         return { success: false, message: '⚠️ Se requiere un correo electrónico destino para la prueba.' };
+       }
+       
+       const apiUrl = import.meta.env.VITE_API_URL;
+       if (apiUrl) {
+         const response = await fetch(`${apiUrl}/email/test`, {
+           method: 'POST',
+           headers: { 'Content-Type': 'application/json' },
+           body: JSON.stringify({
+             toEmail,
+             config: config || await this.getSaasConfig().then(r => r.data),
+             isSaas: true
+           })
+         });
+         
+         if (response.ok) {
+           const result = await response.json();
+           return { success: true, message: result.message || 'Conexión SMTP Central exitosa' };
+         }
+         
+         const errorData = await response.json();
+         return { success: false, message: errorData.message || errorData.error || 'Error al probar conexión SMTP Central' };
+       }
+       
+       return { 
+         success: false, 
+         message: '⚠️ No se ha detectado la URL de API backend (VITE_API_URL) ni el servicio activo para procesar el envío SMTP real.' 
+       };
+     } catch (e: any) {
+       return { success: false, message: e.message || 'Error de conexión SMTP Central' };
+     }
+   },
 
   // SaaS Notification Templates
   async getSaasTemplates(): Promise<{ success: boolean; data?: SaasNotificationTemplates; error?: string }> {

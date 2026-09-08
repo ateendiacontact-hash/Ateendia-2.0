@@ -77,6 +77,10 @@ import {
   INITIAL_SAAS_DELEGATED_ADMINS,
   INITIAL_SAAS_LANDING_CONFIG
 } from '../domain/mockData';
+import { DomainService } from '../domain/domainService';
+import { getTenantPublicUrl, getSaasPublicUrl } from '../utils/urlUtils';
+import { smtpService } from '../services/smtpService';
+import { isGlobalSuperAdmin } from '../services/pocketbase';
 import {
   DEFAULT_SAAS_PLANS,
   DEFAULT_SAAS_SMTP_CONFIG,
@@ -84,9 +88,6 @@ import {
   DEFAULT_SAAS_WHATSAPP_CONFIG,
   INITIAL_PAYMENT_RECEIPTS
 } from '../domain/saasDefaults';
-import { DomainService } from '../domain/domainService';
-import { getTenantPublicUrl, getSaasPublicUrl } from '../utils/urlUtils';
-import { isGlobalSuperAdmin } from '../services/pocketbase';
 
 const EVOLUTION_API_URL = import.meta.env.VITE_WHATSAPP_API_URL || 'http://13.140.37.155:8080';
 const EVOLUTION_API_KEY = import.meta.env.VITE_EVOLUTION_API_KEY || 'evolution2026';
@@ -183,7 +184,7 @@ interface TenantContextType {
   updateAntiSpamSettings: (settings: Partial<AntiSpamSettings>) => void;
 
   smtpConfig: SmtpConfig;
-  saveSmtpConfig: (config: Partial<SmtpConfig>) => void;
+  saveSmtpConfig: (config: Partial<SmtpConfig>) => Promise<void>;
   sendEmailMessage: (to: string, subject: string, body: string, clientId?: string) => Promise<boolean>;
 
   templates: MessageTemplate[];
@@ -273,9 +274,9 @@ interface TenantContextType {
   saasPlans: SaasPlanFeatureLimit[];
   updateSaasPlans: (plans: SaasPlanFeatureLimit[]) => void;
   saasSmtpConfig: SaasSmtpConfig;
-  updateSaasSmtpConfig: (config: SaasSmtpConfig) => void;
+  updateSaasSmtpConfig: (config: SaasSmtpConfig) => Promise<void>;
   saasNotificationTemplates: SaasNotificationTemplates;
-  updateSaasNotificationTemplates: (templates: SaasNotificationTemplates) => void;
+  updateSaasNotificationTemplates: (templates: SaasNotificationTemplates) => Promise<void>;
   testSaasSmtpConnection: (toEmail: string, config?: SaasSmtpConfig) => Promise<{ success: boolean; message: string }>;
   saasWhatsAppCentralConfig: SaasWhatsAppCentralConfig;
   updateSaasWhatsAppCentralConfig: (config: SaasWhatsAppCentralConfig) => void;
@@ -1604,26 +1605,48 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   };
 
   // SMTP Email
-  const saveSmtpConfig = (configUpdates: Partial<SmtpConfig>) => {
-    setSmtpConfig((prev) => ({ ...prev, ...configUpdates }));
-    recordAudit('UPDATE', 'Email', `Configuración SMTP actualizada (${configUpdates.senderEmail || smtpConfig.senderEmail}).`);
+  const saveSmtpConfig = async (configUpdates: Partial<SmtpConfig>) => {
+    const apiUrl = import.meta.env.VITE_API_URL;
+    if (apiUrl) {
+      try {
+        const result = await smtpService.updateConfig(configUpdates);
+        if (result.success) {
+          setSmtpConfig((prev) => ({ ...prev, ...configUpdates }));
+          recordAudit('UPDATE', 'Email', `Configuración SMTP actualizada (${configUpdates.senderEmail || smtpConfig.senderEmail}).`);
+        } else {
+          console.error('Error saving SMTP config:', result.error);
+        }
+      } catch (err) {
+        console.error('Error saving SMTP config:', err);
+      }
+    } else {
+      setSmtpConfig((prev) => ({ ...prev, ...configUpdates }));
+      recordAudit('UPDATE', 'Email', `Configuración SMTP actualizada (${configUpdates.senderEmail || smtpConfig.senderEmail}).`);
+    }
   };
 
   const sendEmailMessage = async (to: string, subject: string, body: string, clientId?: string): Promise<boolean> => {
-    // Simulate real SMTP network dispatch
-    await new Promise((res) => setTimeout(res, 600));
-
-    if (clientId) {
-      addActivity({
-        clientId,
-        type: 'email',
-        title: `Correo enviado: ${subject}`,
-        description: `Enviado a ${to} desde ${smtpConfig.senderEmail}.`
-      });
+    const result = await smtpService.sendEmail({
+      to,
+      subject,
+      body,
+      clientId
+    });
+    if (result.success) {
+      if (clientId) {
+        addActivity({
+          clientId,
+          type: 'email',
+          title: `Correo enviado: ${subject}`,
+          description: `Enviado a ${to} desde ${smtpConfig.senderEmail}.`
+        });
+      }
+      recordAudit('SEND_MESSAGE', 'Email', `Correo "${subject}" enviado con éxito a ${to}.`, to);
+      return true;
+    } else {
+      console.error('SMTP send error:', result.error);
+      return false;
     }
-
-    recordAudit('SEND_MESSAGE', 'Email', `Correo "${subject}" enviado con éxito a ${to}.`, to);
-    return true;
   };
 
   // Templates
@@ -2552,30 +2575,60 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     recordAudit('UPDATE', 'Configuración', 'Planes y límites de cuotas SaaS master actualizados.');
   };
 
-  const updateSaasSmtpConfig = (config: SaasSmtpConfig) => {
-    setSaasSmtpConfig(config);
-    recordAudit('UPDATE', 'Configuración', `Configuración del servidor SMTP Central (${config.host}:${config.port}) actualizada.`);
+  const updateSaasSmtpConfig = async (config: SaasSmtpConfig) => {
+    const apiUrl = import.meta.env.VITE_API_URL;
+    if (apiUrl) {
+      try {
+        const result = await smtpService.updateSaasConfig(config);
+        if (result.success) {
+          setSaasSmtpConfig(config);
+          recordAudit('UPDATE', 'Configuración', `Configuración del servidor SMTP Central (${config.host}:${config.port}) actualizada.`);
+        } else {
+          console.error('Error updating SaaS SMTP config:', result.error);
+        }
+      } catch (err) {
+        console.error('Error updating SaaS SMTP config:', err);
+      }
+    } else {
+      setSaasSmtpConfig(config);
+      recordAudit('UPDATE', 'Configuración', `Configuración del servidor SMTP Central (${config.host}:${config.port}) actualizada.`);
+    }
   };
 
-  const updateSaasNotificationTemplates = (templates: SaasNotificationTemplates) => {
+  const updateSaasNotificationTemplates = async (templates: SaasNotificationTemplates) => {
+    const apiUrl = import.meta.env.VITE_API_URL;
+    if (apiUrl) {
+      try {
+        await smtpService.updateSaasTemplates(templates);
+      } catch (err) {
+        console.error('Error updating SaaS notification templates:', err);
+      }
+    }
     setSaasNotificationTemplates(templates);
     recordAudit('UPDATE', 'Configuración', 'Plantillas de correo transaccionales SaaS actualizadas.');
   };
 
   const testSaasSmtpConnection = async (toEmail: string, config?: SaasSmtpConfig): Promise<{ success: boolean; message: string }> => {
     const smtp = config || saasSmtpConfig;
-    await new Promise((r) => setTimeout(r, 800));
-    const isSuccess = Boolean(smtp.host && smtp.senderEmail && smtp.appPassword);
-    if (isSuccess) {
-      recordAudit('UPDATE', 'Configuración', `Prueba de correo SMTP Central exitosa enviada a ${toEmail}.`);
-      return {
-        success: true,
-        message: `✓ Conexión SMTP verificada exitosamente con ${smtp.host}:${smtp.port}. Mensaje de prueba entregado a ${toEmail}.`
-      };
+    const apiUrl = import.meta.env.VITE_API_URL;
+    if (apiUrl) {
+      try {
+        const result = await smtpService.testSaasConnection(toEmail, smtp);
+        if (result.success) {
+          recordAudit('UPDATE', 'Configuración', `Prueba de correo SMTP Central exitosa enviada a ${toEmail}.`);
+        }
+        return result;
+      } catch (err) {
+        console.error('Error testing SaaS SMTP connection:', err);
+        return {
+          success: false,
+          message: err?.message || 'Error al conectar con el servidor SMTP. Verifica las credenciales.'
+        };
+      }
     } else {
       return {
         success: false,
-        message: '⚠️ Error al conectar con el servidor SMTP. Verifica las credenciales y el puerto.'
+        message: '⚠️ No se ha detectado la URL de API backend (VITE_API_URL) ni el servicio activo para procesar el envío SMTP real.'
       };
     }
   };

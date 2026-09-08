@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Mail,
   Save,
@@ -14,13 +14,51 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { useTenant } from '../../context/TenantContext';
+import { smtpService } from '../../services/smtpService';
 
 export const SmtpConfigModule: React.FC = () => {
-  const { smtpConfig, updateSmtpConfig, sendEmailMessage } = useTenant();
-
-  const [formData, setFormData] = useState({ ...smtpConfig });
+  const { currentTenant } = useTenant();
+  const [formData, setFormData] = useState({
+    host: '',
+    port: 465,
+    protocol: 'ssl',
+    senderEmail: '',
+    senderName: '',
+    appPassword: '',
+    isConfigured: false,
+    tenantId: currentTenant?.id || '',
+  });
   const [showPassword, setShowPassword] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [testSuccess, setTestSuccess] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [isTestInProgress, setIsTestInProgress] = useState(false);
+
+  // Load existing SMTP config from PocketBase on component mount
+  useEffect(() => {
+    const loadConfig = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const result = await smtpService.getConfig();
+        if (result.success && result.data) {
+          setFormData(prev => ({
+            ...result.data,
+            tenantId: currentTenant?.id || prev.tenantId,
+          }));
+        }
+      } catch (err) {
+        console.error('Error loading SMTP config:', err);
+        setError('Error al cargar la configuración SMTP');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadConfig();
+  }, [currentTenant?.id]);
 
   // Test Email State
   const [testRecipient, setTestRecipient] = useState('supervisor.crm@atomscloud.com');
@@ -28,24 +66,73 @@ export const SmtpConfigModule: React.FC = () => {
   const [testBody, setTestBody] = useState(
     'Hola,\n\nEste es un mensaje de prueba enviado exitosamente desde el servidor SMTP de Atoms Cloud CRM.\n\nSaludos,\nEquipo de Soporte.'
   );
-  const [isSendingTest, setIsSendingTest] = useState(false);
-  const [testSuccess, setTestSuccess] = useState(false);
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    updateSmtpConfig(formData);
-    setSaveSuccess(true);
-    setTimeout(() => setSaveSuccess(false), 4000);
+    setError(null);
+    setSaveSuccess(false);
+    setIsLoading(true);
+
+    try {
+      const result = await smtpService.updateConfig(formData);
+      if (result.success) {
+        setSaveSuccess(true);
+        setError(null);
+      } else {
+        setError(`Error al guardar la configuración: ${result.error}`);
+      }
+    } catch (err) {
+      setError(`Error inesperado al guardar la configuración: ${err instanceof Error ? err.message : 'Error desconocido'}`);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleSendTest = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!testRecipient || !testSubject || !testBody) return;
-    setIsSendingTest(true);
-    await sendEmailMessage(testRecipient, testSubject, testBody);
-    setIsSendingTest(false);
-    setTestSuccess(true);
-    setTimeout(() => setTestSuccess(false), 5000);
+    if (!testRecipient || !testSubject || !testBody) {
+      setTestResult({ success: false, message: 'Faltan campos requeridos para la prueba' });
+      return;
+    }
+    
+    setIsTestInProgress(true);
+    setTestResult(null);
+    setError(null);
+
+    try {
+      const testData = {
+        toEmail: testRecipient,
+        config: formData,
+        isSaas: false,
+      };
+      
+      const apiUrl = import.meta.env.VITE_API_URL;
+      if (apiUrl) {
+        const response = await fetch(`${apiUrl}/email/test`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(testData)
+        });
+        
+        if (response.ok) {
+          const result = await response.json();
+          setTestResult({ success: true, message: result.message || 'Correo de prueba enviado exitosamente' });
+          setTestSuccess(true);
+        } else {
+          const errorData = await response.json();
+          setTestResult({ success: false, message: errorData.message || errorData.error || 'Error al enviar correo de prueba' });
+        }
+      } else {
+        setTestResult({ 
+          success: false, 
+          message: '⚠️ No se ha detectado la URL de API backend (VITE_API_URL) ni el servicio activo para procesar el envío SMTP real.' 
+        });
+      }
+    } catch (err) {
+      setTestResult({ success: false, message: `Error al enviar correo de prueba: ${err instanceof Error ? err.message : 'Error de conexión'}` });
+    } finally {
+      setIsTestInProgress(false);
+    }
   };
 
   return (
@@ -64,10 +151,10 @@ export const SmtpConfigModule: React.FC = () => {
           </div>
         </div>
 
-        {smtpConfig.senderEmail && (
+        {formData.senderEmail && (
           <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-800 rounded-xl border border-emerald-200 text-xs font-bold">
             <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-            <span>SMTP configurado: {smtpConfig.senderEmail}</span>
+            <span>SMTP configurado: {formData.senderEmail}</span>
           </div>
         )}
       </div>
@@ -87,6 +174,19 @@ export const SmtpConfigModule: React.FC = () => {
               SSL / Port 465
             </span>
           </div>
+
+          {isLoading && (
+            <div className="flex items-center justify-center py-4">
+              <div className="w-6 h-6 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
+              <span className="ml-2 text-sm text-slate-600">Cargando configuración...</span>
+            </div>
+          )}
+
+          {error && (
+            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-sm">
+              {error}
+            </div>
+          )}
 
           <form onSubmit={handleSave} className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -190,10 +290,11 @@ export const SmtpConfigModule: React.FC = () => {
 
               <button
                 type="submit"
-                className="px-5 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-md transition-all active:scale-98"
+                disabled={isLoading}
+                className="px-5 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-md transition-all active:scale-98 disabled:opacity-50"
               >
                 <Save className="w-4 h-4" />
-                <span>Guardar Cambios</span>
+                <span>{isLoading ? 'Guardando...' : 'Guardar Cambios'}</span>
               </button>
             </div>
           </form>
@@ -237,6 +338,23 @@ export const SmtpConfigModule: React.FC = () => {
               <Send className="w-4 h-4 text-purple-600" />
             </div>
 
+            {testResult && (
+              <div
+                className={`p-3 rounded-xl text-xs flex items-start gap-2 ${
+                  testResult.success
+                    ? 'bg-emerald-50 border border-emerald-200 text-emerald-800'
+                    : 'bg-rose-50 border border-rose-200 text-rose-800'
+                }`}
+              >
+                {testResult.success ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                ) : (
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                )}
+                <span>{testResult.message}</span>
+              </div>
+            )}
+
             <form onSubmit={handleSendTest} className="space-y-3">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">Correo Destinatario</label>
@@ -247,6 +365,7 @@ export const SmtpConfigModule: React.FC = () => {
                   placeholder="destinatario@ejemplo.com"
                   className="w-full px-3 py-2 bg-slate-50 border rounded-xl text-xs font-medium"
                   required
+                  disabled={isTestInProgress}
                 />
               </div>
 
@@ -258,6 +377,7 @@ export const SmtpConfigModule: React.FC = () => {
                   onChange={(e) => setTestSubject(e.target.value)}
                   className="w-full px-3 py-2 bg-slate-50 border rounded-xl text-xs font-semibold"
                   required
+                  disabled={isTestInProgress}
                 />
               </div>
 
@@ -269,6 +389,7 @@ export const SmtpConfigModule: React.FC = () => {
                   rows={3}
                   className="w-full p-2.5 bg-slate-50 border rounded-xl text-xs"
                   required
+                  disabled={isTestInProgress}
                 ></textarea>
               </div>
 
@@ -284,11 +405,11 @@ export const SmtpConfigModule: React.FC = () => {
 
                 <button
                   type="submit"
-                  disabled={isSendingTest}
+                  disabled={isTestInProgress || !testRecipient || !testSubject || !testBody}
                   className="px-4 py-2 bg-slate-900 hover:bg-black text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-xs transition-all active:scale-98 disabled:opacity-50"
                 >
                   <Send className="w-3.5 h-3.5" />
-                  <span>{isSendingTest ? 'Enviando vía SMTP...' : 'Enviar Correo de Prueba'}</span>
+                  <span>{isTestInProgress ? 'Enviando...' : 'Enviar Correo de Prueba'}</span>
                 </button>
               </div>
             </form>
@@ -298,3 +419,5 @@ export const SmtpConfigModule: React.FC = () => {
     </div>
   );
 };
+
+export default SmtpConfigModule;
