@@ -93,6 +93,19 @@ export const WhatsAppAccountsConfigSection: React.FC = () => {
   const [isFetchingQr, setIsFetchingQr] = useState<Record<'WA1' | 'WA2', boolean>>({
     WA1: false,
     WA2: false
+});
+  // Estados para control de tiempo y reintentos de QR
+  const [isWaitingQr, setIsWaitingQr] = useState<Record<'WA1' | 'WA2', boolean>>({
+    WA1: false,
+    WA2: false
+  });
+  const [qrRetryCount, setQrRetryCount] = useState<Record<'WA1' | 'WA2', number>>({
+    WA1: 0,
+    WA2: 0
+  });
+  const qrTimeoutRef = useRef<Record<'WA1' | 'WA2', NodeJS.Timeout | null>>({
+    WA1: null,
+    WA2: null
   });
   // Countdown para el QR (60 segundos) - independiente por instancia
   const [qrCountdown, setQrCountdown] = useState<Record<'WA1' | 'WA2', number>>({
@@ -211,35 +224,55 @@ export const WhatsAppAccountsConfigSection: React.FC = () => {
     }
   };
 
-  // Función para obtener QR de Evolution API
+  // Función para obtener QR de Evolution API - consumo directo del endpoint /instance/connect/:instanceName
   const fetchEvolutionQR = async (instanceName: string, tab: 'WA1' | 'WA2') => {
+    setIsFetchingQr(prev => ({ ...prev, [tab]: true }));
+    setIsWaitingQr(prev => ({ ...prev, [tab]: true }));
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
     try {
-      setIsFetchingQr(prev => ({ ...prev, [tab]: true }));
-      
       const response = await fetch(`${EVOLUTION_API_URL}/instance/connect/${instanceName}`, {
-        headers: { 'apikey': EVOLUTION_API_KEY }
+        headers: { 'apikey': EVOLUTION_API_KEY },
+        signal: controller.signal
       });
-      
+
+      clearTimeout(timeoutId);
       const data = await response.json();
-      
-      if (data.base64) {
-        setEvolutionQrCode(prev => ({ ...prev, [tab]: data.base64 }));
+
+      // Extraer base64 de múltiples formatos posibles de respuesta
+      const qrBase64 = data.base64 || data.qrcode?.base64 || data.qrcode?.code || data.code || null;
+
+      if (qrBase64) {
+        setEvolutionQrCode(prev => ({ ...prev, [tab]: qrBase64 }));
+        setIsWaitingQr(prev => ({ ...prev, [tab]: false }));
+        setQrRetryCount(prev => ({ ...prev, [tab]: 0 }));
         setEvolutionStatus(prev => ({ ...prev, [tab]: 'connecting' }));
-        // Iniciar countdown de 60 segundos
         startQrCountdown(tab);
       } else if (data.status === 'open') {
         setEvolutionStatus(prev => ({ ...prev, [tab]: 'connected' }));
-        // Si ya está conectado, limpiar countdown
+        setIsWaitingQr(prev => ({ ...prev, [tab]: false }));
         if (qrTimerRef.current[tab]) {
           clearInterval(qrTimerRef.current[tab]!);
           qrTimerRef.current[tab] = null;
         }
+      } else {
+        setIsWaitingQr(prev => ({ ...prev, [tab]: true }));
       }
-      
+
       setIsFetchingQr(prev => ({ ...prev, [tab]: false }));
       return data;
-    } catch (error) {
-      console.error('Error obteniendo QR:', error);
+    } catch (error: any) {
+      clearTimeout(timeoutId);
+      if (error.name === 'AbortError') {
+        console.warn(`⏰ Timeout de 10s para QR de ${instanceName}`);
+        setIsWaitingQr(prev => ({ ...prev, [tab]: true }));
+        setQrRetryCount(prev => ({ ...prev, [tab]: (prev[tab] || 0) + 1 }));
+      } else {
+        console.error('Error obteniendo QR:', error);
+        setIsWaitingQr(prev => ({ ...prev, [tab]: true }));
+      }
       setIsFetchingQr(prev => ({ ...prev, [tab]: false }));
       return null;
     }
@@ -450,88 +483,34 @@ export const WhatsAppAccountsConfigSection: React.FC = () => {
     setTimeout(() => setTestSuccessMessage(null), 4000);
   };
 
-  // Generar Nuevo QR para la pestaña activa
+  // Generar Nuevo QR para la pestaña activa - consumo directo de /instance/connect/:instanceName
   const handleGenerateQR = async () => {
-    console.log(` Iniciando generación de QR para ${activeAccountTab}...`);
+    console.log(` Generando QR para ${activeAccountTab}...`);
     const tab = activeAccountTab;
     const instanceName = getInstanceName(tab);
     
-    setIsFetchingQr(prev => ({ ...prev, [tab]: true }));
     setEvolutionQrCode(prev => ({ ...prev, [tab]: null }));
     setEvolutionStatus(prev => ({ ...prev, [tab]: 'disconnected' }));
+    setIsWaitingQr(prev => ({ ...prev, [tab]: false }));
+    setQrRetryCount(prev => ({ ...prev, [tab]: 0 }));
     
     if (qrTimerRef.current[tab]) {
       clearInterval(qrTimerRef.current[tab]!);
       qrTimerRef.current[tab] = null;
     }
+    if (qrTimeoutRef.current[tab]) {
+      clearTimeout(qrTimeoutRef.current[tab]!);
+      qrTimeoutRef.current[tab] = null;
+    }
 
     try {
-      const instanceData = await createEvolutionInstance(instanceName);
-
-      if (!instanceData || instanceData.status === 'error') {
-        console.error('❌ No se pudo crear la instancia');
-        alert('No se pudo generar el QR. Revisa la consola para más detalles.');
-        return;
-      }
-
-      if (instanceData.alreadyConnected || instanceData.status === 'connected') {
-        console.log('✅ Ya está conectado');
-        setEvolutionStatus(prev => ({ ...prev, [tab]: 'connected' }));
-        return;
-      }
-
-      // Si la instancia ya existe (400/403), intentar obtener QR directamente
-      if (instanceData.needsDirectConnect) {
-        console.log('🔄 Instancia ya existe, intentando obtener QR directamente vía /instance/connect...');
-        const qrData = await fetchEvolutionQR(instanceName, tab);
-        
-        if (!qrData || !qrData.base64) {
-          console.warn('⚠️ No se pudo obtener QR directo, intentando limpieza y re-creación...');
-          // Último recurso: forzar borrado y re-crear
-          try {
-            await fetch(`${EVOLUTION_API_URL}/instance/delete/${instanceName}`, {
-              method: 'DELETE',
-              headers: { 'apikey': EVOLUTION_API_KEY }
-            });
-          } catch (e) {}
-          
-          const retryResponse = await fetch(`${EVOLUTION_API_URL}/instance/create`, {
-            method: 'POST',
-            headers: {
-              'apikey': EVOLUTION_API_KEY,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              instanceName: instanceName,
-              integration: 'WHATSAPP-BAILEYS',
-              qrcode: true
-            })
-          });
-          
-          const retryData = await retryResponse.json();
-          
-          if (retryResponse.ok) {
-            // Reintento exitoso, obtener QR
-            const retryQrData = await fetchEvolutionQR(instanceName, tab);
-            if (!retryQrData || !retryQrData.base64) {
-              alert('No se pudo obtener el QR tras reintento. Intenta de nuevo.');
-            }
-          } else {
-            alert('No se pudo generar el QR tras limpieza. Revisa la consola.');
-          }
-        }
-      } else {
-        // Creación exitosa, obtener QR normalmente
-        console.log('📱 Obteniendo QR...');
-        const qrData = await fetchEvolutionQR(instanceName, tab);
-        
-        if (!qrData || !qrData.base64) {
-          console.error('❌ No se pudo obtener el QR');
-          alert('No se pudo obtener el QR. Intenta de nuevo.');
-        }
+      const qrData = await fetchEvolutionQR(instanceName, tab);
+      
+      if (!qrData || !evolutionQrCode[tab]) {
+        console.error('❌ No se pudo obtener el QR');
+        alert('No se pudo obtener el QR. Intenta de nuevo.');
       }
     } finally {
-      // Garantizar que isFetchingQr siempre se desactive
       setIsFetchingQr(prev => ({ ...prev, [tab]: false }));
     }
 
@@ -932,13 +911,23 @@ export const WhatsAppAccountsConfigSection: React.FC = () => {
     };
   }, [activeAccountTab]);
 
-  // Subscribe to Evolution API Socket.io events for real-time connection updates
+  // Suscribirse a los eventos de Socket.io del Evolution API con monitoreo de errores específicos
   const socketService = useWhatsAppSocket();
 
   useEffect(() => {
     const unsubscribeConnection = socketService?.on('connection.update', (data: any) => {
-      const { instance, connectionStatus } = data;
+      const { instance, connectionStatus, disconnectReason } = data;
       const instanceName = instance || '';
+      
+      // VERIFICAR errores específicos de límite de dispositivos
+      if ((connectionStatus === 'close' || connectionStatus === 'disconnected' || connectionStatus === 'logged_out') && 
+          (disconnectReason === 401 || disconnectReason === 'session_logged_out')) {
+        // Mostrar alerta clara sobre límite de dispositivos
+        alert(`Límite de dispositivos de WhatsApp alcanzado (máximo 4). Desconecta una sesión desde tu teléfono e reintenta.`);
+        // Actualizar estado local
+        setEvolutionStatus(prev => ({ ...prev, [instanceName as 'WA1' | 'WA2']: 'disconnected' }));
+        return;
+      }
 
       if (evolutionStatus[instanceName as 'WA1' | 'WA2'] === connectionStatus) return;
 
@@ -958,19 +947,28 @@ export const WhatsAppAccountsConfigSection: React.FC = () => {
         // Notificar al TenantContext para habilitar envío de mensajes
         console.log(`✅ WhatsApp ${instanceName} conectado vía Socket.io`);
       } else if (connectionStatus === 'close' || connectionStatus === 'disconnected' || connectionStatus === 'logged_out') {
-        // Desconexión
-        setEvolutionStatus(prev => ({ ...prev, [instanceName as 'WA1' | 'WA2']: 'disconnected' }));
-        alert(`La sesión de WhatsApp ${instanceName} ha sido desconectada. ${data.lastDisconnect?.reason || ''}`);
-        qrTimerRef.current[instanceName as 'WA1' | 'WA2'] = null;
-        // Permitir regenerar QR automáticamente
-        setEvolutionQrCode(prev => ({ ...prev, [instanceName as 'WA1' | 'WA2']: null }));
+        // Desconexión (caso general, no el de límite de dispositivos)
+        if (!((disconnectReason === 401 || disconnectReason === 'session_logged_out') && 
+              (connectionStatus === 'close' || connectionStatus === 'disconnected' || connectionStatus === 'logged_out'))) {
+          setEvolutionStatus(prev => ({ ...prev, [instanceName as 'WA1' | 'WA2']: 'disconnected' }));
+          alert(`La sesión de WhatsApp ${instanceName} ha sido desconectada. ${data.lastDisconnect?.reason || ''}`);
+          qrTimerRef.current[instanceName as 'WA1' | 'WA2'] = null;
+          // Permitir regenerar QR automáticamente
+          setEvolutionQrCode(prev => ({ ...prev, [instanceName as 'WA1' | 'WA2']: null }));
+        }
       }
     });
 
     const unsubscribeQr = socketService?.on('qrcode', (data: any) => {
       const { instance, qrCode } = data;
-      if (qrCode) {
-        setEvolutionQrCode(prev => ({ ...prev, [instance as 'WA1' | 'WA2']: qrCode }));
+      
+      // Manejar múltiples formatos de respuesta
+      const qrBase64 = qrCode?.base64 || qrCode?.code || qrCode || data.base64 || data.code || null;
+      
+      if (qrBase64) {
+        setEvolutionQrCode(prev => ({ ...prev, [instance as 'WA1' | 'WA2']: qrBase64 }));
+        setIsWaitingQr(prev => ({ ...prev, [instance as 'WA1' | 'WA2']: false }));
+        setQrRetryCount(prev => ({ ...prev, [instance as 'WA1' | 'WA2']: 0 }));
         setEvolutionStatus(prev => ({ ...prev, [instance as 'WA1' | 'WA2']: 'connecting' }));
         startQrCountdown(instance as 'WA1' | 'WA2');
       }
@@ -985,11 +983,52 @@ export const WhatsAppAccountsConfigSection: React.FC = () => {
     // Conectar al socket.io del Evolution API
     socketService?.connect();
 
+    // POLLING DE RESCATE: verificar cada 5 segundos usando endpoint de conexión directa
+    const pollInterval = setInterval(async () => {
+      (['WA1', 'WA2'] as const).forEach(async (tab) => {
+        const instanceName = getInstanceName(tab);
+        try {
+          const stateResponse = await fetch(`${EVOLUTION_API_URL}/instance/connectionState/${instanceName}`, {
+            headers: { 'apikey': EVOLUTION_API_KEY }
+          });
+          if (stateResponse.ok) {
+            const stateData = await stateResponse.json();
+            const status = stateData?.state || stateData?.status || stateData?.connectionStatus;
+            
+            if (status === 'open' && evolutionStatus[tab] !== 'connected') {
+              // Si está abierto, cerrar el modal de QR, actualizar UI y marcar como conectado
+              setEvolutionStatus(prev => ({ ...prev, [tab]: 'connected' }));
+              updateWhatsAppAccountConfig(tab, {
+                qrConnected: true,
+                qrStatus: 'connected',
+                qrGeneratedAt: 'Sesión activa'
+              });
+              if (qrTimerRef.current[tab]) {
+                clearInterval(qrTimerRef.current[tab]!);
+                qrTimerRef.current[tab] = null;
+              }
+              // Mostrar modal de QR si hay QR generado y el usuario puede escanear
+              if (evolutionQrCode[tab]) {
+                alert('¡WhatsApp conectado! El código QR ya no es necesario.');
+                setEvolutionQrCode(prev => ({ ...prev, [tab]: null }));
+              }
+            } else if (status !== 'open' && evolutionStatus[tab] === 'connected') {
+              // Si dejó de estar abierto, actualizar estado
+              setEvolutionStatus(prev => ({ ...prev, [tab]: 'disconnected' }));
+            }
+          }
+        } catch (error) {
+          // Endpoint de connectionState no disponible, silenciar error
+        }
+      });
+    }, 5000);
+
     return () => {
       unsubscribeConnection();
       unsubscribeQr();
       unsubscribeCreds();
       socketService?.disconnect();
+      clearInterval(pollInterval);
     };
   }, [socketService, evolutionStatus, updateWhatsAppAccountConfig, qrTimerRef, startQrCountdown, qrCountdown, activeAccountTab]);
 
@@ -1195,7 +1234,12 @@ export const WhatsAppAccountsConfigSection: React.FC = () => {
               <div className="sm:col-span-5 flex flex-col items-center justify-center p-4 bg-slate-50 border border-slate-200 rounded-2xl">
                 <div className="relative p-2 bg-white rounded-xl shadow-xs border border-slate-200">
                   {/* QR Code - Real o Simulado */}
-                  {getCurrentQrCode() && getCurrentStatus() === 'connecting' ? (
+                  {isWaitingQr[activeAccountTab] ? (
+                      <div className="w-36 h-36 rounded-lg flex items-center justify-center mx-auto mb-3 bg-amber-50 border border-amber-200">
+                        <AlertCircle className="w-8 h-8 text-amber-600 animate-pulse" />
+                        <span className="text-xs text-amber-800 ml-2">Esperando QR...</span>
+                      </div>
+                    ) : getCurrentQrCode() && getCurrentStatus() === 'connecting' ? (
                     // QR REAL de Evolution API
                     <img 
                       src={getCurrentQrCode()} 
@@ -1247,6 +1291,19 @@ export const WhatsAppAccountsConfigSection: React.FC = () => {
                       <rect x="78" y="142" width="24" height="8" rx="2" fill="#334155" />
                       <rect x="108" y="142" width="14" height="8" rx="2" fill="#0f172a" />
                     </svg>
+                  )}
+                  
+                  {isWaitingQr[activeAccountTab] && (
+                    <div className="mt-2 text-center">
+                      <button
+                        onClick={handleGenerateQR}
+                        disabled={getCurrentIsFetching()}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-[11px] font-bold transition-all disabled:opacity-50"
+                      >
+                        <RefreshCw className={`w-3 h-3 ${getCurrentIsFetching() ? 'animate-spin' : ''}`} />
+                        <span>Reintentar generación</span>
+                      </button>
+                    </div>
                   )}
                   
                   {getCurrentStatus() === 'connected' && (

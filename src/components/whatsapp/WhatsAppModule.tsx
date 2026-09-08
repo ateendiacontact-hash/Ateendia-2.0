@@ -63,17 +63,31 @@ const checkWhatsAppConnection = async (instanceName: string) => {
   }
 };
 
-const getWhatsAppQR = async (instanceName: string) => {
-  try {
-    const response = await fetch(`${EVOLUTION_API_URL}/instance/connect/${instanceName}`, {
-      headers: { 'apikey': EVOLUTION_API_KEY }
-    });
-    const data = await response.json();
-    return data.base64 || null;
-  } catch (error) {
-    return null;
-  }
-};
+// Función para obtener el QR de Evolution API - consumo directo de GET /instance/connect/:instanceName
+  const getWhatsAppQR = async (instanceName: string): Promise<string | null> => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+    try {
+      const response = await fetch(`${EVOLUTION_API_URL}/instance/connect/${instanceName}`, {
+        headers: { 'apikey': EVOLUTION_API_KEY },
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+      const data = await response.json();
+
+      return data.base64 || data.qrcode?.base64 || data.qrcode?.code || data.code || null;
+    } catch (error: any) {
+      clearTimeout(timeoutId);
+      if (error.name === 'AbortError') {
+        console.warn(`⏰ Timeout de 10s al obtener QR para ${instanceName}`);
+      } else {
+        console.error('Error obteniendo QR:', error);
+      }
+      return null;
+    }
+  };
 
 const sendEvolutionMessage = async (instanceName: string, phone: string, text: string) => {
   try {
@@ -109,6 +123,10 @@ export const WhatsAppModule: React.FC<WhatsAppModuleProps> = ({ onNavigateToTab 
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [showQRModal, setShowQRModal] = useState(false);
   const [qrModalTab, setQrModalTab] = useState<'WA1' | 'WA2'>('WA1');
+  // Estados para timeout y reintentos de QR
+  const [isWaitingQr, setIsWaitingQr] = useState<boolean>(false);
+  const [qrRetryCount, setQrRetryCount] = useState<number>(0);
+  const qrTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   // Search filter
   const [inboxSearch, setInboxSearch] = useState('');
 
@@ -245,6 +263,25 @@ export const WhatsAppModule: React.FC<WhatsAppModuleProps> = ({ onNavigateToTab 
     const interval = setInterval(checkStatus, 30000); // Revisa cada 30 segundos
     return () => clearInterval(interval);
   }, [selectedLineFilter, currentTenant.id, checkWhatsAppConnection]);
+
+  const handleGenerateQR = async () => {
+    const account: 'WA1' | 'WA2' = qrModalTab;
+    const instanceName = getInstanceName(currentTenant.id, account);
+
+    setIsWaitingQr(true);
+    setQrRetryCount(prev => prev + 1);
+    setQrCode(null);
+
+    const base64 = await getWhatsAppQR(instanceName);
+
+    if (base64) {
+      setQrCode(base64);
+      setIsWaitingQr(false);
+      setQrRetryCount(0);
+    } else {
+      setIsWaitingQr(true);
+    }
+  };
 
   const handleSendInboxMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1033,17 +1070,27 @@ export const WhatsAppModule: React.FC<WhatsAppModuleProps> = ({ onNavigateToTab 
             <h3 className="text-lg font-bold text-slate-900 mb-2">Vincular WhatsApp Real</h3>
             <p className="text-sm text-slate-600 mb-4">Escanea este código con tu celular</p>
 
-            {qrCode ? (
+            {isWaitingQr ? (
+              <div className="w-64 h-64 mx-auto bg-amber-50 border border-amber-200 rounded-xl flex flex-col items-center justify-center mb-4">
+                <RefreshCw className="w-8 h-8 text-amber-600 animate-spin mb-2" />
+                <span className="text-sm text-amber-800 font-medium">Generando QR...</span>
+              </div>
+            ) : qrCode ? (
               <img src={qrCode} alt="QR WhatsApp" className="w-64 h-64 mx-auto border-4 border-emerald-500 rounded-xl mb-4" />
             ) : (
               <div className="w-64 h-64 mx-auto bg-slate-100 rounded-xl flex items-center justify-center mb-4">
-                <span className="text-slate-500">Generando QR...</span>
+                <span className="text-slate-500">Sin QR generado</span>
               </div>
             )}
 
-            <button onClick={() => setShowQRModal(false)} className="w-full py-2 bg-slate-200 hover:bg-slate-300 rounded-xl text-sm font-bold transition">
-              Cerrar
-            </button>
+            <div className="flex gap-3">
+              <button onClick={handleGenerateQR} className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold transition">
+                {isWaitingQr ? 'Generando...' : 'Generar QR'}
+              </button>
+              <button onClick={() => setShowQRModal(false)} className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-sm font-bold transition">
+                Cerrar
+              </button>
+            </div>
           </div>
         </div>
       )}

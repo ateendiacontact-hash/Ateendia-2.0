@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { useTenant } from '../../context/TenantContext';
 import { SaasWhatsAppCentralConfig } from '../../types';
+import { useWhatsAppSocket } from '../../services/whatsappSocketService';
 
 // Configuración de Evolution API
 const EVOLUTION_API_URL = import.meta.env.VITE_WHATSAPP_API_URL || 'http://13.140.37.155:8080';
@@ -96,6 +97,12 @@ export const SaasWhatsAppCentralSection: React.FC = () => {
   // Instancia única para Central SaaS
   const CENTRAL_INSTANCE_NAME = 'ateendia-saas-central';
 
+  // Socket para monitoreo en tiempo real
+  const socketService = useWhatsAppSocket();
+
+  // Estado para modal de QR y control de conexión
+  const [showQRModal, setShowQRModal] = useState(false);
+
   // Iniciar countdown cuando se genera el QR
   const startQrCountdown = () => {
     if (qrTimerRef.current) {
@@ -128,6 +135,84 @@ export const SaasWhatsAppCentralSection: React.FC = () => {
       }
     };
   }, []);
+
+  // Suscribirse a Socket.io y polling de rescate cada 5 segundos
+  useEffect(() => {
+    // Socket-based real-time connection monitoring
+    const unsubscribeConnection = socketService?.on('connection.update', (data: any) => {
+      const { instance, connectionStatus, disconnectReason } = data;
+
+      // Verificar límite de dispositivos (401 o session_logged_out)
+      if ((connectionStatus === 'close' || connectionStatus === 'disconnected' || connectionStatus === 'logged_out') &&
+          (disconnectReason === 401 || disconnectReason === 'session_logged_out')) {
+        alert('Límite de dispositivos de WhatsApp alcanzado (máximo 4). Desconecta una sesión desde tu teléfono e reintenta.');
+        setEvolutionStatus('disconnected');
+        return;
+      }
+
+      if (connectionStatus === 'open' || connectionStatus === 'connected') {
+        setEvolutionStatus('connected');
+        setShowQRModal(false);
+        if (qrTimerRef.current) {
+          clearInterval(qrTimerRef.current);
+          qrTimerRef.current = null;
+        }
+        console.log('✅ Central SaaS conectado vía Socket.io');
+      } else if (connectionStatus === 'close' || connectionStatus === 'disconnected' || connectionStatus === 'logged_out') {
+        setEvolutionStatus('disconnected');
+        setShowQRModal(true);
+      }
+    });
+
+    const unsubscribeQr = socketService?.on('qrcode', (data: any) => {
+      const { qrCode } = data;
+      if (qrCode) {
+        setEvolutionQrCode(qrCode);
+        setEvolutionStatus('connecting');
+        startQrCountdown();
+        setShowQRModal(true);
+      }
+    });
+
+    socketService?.connect();
+
+    // LONG POLLING DE RESCATE: consultar cada 5 segundos el estado de conexión
+    const pollInterval = setInterval(async () => {
+      try {
+        const stateResponse = await fetch(`${EVOLUTION_API_URL}/instance/connectionState/${CENTRAL_INSTANCE_NAME}`, {
+          headers: { 'apikey': EVOLUTION_API_KEY }
+        });
+        if (stateResponse.ok) {
+          const stateData = await stateResponse.json();
+          const status = stateData?.state || stateData?.status || stateData?.connectionStatus;
+
+          if (status === 'open') {
+            setEvolutionStatus('connected');
+            setShowQRModal(false);
+            if (qrTimerRef.current) {
+              clearInterval(qrTimerRef.current);
+              qrTimerRef.current = null;
+            }
+            // Actualizar configuración para reflejar conexión activa
+            const updated = { ...configForm, isConnected: true, qrStatus: 'connected' };
+            setConfigForm(updated);
+            updateSaasWhatsAppCentralConfig(updated);
+          } else if (status !== 'open' && evolutionStatus === 'connected') {
+            setEvolutionStatus('disconnected');
+          }
+        }
+      } catch (error) {
+        // Endpoint no disponible, silenciar
+      }
+    }, 5000);
+
+    return () => {
+      unsubscribeConnection();
+      unsubscribeQr();
+      socketService?.disconnect();
+      clearInterval(pollInterval);
+    };
+  }, [socketService, evolutionStatus, configForm, updateSaasWhatsAppCentralConfig]);
 
   // Inicializar códigos de país y números locales desde configForm
   useEffect(() => {
@@ -940,30 +1025,68 @@ export const SaasWhatsAppCentralSection: React.FC = () => {
             </div>
           </form>
 
-          {/* Recent WhatsApp Dispatch Log */}
-          <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-2xs space-y-3">
-            <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-              Historial de Notificaciones WhatsApp Despachadas
-            </h4>
+{/* Recent WhatsApp Dispatch Log */}
+           <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-2xs space-y-3">
+             <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+               Historial de Notificaciones WhatsApp Despachadas
+             </h4>
 
-            <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
-              {configForm.messageLog?.map((log) => (
-                <div key={log.id} className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-1">
-                  <div className="flex items-center justify-between text-[10px]">
-                    <span className="font-bold text-emerald-700">{log.recipientName} ({log.to})</span>
-                    <span className="text-slate-400 font-mono">{log.timestamp}</span>
-                  </div>
-                  <p className="text-slate-700 font-sans">{log.message}</p>
-                  <div className="flex items-center justify-end gap-1 text-[10px] text-emerald-600 font-bold">
-                    <CheckCheck className="w-3.5 h-3.5" />
-                    <span className="capitalize">{log.status === 'read' ? 'Leído' : 'Entregado'}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+             <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+               {configForm.messageLog?.map((log) => (
+                 <div key={log.id} className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-1">
+                   <div className="flex items-center justify-between text-[10px]">
+                     <span className="font-bold text-emerald-700">{log.recipientName} ({log.to})</span>
+                     <span className="text-slate-400 font-mono">{log.timestamp}</span>
+                   </div>
+                   <p className="text-slate-700 font-sans">{log.message}</p>
+                   <div className="flex items-center justify-end gap-1 text-[10px] text-emerald-600 font-bold">
+                     <CheckCheck className="w-3.5 h-3.5" />
+                     <span className="capitalize">{log.status === 'read' ? 'Leído' : 'Entregado'}</span>
+                   </div>
+                 </div>
+               ))}
+             </div>
+           </div>
+         </div>
+       </div>
+
+       {/* Manual QR Modal (only on user request) */}
+       {showQRModal && (
+         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+           <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl text-center">
+             <h3 className="text-lg font-bold text-slate-900 mb-2">Vincular WhatsApp Central</h3>
+             <p className="text-sm text-slate-600 mb-4">Escanea este código con tu celular</p>
+
+             {evolutionStatus === 'connecting' && evolutionQrCode ? (
+               <img 
+                 src={evolutionQrCode} 
+                 alt="QR WhatsApp Central" 
+                 className="w-64 h-64 mx-auto border-4 border-emerald-500 rounded-xl mb-4" 
+               />
+             ) : (
+               <div className="w-64 h-64 mx-auto bg-slate-100 rounded-xl flex items-center justify-center mb-4">
+                 <span className="text-slate-500">Generando QR...</span>
+               </div>
+             )}
+
+             <div className="flex gap-3 mt-4">
+               <button 
+                 onClick={handleGenerateQR} 
+                 className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold transition"
+                 disabled={isFetchingQr}
+               >
+                 {isFetchingQr ? 'Generando...' : 'Generar QR'}
+               </button>
+               <button 
+                 onClick={() => setShowQRModal(false)} 
+                 className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-sm font-bold transition"
+               >
+                 Cerrar
+               </button>
+             </div>
+           </div>
+         </div>
+       )}
+     </div>
+   );
 };
