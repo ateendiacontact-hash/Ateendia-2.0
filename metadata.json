@@ -1,0 +1,6 @@
+{
+  "name": "Ateendia CRM",
+  "description": "Plataforma CRM y SaaS integral multi-empresa para gestión de clientes, pólizas ACA/Vida, WhatsApp con multimedia & IA, integraciones n8n/OpenRouter, programación anti-spam y telefonía.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
