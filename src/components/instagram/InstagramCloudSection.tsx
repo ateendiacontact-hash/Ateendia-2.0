@@ -17,7 +17,9 @@ import {
   Eye,
   EyeOff,
   Instagram,
-  MessageCircle
+  MessageCircle,
+  ExternalLink,
+  Save
 } from 'lucide-react';
 import { useTenant } from '../../context/TenantContext';
 import { MetaGraphService } from '../../services/metaGraphService';
@@ -50,7 +52,44 @@ export const InstagramCloudSection: React.FC = () => {
   const [credentialsValid, setCredentialsValid] = useState<boolean | null>(null);
   const [messageCount, setMessageCount] = useState<number>(0);
 
-  const isConfigured = MetaGraphService.isConfigured(instagramConfig);
+  const [isConfigured, setIsConfigured] = useState<boolean>(false);
+  const [isConfiguredLoading, setIsConfiguredLoading] = useState<boolean>(true);
+
+  useEffect(() => {
+    // Cargar configuración real de PocketBase asociada al tenant activo
+    const loadConfig = async () => {
+      try {
+        const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/integrations/instagram/config`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('pb_auth') ? JSON.parse(localStorage.getItem('pb_auth') || '{}').token : ''}`
+          }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          const config = data.data || data;
+          if (config.tenantId === currentTenant.id || config.tenantId === undefined) {
+            setIsConfigured(MetaGraphService.isConfigured(config));
+            if (config.instagramId) setInstagramId(config.instagramId);
+            if (config.accessToken) setAccessToken(config.accessToken);
+            if (config.webhookUrl) setWebhookUrl(config.webhookUrl);
+            if (config.verifyToken) setVerifyToken(config.verifyToken);
+          }
+        }
+      } catch (e) {
+        // Si no hay backend, usar configuración local
+        setIsConfigured(MetaGraphService.isConfigured(instagramConfig));
+        if (instagramConfig.instagramId) setInstagramId(instagramConfig.instagramId);
+        if (instagramConfig.accessToken) setAccessToken(instagramConfig.accessToken);
+        if (instagramConfig.webhookUrl) setWebhookUrl(instagramConfig.webhookUrl);
+        if (instagramConfig.verifyToken) setVerifyToken(instagramConfig.verifyToken);
+      } finally {
+        setIsConfiguredLoading(false);
+      }
+    };
+    loadConfig();
+  }, [currentTenant.id]);
+
+  const isConfiguredReal = isConfigured;
 
   useEffect(() => {
     if (instagramConfig.instagramId) setInstagramId(instagramConfig.instagramId);
@@ -59,23 +98,47 @@ export const InstagramCloudSection: React.FC = () => {
     if (instagramConfig.verifyToken) setVerifyToken(instagramConfig.verifyToken);
   }, [instagramConfig]);
 
-  const handleSave = useCallback(() => {
+  const handleSave = useCallback(async () => {
     setIsSaving(true);
-    saveInstagramConfig({
+    const configWithTenant = {
       instagramId,
       accessToken,
       webhookUrl,
       verifyToken,
-      connectionType: 'meta_graph'
-    });
+      connectionType: 'meta_graph' as const,
+      tenantId: currentTenant.id
+    };
+
+    saveInstagramConfig(configWithTenant);
+
+    try {
+      const pbToken = JSON.parse(localStorage.getItem('pb_auth') || '{}').token;
+      const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/integrations/instagram/config`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${pbToken || ''}`
+        },
+        body: JSON.stringify({
+          ...configWithTenant,
+          tenantId: currentTenant.id
+        })
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setIsConfigured(MetaGraphService.isConfigured(data));
+      }
+    } catch (e) {
+      console.log('✅ Configuración guardada en localStorage (modo offline)');
+    }
 
     setTimeout(() => {
       setIsSaving(false);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
-      recordAudit?.('UPDATE', 'Instagram', `Configuración Instagram Graph API guardada para ${currentTenant.name}`);
+      recordAudit?.('UPDATE', 'Integraciones', `Configuración Instagram Graph API guardada para tenant ${currentTenant.id} (${currentTenant.name})`);
     }, 500);
-  }, [instagramId, accessToken, webhookUrl, verifyToken, saveInstagramConfig, currentTenant.name, recordAudit]);
+  }, [instagramId, accessToken, webhookUrl, verifyToken, saveInstagramConfig, currentTenant.id, currentTenant.name, recordAudit]);
 
   const verifyCredentials = useCallback(async () => {
     if (!instagramId || !accessToken) return;
@@ -91,22 +154,17 @@ export const InstagramCloudSection: React.FC = () => {
 
   const handleSendTestMessage = useCallback(async () => {
     if (!testPhoneNumber || !testMessage) return;
+    if (!accessToken || !instagramId) {
+      setSendResult({ success: false, message: 'Debe configurar las credenciales de Instagram antes de enviar mensajes reales.' });
+      return;
+    }
 
     setIsSending(true);
     setSendResult(null);
 
-    const isDevMode = !isConfigured || !accessToken;
-
-    if (isDevMode) {
-      await new Promise(resolve => setTimeout(resolve, 800));
-      setMessageCount(prev => prev + 1);
-      setSendResult({
-        success: true,
-        message: 'Mensaje simulado enviado exitosamente (Mock Mode - sin API real)'
-      });
-    } else {
+    try {
       const result = await MetaGraphService.sendMessage(
-        { ...instagramConfig, instagramId, accessToken },
+        { instagramId, accessToken, webhookUrl, verifyToken },
         testPhoneNumber,
         testMessage
       );
@@ -122,10 +180,12 @@ export const InstagramCloudSection: React.FC = () => {
           : `Error: ${result.error}`,
         messageId: result.messageId
       });
+    } catch (error) {
+      setSendResult({ success: false, message: `Error de conexión con Meta Graph API: ${error instanceof Error ? error.message : 'Error desconocido'}` });
+    } finally {
+      setIsSending(false);
     }
-
-    setIsSending(false);
-  }, [testPhoneNumber, testMessage, isConfigured, accessToken, instagramConfig, messageCount]);
+  }, [testPhoneNumber, testMessage, instagramId, accessToken, webhookUrl, verifyToken, messageCount]);
 
   const copyToClipboard = (text: string, field: string) => {
     navigator.clipboard.writeText(text);
@@ -343,7 +403,7 @@ export const InstagramCloudSection: React.FC = () => {
           <div className="flex items-center gap-3">
             <button
               onClick={handleSendTestMessage}
-              disabled={!testPhoneNumber || !testMessage || isSending}
+              disabled={!testPhoneNumber || !testMessage || !accessToken || !instagramId || isSending}
               className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
             >
               {isSending ? (
@@ -374,20 +434,6 @@ export const InstagramCloudSection: React.FC = () => {
               </span>
             )}
           </div>
-
-          {/* Mock Mode Notice */}
-          {!isConfigured && (
-            <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-xl">
-              <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
-              <div>
-                <p className="text-xs font-bold text-amber-800">Modo Mock / Desarrollo</p>
-                <p className="text-[10px] text-amber-700 mt-0.5">
-                  No hay credenciales configuradas. Los mensajes se simularán sin enviarse realmente a la API de Meta.
-                  Configura las credenciales arriba para habilitar el envío real.
-                </p>
-              </div>
-            </div>
-          )}
         </div>
       </div>
 

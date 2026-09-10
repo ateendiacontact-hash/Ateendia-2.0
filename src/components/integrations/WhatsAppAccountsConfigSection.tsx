@@ -1,37 +1,36 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
-  Smartphone,
-  QrCode,
-  CheckCircle2,
-  RefreshCw,
-  AlertCircle,
-  Save,
-  Send,
-  Plus,
-  Trash2,
-  Clock,
-  Shield,
-  User,
-  Phone,
-  Layers,
-  Sparkles,
-  Check,
-  Copy,
-  ExternalLink,
-  Zap,
-  Activity,
-  Radio,
-  Sliders,
-  Bell,
-  MessageSquare,
-  Bot
+    Smartphone,
+    QrCode,
+    CheckCircle2,
+    RefreshCw,
+    AlertCircle,
+    Save,
+    Send,
+    Plus,
+    Trash2,
+    Clock,
+    Shield,
+    User,
+    Phone,
+    Layers,
+    Sparkles,
+    Check,
+    Copy,
+    ExternalLink,
+    Zap,
+    Activity,
+    Radio,
+    Sliders,
+    Bell,
+    MessageSquare,
+    Bot
 } from 'lucide-react';
 import { useTenant } from '../../context/TenantContext';
 import { WhatsAppAccountConfig, WhatsAppAlertRecipient } from '../../types';
 import { useWhatsAppSocket } from '../../services/whatsappSocketService';
-import { getEvolutionConfig } from '../../services/evolutionApi';
+import { pb } from '../../services/pocketbase';
 
-// Configuración de Evolution API
 const EVOLUTION_API_URL = import.meta.env.VITE_WHATSAPP_API_URL;
 const EVOLUTION_API_KEY = import.meta.env.VITE_EVOLUTION_API_KEY;
 
@@ -162,6 +161,57 @@ export const WhatsAppAccountsConfigSection: React.FC = () => {
       });
     };
   }, []);
+
+// Persistir configuración de cuenta WhatsApp en PocketBase con tenant isolation
+  const persistAccountConfig = async (accountId: 'WA1' | 'WA2', config: Partial<WhatsAppAccountConfig>) => {
+    if (!currentTenant?.id || !pb.authStore.isValid) return;
+    try {
+      const filter = `tenantId = "${currentTenant.id}" && accountId = "${accountId}"`;
+      let record: any = null;
+      try {
+        record = await pb.collection('whatsapp_accounts').getFirstListItem(filter);
+      } catch (e: any) {
+        if (e?.status !== 404) {
+          console.warn('Error buscando cuenta WhatsApp en PocketBase:', e);
+        }
+      }
+
+      const payload = {
+        tenantId: currentTenant.id,
+        accountId,
+        ...config,
+        updatedAt: new Date().toISOString()
+      };
+
+      if (record) {
+        await pb.collection('whatsapp_accounts').update(record.id, payload);
+      } else {
+        await pb.collection('whatsapp_accounts').create(payload);
+      }
+    } catch (e) {
+      console.warn('Error persistiendo cuenta WhatsApp en PocketBase:', e);
+    }
+  };
+
+  // Cargar configuración persistida desde PocketBase para la pestaña activa
+  const loadPersistedAccountConfig = async (accountId: 'WA1' | 'WA2') => {
+    if (!currentTenant?.id || !pb.authStore.isValid) return;
+    try {
+      const filter = `tenantId = "${currentTenant.id}" && accountId = "${accountId}"`;
+      const record = await pb.collection('whatsapp_accounts').getFirstListItem(filter);
+      const { tenantId, accountId: _acc, id, created, updated, ...rest } = record as any;
+      updateWhatsAppAccountConfig(accountId, rest);
+    } catch (e: any) {
+      if (e?.status !== 404) {
+        console.warn('Error cargando config WhatsApp de PocketBase:', e);
+      }
+    }
+  };
+
+  // Cargar configuración persistida desde PocketBase al montar o cambiar de pestaña
+  useEffect(() => {
+    loadPersistedAccountConfig(activeAccountTab);
+  }, [activeAccountTab, currentTenant?.id]);
 
   // Función para crear/verificar instancia en Evolution API
   const createEvolutionInstance = async (instanceName: string) => {
@@ -457,7 +507,7 @@ export const WhatsAppAccountsConfigSection: React.FC = () => {
   };
 
   // Save Pipeline and routing settings
-  const handleSaveSettings = () => {
+  const handleSaveSettings = async () => {
     const now = new Date();
     const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
     
@@ -471,20 +521,24 @@ export const WhatsAppAccountsConfigSection: React.FC = () => {
       change: `Pipeline de entrada configurado en "${pipeName}"`
     };
 
-    updateWhatsAppAccountConfig(activeAccountTab, {
+    const updates = {
       selectedPipelineId: selectedPipeline,
       defaultPipelineId: selectedPipeline,
       autoReply,
       roundRobinAgents: roundRobin,
       changeLog: [newLogItem, ...(currentAcc.changeLog || [])]
-    });
+    };
+
+    updateWhatsAppAccountConfig(activeAccountTab, updates);
+
+    await persistAccountConfig(activeAccountTab, updates);
 
     setTestSuccessMessage(`¡Configuración de ${currentAcc.name} guardada exitosamente!`);
     setTimeout(() => setTestSuccessMessage(null), 4000);
   };
 
   // Generar Nuevo QR para la pestaña activa - consumo directo de /instance/connect/:instanceName
-  const handleGenerateQR = async () => {
+const handleGenerateQR = async () => {
     console.log(` Generando QR para ${activeAccountTab}...`);
     const tab = activeAccountTab;
     const instanceName = getInstanceName(tab);
@@ -502,7 +556,7 @@ export const WhatsAppAccountsConfigSection: React.FC = () => {
       clearTimeout(qrTimeoutRef.current[tab]!);
       qrTimeoutRef.current[tab] = null;
     }
-
+    
     try {
       const qrData = await fetchEvolutionQR(instanceName, tab);
       
@@ -513,22 +567,25 @@ export const WhatsAppAccountsConfigSection: React.FC = () => {
     } finally {
       setIsFetchingQr(prev => ({ ...prev, [tab]: false }));
     }
-
+    
     const now = new Date();
     const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-
+    
     const newLogItem = {
       date: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${timeStr}`,
       user: currentUser.name,
       action: 'Actualización QR',
       change: `Nuevo código QR generado para ${currentAcc.name} (Evolution API)`
     };
-
-    updateWhatsAppAccountConfig(activeAccountTab, {
+    
+    const updates: Partial<WhatsAppAccountConfig> = {
       qrGeneratedAt: `Generado a las ${timeStr}`,
       qrStatus: 'ready_to_scan',
       changeLog: [newLogItem, ...(currentAcc.changeLog || [])]
-    });
+    };
+    
+    updateWhatsAppAccountConfig(activeAccountTab, updates);
+    await persistAccountConfig(activeAccountTab, updates);
   };
 
   // Verificar conexión (equivalente a handleSimulateScan)
@@ -551,12 +608,15 @@ export const WhatsAppAccountsConfigSection: React.FC = () => {
         change: `Sesión de ${currentAcc.name} vinculada con éxito vía QR (Evolution API)`
       };
 
-      updateWhatsAppAccountConfig(activeAccountTab, {
+      const updates: Partial<WhatsAppAccountConfig> = {
         qrConnected: true,
         qrStatus: 'connected',
         qrGeneratedAt: 'Sesión activa',
         changeLog: [newLogItem, ...(currentAcc.changeLog || [])]
-      });
+      };
+
+      updateWhatsAppAccountConfig(activeAccountTab, updates);
+      await persistAccountConfig(activeAccountTab, updates);
 
       setTestSuccessMessage(`¡Dispositivo vinculado con éxito para ${currentAcc.name}!`);
       setTimeout(() => setTestSuccessMessage(null), 4000);
@@ -568,7 +628,7 @@ export const WhatsAppAccountsConfigSection: React.FC = () => {
   };
 
   // Desconectar sesión
-  const handleDisconnect = () => {
+  const handleDisconnect = async () => {
     if (!confirm(`¿Estás seguro de desvincular la sesión de ${currentAcc.name}?`)) return;
 
     const tab = activeAccountTab;
@@ -584,11 +644,14 @@ export const WhatsAppAccountsConfigSection: React.FC = () => {
       change: `Sesión de ${currentAcc.name} cerrada por el usuario`
     };
 
-    updateWhatsAppAccountConfig(activeAccountTab, {
+    const updates: Partial<WhatsAppAccountConfig> = {
       qrConnected: false,
       qrStatus: 'disconnected',
       changeLog: [newLogItem, ...(currentAcc.changeLog || [])]
-    });
+    };
+
+    updateWhatsAppAccountConfig(activeAccountTab, updates);
+    await persistAccountConfig(activeAccountTab, updates);
 
     // Limpiar estado local
     setEvolutionQrCode(prev => ({ ...prev, [tab]: null }));
@@ -621,12 +684,15 @@ export const WhatsAppAccountsConfigSection: React.FC = () => {
         change: `Sesión de ${currentAcc.name} vinculada con éxito vía QR (Evolution API)`
       };
 
-      updateWhatsAppAccountConfig(activeAccountTab, {
+      const updates: Partial<WhatsAppAccountConfig> = {
         qrConnected: true,
         qrStatus: 'connected',
         qrGeneratedAt: 'Sesión activa',
         changeLog: [newLogItem, ...(currentAcc.changeLog || [])]
-      });
+      };
+
+      updateWhatsAppAccountConfig(activeAccountTab, updates);
+      await persistAccountConfig(activeAccountTab, updates);
 
       setTestSuccessMessage(`¡Dispositivo vinculado con éxito para ${currentAcc.name}!`);
       setTimeout(() => setTestSuccessMessage(null), 4000);
@@ -640,7 +706,7 @@ export const WhatsAppAccountsConfigSection: React.FC = () => {
   };
 
   // Add Alert Recipient
-  const handleAddRecipient = (e: React.FormEvent) => {
+  const handleAddRecipient = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newRecName || !newRecPhone) return;
 
@@ -666,10 +732,13 @@ export const WhatsAppAccountsConfigSection: React.FC = () => {
       change: `Destinatario de alerta agregado: ${newRecName} (${cleanPhone})`
     };
 
-    updateWhatsAppAccountConfig(activeAccountTab, {
+    const updates = {
       alertRecipients: updatedRecipients,
       changeLog: [newLogItem, ...(currentAcc.changeLog || [])]
-    });
+    };
+
+    updateWhatsAppAccountConfig(activeAccountTab, updates);
+    await persistAccountConfig(activeAccountTab, updates);
 
     setShowAddRecipient(false);
     setNewRecName('');

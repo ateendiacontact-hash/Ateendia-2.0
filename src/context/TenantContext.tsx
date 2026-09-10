@@ -1376,13 +1376,13 @@ export const TenantProvider: React.FC<{ children: ReactNode }> = ({ children }) 
   // Instagram
   const saveInstagramConfig = (configUpdates: Partial<InstagramConfig>) => {
     setInstagramConfig((prev) => ({ ...prev, ...configUpdates }));
-    recordAudit('UPDATE', 'Instagram', 'Configuración de Instagram guardada.');
+    recordAudit('UPDATE', 'Integraciones', 'Configuración de Instagram guardada.');
   };
 
   // Facebook
   const saveFacebookConfig = (configUpdates: Partial<FacebookConfig>) => {
     setFacebookConfig((prev) => ({ ...prev, ...configUpdates }));
-    recordAudit('UPDATE', 'Facebook', 'Configuración de Facebook guardada.');
+    recordAudit('UPDATE', 'Integraciones', 'Configuración de Facebook guardada.');
   };
 
   const sendWhatsAppMessage = async (

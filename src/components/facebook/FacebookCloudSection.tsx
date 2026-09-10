@@ -52,7 +52,44 @@ export const FacebookCloudSection: React.FC = () => {
   const [credentialsValid, setCredentialsValid] = useState<boolean | null>(null);
   const [messageCount, setMessageCount] = useState<number>(0);
 
-  const isConfigured = MetaGraphService.isConfigured(facebookConfig);
+  const [isConfigured, setIsConfigured] = useState<boolean>(false);
+  const [isConfiguredLoading, setIsConfiguredLoading] = useState<boolean>(true);
+
+  useEffect(() => {
+    // Cargar configuración real de PocketBase asociada al tenant activo
+    const loadConfig = async () => {
+      try {
+        const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/integrations/facebook/config`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('pb_auth') ? JSON.parse(localStorage.getItem('pb_auth') || '{}').token : ''}`
+          }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          const config = data.data || data;
+          if (config.tenantId === currentTenant.id || config.tenantId === undefined) {
+            setIsConfigured(MetaGraphService.isConfigured(config));
+            if (config.pageId) setPageId(config.pageId);
+            if (config.accessToken) setAccessToken(config.accessToken);
+            if (config.webhookUrl) setWebhookUrl(config.webhookUrl);
+            if (config.verifyToken) setVerifyToken(config.verifyToken);
+          }
+        }
+      } catch (e) {
+        // Si no hay backend, usar configuración local
+        setIsConfigured(MetaGraphService.isConfigured(facebookConfig));
+        if (facebookConfig.pageId) setPageId(facebookConfig.pageId);
+        if (facebookConfig.accessToken) setAccessToken(facebookConfig.accessToken);
+        if (facebookConfig.webhookUrl) setWebhookUrl(facebookConfig.webhookUrl);
+        if (facebookConfig.verifyToken) setVerifyToken(facebookConfig.verifyToken);
+      } finally {
+        setIsConfiguredLoading(false);
+      }
+    };
+    loadConfig();
+  }, [currentTenant.id]);
+
+  const isConfiguredReal = isConfigured;
 
   useEffect(() => {
     if (facebookConfig.pageId) setPageId(facebookConfig.pageId);
@@ -75,7 +112,7 @@ export const FacebookCloudSection: React.FC = () => {
       setIsSaving(false);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
-      recordAudit?.('UPDATE', 'Facebook', `Configuración Facebook Graph API guardada para ${currentTenant.name}`);
+      recordAudit?.('UPDATE', 'Integraciones', `Configuración Facebook Graph API guardada para ${currentTenant.name}`);
     }, 500);
   }, [pageId, accessToken, webhookUrl, verifyToken, saveFacebookConfig, currentTenant.name, recordAudit]);
 
@@ -93,22 +130,17 @@ export const FacebookCloudSection: React.FC = () => {
 
   const handleSendTestMessage = useCallback(async () => {
     if (!testPhoneNumber || !testMessage) return;
+    if (!accessToken || !pageId) {
+      setSendResult({ success: false, message: 'Debe configurar las credenciales de Facebook antes de enviar mensajes reales.' });
+      return;
+    }
 
     setIsSending(true);
     setSendResult(null);
 
-    const isDevMode = !isConfigured || !accessToken;
-
-    if (isDevMode) {
-      await new Promise(resolve => setTimeout(resolve, 800));
-      setMessageCount(prev => prev + 1);
-      setSendResult({
-        success: true,
-        message: 'Mensaje simulado enviado exitosamente (Mock Mode - sin API real)'
-      });
-    } else {
+    try {
       const result = await MetaGraphService.sendMessage(
-        { ...facebookConfig, pageId, accessToken },
+        { pageId, accessToken, webhookUrl, verifyToken },
         testPhoneNumber,
         testMessage
       );
@@ -124,10 +156,12 @@ export const FacebookCloudSection: React.FC = () => {
           : `Error: ${result.error}`,
         messageId: result.messageId
       });
+    } catch (error) {
+      setSendResult({ success: false, message: `Error de conexión con Meta Graph API: ${error instanceof Error ? error.message : 'Error desconocido'}` });
+    } finally {
+      setIsSending(false);
     }
-
-    setIsSending(false);
-  }, [testPhoneNumber, testMessage, isConfigured, accessToken, facebookConfig, messageCount]);
+  }, [testPhoneNumber, testMessage, pageId, accessToken, webhookUrl, verifyToken, messageCount]);
 
   const copyToClipboard = (text: string, field: string) => {
     navigator.clipboard.writeText(text);
@@ -345,7 +379,7 @@ export const FacebookCloudSection: React.FC = () => {
           <div className="flex items-center gap-3">
             <button
               onClick={handleSendTestMessage}
-              disabled={!testPhoneNumber || !testMessage || isSending}
+              disabled={!testPhoneNumber || !testMessage || !accessToken || !pageId || isSending}
               className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
             >
               {isSending ? (
@@ -376,20 +410,6 @@ export const FacebookCloudSection: React.FC = () => {
               </span>
             )}
           </div>
-
-          {/* Mock Mode Notice */}
-          {!isConfigured && (
-            <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-xl">
-              <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
-              <div>
-                <p className="text-xs font-bold text-amber-800">Modo Mock / Desarrollo</p>
-                <p className="text-[10px] text-amber-700 mt-0.5">
-                  No hay credenciales configuradas. Los mensajes se simularán sin enviarse realmente a la API de Meta.
-                  Configura las credenciales arriba para habilitar el envío real.
-                </p>
-              </div>
-            </div>
-          )}
         </div>
       </div>
 

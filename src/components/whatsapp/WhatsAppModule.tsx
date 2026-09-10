@@ -26,7 +26,12 @@ import {
   ExternalLink,
   Layers,
   ChevronDown,
-  AlertCircle
+  ChevronLeft,
+  ChevronRight,
+  AlertCircle,
+  Instagram,
+  Facebook,
+  SendIcon
 } from 'lucide-react';
 import { useTenant } from '../../context/TenantContext';
 import { DomainService } from '../../domain/domainService';
@@ -116,8 +121,8 @@ export const WhatsAppModule: React.FC<WhatsAppModuleProps> = ({ onNavigateToTab 
     clients
   } = useTenant();
 
-  // Multi-account line filter: 'ALL' | 'WA1' | 'WA2'
-  const [selectedLineFilter, setSelectedLineFilter] = useState<'ALL' | 'WA1' | 'WA2'>('ALL');
+  // Channel filter: 'ALL' | 'WA1' | 'WA2' | 'instagram' | 'facebook' | 'landing'
+  const [selectedChannelFilter, setSelectedChannelFilter] = useState<'ALL' | 'WA1' | 'WA2' | 'instagram' | 'facebook' | 'landing'>('ALL');
   // Estados para controlar el QR y la conexión
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'qr'>('disconnected');
   const [qrCode, setQrCode] = useState<string | null>(null);
@@ -143,15 +148,35 @@ export const WhatsAppModule: React.FC<WhatsAppModuleProps> = ({ onNavigateToTab 
   const [isViewerOpen, setIsViewerOpen] = useState<boolean>(false);
   const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+const fileInputRef = useRef<HTMLInputElement>(null);
+   const messagesEndRef = useRef<HTMLDivElement>(null);
+   const scrollContainerRef = useRef<HTMLDivElement>(null);
+   const [showScrollButtons, setShowScrollButtons] = useState(false);
 
-  // Conversations filtered by account line & search keyword
+   // Conversations filtered by channel & account line & search keyword
   const filteredConversations = conversations.filter((c) => {
-    const matchesLine =
-      selectedLineFilter === 'ALL' ? true : (c.account || 'WA1') === selectedLineFilter;
+    const channelSource = (c.channelSource || 'whatsapp') as 'whatsapp' | 'instagram' | 'facebook' | 'landing';
+    const account = (c.account || 'WA1') as 'WA1' | 'WA2';
 
-    if (!matchesLine) return false;
+    switch (selectedChannelFilter) {
+      case 'WA1':
+        if (channelSource !== 'whatsapp' || account !== 'WA1') return false;
+        break;
+      case 'WA2':
+        if (channelSource !== 'whatsapp' || account !== 'WA2') return false;
+        break;
+      case 'instagram':
+        if (channelSource !== 'instagram') return false;
+        break;
+      case 'facebook':
+        if (channelSource !== 'facebook') return false;
+        break;
+      case 'landing':
+        if (channelSource !== 'landing') return false;
+        break;
+      default:
+        break;
+    }
 
     const term = (inboxSearch || '').toLowerCase().trim();
     if (!term) return true;
@@ -175,9 +200,32 @@ export const WhatsAppModule: React.FC<WhatsAppModuleProps> = ({ onNavigateToTab 
   useEffect(() => {
     if (activeConversationId) {
       const conv = conversations.find((c) => c.id === activeConversationId);
-      if (conv && conv.account && selectedLineFilter !== 'ALL' && selectedLineFilter !== conv.account) {
-        // Switch to ALL or that line so it is visible
-        setSelectedLineFilter('ALL');
+      if (conv) {
+        const convChannel = conv.channelSource || 'whatsapp';
+        const convAccount = conv.account || 'WA1';
+        let matchesFilter = false;
+
+        if (selectedChannelFilter === 'ALL') {
+          matchesFilter = true;
+        } else if (selectedChannelFilter === 'WA1') {
+          matchesFilter = convChannel === 'whatsapp' && convAccount === 'WA1';
+        } else if (selectedChannelFilter === 'WA2') {
+          matchesFilter = convChannel === 'whatsapp' && convAccount === 'WA2';
+        } else if (selectedChannelFilter === 'instagram') {
+          matchesFilter = convChannel === 'instagram';
+        } else if (selectedChannelFilter === 'facebook') {
+          matchesFilter = convChannel === 'facebook';
+        } else if (selectedChannelFilter === 'landing') {
+          matchesFilter = convChannel === 'landing';
+        }
+
+        if (!matchesFilter) {
+          if (convChannel === 'whatsapp' && (convAccount === 'WA1' || convAccount === 'WA2')) {
+            setSelectedChannelFilter(convAccount);
+          } else {
+            setSelectedChannelFilter(convChannel as 'instagram' | 'facebook' | 'landing');
+          }
+        }
       }
     }
   }, [activeConversationId]);
@@ -187,6 +235,21 @@ export const WhatsAppModule: React.FC<WhatsAppModuleProps> = ({ onNavigateToTab 
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [activeConv?.messages]);
 
+  // Detectar si el contenedor de canales tiene contenido desbordante
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const checkOverflow = () => {
+      setShowScrollButtons(container.scrollWidth > container.clientWidth + 1);
+    };
+
+    checkOverflow();
+    window.addEventListener('resize', checkOverflow);
+
+    return () => window.removeEventListener('resize', checkOverflow);
+  }, []);
+
   // Socket-based real-time connection status updates (with polling fallback)
   const socketService = useWhatsAppSocket();
 
@@ -194,7 +257,7 @@ export const WhatsAppModule: React.FC<WhatsAppModuleProps> = ({ onNavigateToTab 
     // Conectar al socket al montar
     socketService?.connect();
 
-    const account: 'WA1' | 'WA2' = selectedLineFilter === 'WA2' ? 'WA2' : 'WA1';
+    const account: 'WA1' | 'WA2' = selectedChannelFilter === 'WA2' ? 'WA2' : 'WA1';
     const instanceName = getInstanceName(currentTenant.id, account);
 
     const unsubscribeConnection = socketService?.on('connection.update', (data: any) => {
@@ -224,7 +287,7 @@ export const WhatsAppModule: React.FC<WhatsAppModuleProps> = ({ onNavigateToTab 
         setConnectionStatus('qr');
         if (showQRModal && qrModalTab !== 'WA1' && qrModalTab !== 'WA2') {
           // Auto-open modal if user is viewing QR section
-          const tab = selectedLineFilter === 'WA2' ? 'WA2' : 'WA1';
+          const tab = selectedChannelFilter === 'WA2' ? 'WA2' : 'WA1';
           setQrModalTab(tab);
           setShowQRModal(true);
         }
@@ -247,22 +310,27 @@ export const WhatsAppModule: React.FC<WhatsAppModuleProps> = ({ onNavigateToTab 
       unsubscribeQr();
       clearInterval(pollInterval);
     };
-  }, [selectedLineFilter, currentTenant.id, socketService, connectionStatus, showQRModal, qrModalTab, checkWhatsAppConnection]);
+  }, [selectedChannelFilter, currentTenant.id, socketService, connectionStatus, showQRModal, qrModalTab, checkWhatsAppConnection]);
 
   // Initialize connection state on mount / tab change - NO auto-generate QR
   useEffect(() => {
     const checkStatus = async () => {
-      // Check based on selected line filter, default to WA1
-      const account: 'WA1' | 'WA2' = selectedLineFilter === 'WA2' ? 'WA2' : 'WA1';
-      const instanceName = getInstanceName(currentTenant.id, account);
-      const status = await checkWhatsAppConnection(instanceName);
-      setConnectionStatus(status);
-      // NO abrir modal automáticamente; el usuario decide vincular manualmente
+      // Check based on selected channel filter, default to WA1 for WA1/WA2 filters
+      if (selectedChannelFilter === 'WA1' || selectedChannelFilter === 'WA2') {
+        const account: 'WA1' | 'WA2' = selectedChannelFilter === 'WA2' ? 'WA2' : 'WA1';
+        const instanceName = getInstanceName(currentTenant.id, account);
+        const status = await checkWhatsAppConnection(instanceName);
+        setConnectionStatus(status);
+        // NO abrir modal automáticamente; el usuario decide vincular manualmente
+      } else {
+        // For non-WhatsApp channels, show disconnected status
+        setConnectionStatus('disconnected');
+      }
     };
     checkStatus();
     const interval = setInterval(checkStatus, 30000); // Revisa cada 30 segundos
     return () => clearInterval(interval);
-  }, [selectedLineFilter, currentTenant.id, checkWhatsAppConnection]);
+  }, [selectedChannelFilter, currentTenant.id, checkWhatsAppConnection]);
 
   const handleGenerateQR = async () => {
     const account: 'WA1' | 'WA2' = qrModalTab;
@@ -366,8 +434,9 @@ export const WhatsAppModule: React.FC<WhatsAppModuleProps> = ({ onNavigateToTab 
   };
 
   // Get count stats
-  const wa1Count = conversations.filter((c) => (c.account || 'WA1') === 'WA1').length;
-  const wa2Count = conversations.filter((c) => c.account === 'WA2').length;
+  const wa1Count = conversations.filter((c) => (c.account || 'WA1') === 'WA1' && (c.channelSource || 'whatsapp') === 'whatsapp').length;
+  const wa2Count = conversations.filter((c) => c.account === 'WA2' && (c.channelSource || 'whatsapp') === 'whatsapp').length;
+  const totalConversations = conversations.length;
   const totalUnread = conversations.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
 
   return (
@@ -416,56 +485,177 @@ export const WhatsAppModule: React.FC<WhatsAppModuleProps> = ({ onNavigateToTab 
         {/* Left Sidebar: Line Switcher & Conversation Threads */}
         <div className="w-full md:w-84 border-r border-slate-200 flex flex-col shrink-0 bg-slate-50/60">
           
-          {/* Multi-Account Tabs (ALL vs WA1 vs WA2) */}
-          <div className="p-2.5 border-b border-slate-200 bg-white">
-            <div className="grid grid-cols-3 gap-1 bg-slate-100 p-1 rounded-xl">
-              <button
-                id="filter-all-chats"
-                onClick={() => setSelectedLineFilter('ALL')}
-                className={`px-2 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 ${
-                  selectedLineFilter === 'ALL'
-                    ? 'bg-white text-slate-900 shadow-xs'
-                    : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                <span>Todas</span>
-                <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-slate-200 font-mono">
-                  {conversations.length}
-                </span>
-              </button>
+          {/* Barra de Canales con "Todas" Fija y Scroll en Canales */}
+          <div className="flex items-center gap-2 bg-slate-100 p-1.5 rounded-xl mb-4 w-full">
+            
+            {/* 1. BOTÓN "TODAS" FIJO A LA IZQUIERDA */}
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedChannelFilter('ALL');
+              }}
+              className={`shrink-0 inline-flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold transition-all ${
+                selectedChannelFilter === 'ALL'
+                  ? 'bg-white text-slate-900 shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/50'
+              }`}
+            >
+              <span>Todas</span>
+              <span className="bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full text-[10px] font-bold">
+                {conversations.length}
+              </span>
+            </button>
 
+{/* DIVISOR DE SEPARACIÓN */}
+            <div className="h-4 w-[1px] bg-slate-300 shrink-0" />
+
+            {/* Botón navegación izquierda - ChevronLeft */}
+            <button
+              type="button"
+              className={`shrink-0 p-1 rounded-md hover:bg-slate-100 transition-colors flex items-center justify-center ${
+                showScrollButtons ? 'text-slate-600' : 'opacity-50'
+              }`}
+              onClick={() => {
+                scrollContainerRef.current?.scrollBy({ left: -200, behavior: 'smooth' });
+              }}
+              title="Desplazarse a la izquierda"
+            >
+              <ChevronLeft className="w-3.5 h-3.5 text-slate-400" />
+            </button>
+
+            {/* 2. CONTENEDOR CON SCROLL HORIZONTAL PARA LOS CANALES */}
+            <div
+              ref={scrollContainerRef}
+              className="flex-1 flex items-center gap-2 overflow-x-auto scrollbar-none py-0.5 min-w-0"
+              onWheel={(e) => {
+                if (e.deltaY !== 0) {
+                  e.currentTarget.scrollLeft += e.deltaY;
+                }
+              }}
+              style={{ cursor: 'grab' }}
+              onMouseDown={(e) => {
+                e.currentTarget.style.cursor = 'grabbing';
+              }}
+              onMouseUp={(e) => {
+                e.currentTarget.style.cursor = 'grab';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.cursor = 'grab';
+              }}
+            >
+              
+              {/* WA1 */}
               <button
-                id="filter-wa1-chats"
-                onClick={() => setSelectedLineFilter('WA1')}
-                className={`px-2 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 ${
-                  selectedLineFilter === 'WA1'
-                    ? 'bg-emerald-600 text-white shadow-xs'
-                    : 'text-emerald-700 hover:bg-emerald-50'
+                type="button"
+                onClick={() => {
+                  setSelectedChannelFilter('WA1');
+                }}
+                className={`shrink-0 whitespace-nowrap inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  selectedChannelFilter === 'WA1'
+                    ? 'bg-emerald-500 text-white shadow-sm'
+                    : 'bg-white/80 text-emerald-700 hover:bg-white'
                 }`}
               >
+                <Smartphone className="w-3.5 h-3.5" />
                 <span>WA1</span>
-                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${selectedLineFilter === 'WA1' ? 'bg-emerald-700 text-white' : 'bg-emerald-100 text-emerald-800'}`}>
+                <span className="bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded-full text-[10px]">
                   {wa1Count}
                 </span>
               </button>
 
+              {/* WA2 */}
               <button
-                id="filter-wa2-chats"
-                onClick={() => setSelectedLineFilter('WA2')}
-                className={`px-2 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 ${
-                  selectedLineFilter === 'WA2'
-                    ? 'bg-purple-600 text-white shadow-xs'
-                    : 'text-purple-700 hover:bg-purple-50'
+                type="button"
+                onClick={() => {
+                  setSelectedChannelFilter('WA2');
+                }}
+                className={`shrink-0 whitespace-nowrap inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  selectedChannelFilter === 'WA2'
+                    ? 'bg-purple-600 text-white shadow-sm'
+                    : 'bg-white/80 text-purple-700 hover:bg-white'
                 }`}
               >
+                <Smartphone className="w-3.5 h-3.5" />
                 <span>WA2</span>
-                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${selectedLineFilter === 'WA2' ? 'bg-purple-700 text-white' : 'bg-purple-100 text-purple-800'}`}>
+                <span className="bg-purple-100 text-purple-800 px-1.5 py-0.5 rounded-full text-[10px]">
                   {wa2Count}
                 </span>
               </button>
-            </div>
-          </div>
 
+              {/* INSTAGRAM */}
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedChannelFilter('instagram');
+                }}
+                className={`shrink-0 whitespace-nowrap flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  selectedChannelFilter === 'instagram'
+                    ? 'bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500 text-white shadow-sm'
+                    : 'bg-white/80 text-pink-700 hover:bg-white'
+                }`}
+              >
+                <Instagram className="w-3.5 h-3.5" />
+                <span>Instagram</span>
+                <span className="bg-pink-100 text-pink-800 px-1.5 py-0.5 rounded-full text-[10px]">
+                  {conversations.filter(c => c.channelSource === 'instagram').length}
+                </span>
+              </button>
+
+              {/* FACEBOOK */}
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedChannelFilter('facebook');
+                }}
+                className={`shrink-0 whitespace-nowrap flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  selectedChannelFilter === 'facebook'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'bg-white/80 text-blue-700 hover:bg-white'
+                }`}
+              >
+                <Facebook className="w-3.5 h-3.5" />
+                <span>Facebook</span>
+                <span className="bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded-full text-[10px]">
+                  {conversations.filter(c => c.channelSource === 'facebook').length}
+                </span>
+              </button>
+
+              {/* WEB CHAT */}
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedChannelFilter('landing');
+                }}
+                className={`shrink-0 whitespace-nowrap flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  selectedChannelFilter === 'landing'
+                    ? 'bg-amber-500 text-white shadow-sm'
+                    : 'bg-white/80 text-amber-700 hover:bg-white'
+                }`}
+              >
+                <SendIcon className="w-3.5 h-3.5" />
+                <span>Web Chat</span>
+                <span className="bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-full text-[10px]">
+                  {conversations.filter(c => c.channelSource === 'landing').length}
+                </span>
+</button>
+
+            </div>
+
+            {/* Botón navegación derecha - ChevronRight */}
+            <button
+              type="button"
+              className={`shrink-0 p-1 rounded-md hover:bg-slate-100 transition-colors flex items-center justify-center ${
+                showScrollButtons ? 'text-slate-600' : 'opacity-50'
+              }`}
+              onClick={() => {
+                scrollContainerRef.current?.scrollBy({ left: 200, behavior: 'smooth' });
+              }}
+              title="Desplazarse a la derecha"
+            >
+              <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+            </button>
+
+          </div>
           {/* Search Box */}
           <div className="p-2.5 border-b border-slate-200 bg-white">
             <div className="relative">
@@ -560,6 +750,27 @@ export const WhatsAppModule: React.FC<WhatsAppModuleProps> = ({ onNavigateToTab 
                         {conv.unreadCount}
                       </div>
                     )}
+
+                    {/* Channel source badge */}
+                    {(conv.channelSource || 'whatsapp') && (
+                      <div className="absolute right-6 bottom-3 flex items-center gap-1 text-[8px] font-bold rounded px-1.5 py-0.5 ${
+                        (conv.channelSource || 'whatsapp') === 'whatsapp'
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : (conv.channelSource || 'whatsapp') === 'instagram'
+                            ? 'bg-pink-100 text-pink-700'
+                          : (conv.channelSource || 'whatsapp') === 'facebook'
+                            ? 'bg-blue-100 text-blue-700'
+                          : 'bg-amber-100 text-amber-700'
+                      }">
+                        {conv.channelSource && {
+                          whatsapp: <Smartphone className="w-2.5 h-2.5" />,
+                          instagram: <Instagram className="w-2.5 h-2.5" />,
+                          facebook: <Facebook className="w-2.5 h-2.5" />,
+                          landing: <SendIcon className="w-2.5 h-2.5" />
+                        }[conv.channelSource]}
+                        {conv.channelSource}
+                      </div>
+                    )}
                   </div>
                 );
               })
@@ -581,7 +792,7 @@ export const WhatsAppModule: React.FC<WhatsAppModuleProps> = ({ onNavigateToTab 
                 </div>
                 
                 <div className="truncate">
-                  <div className="font-bold text-xs text-slate-900 flex items-center gap-2">
+                  <div className="font-bold text-xs text-slate-900 flex items-center gap-2 flex-wrap">
                     <span className="truncate">{activeConv.contactName || activeConv.clientName}</span>
                     <span className={`px-2 py-0.5 text-[10px] font-extrabold rounded-full shrink-0 ${
                       (activeConv.account || 'WA1') === 'WA2'
@@ -591,6 +802,25 @@ export const WhatsAppModule: React.FC<WhatsAppModuleProps> = ({ onNavigateToTab 
                       Línea {(activeConv.account || 'WA1')} (
                       {(activeConv.account || 'WA1') === 'WA2' ? '+1 786 555-0244' : '+1 786 450-2819'}
                       )
+                    </span>
+                    <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full shrink-0 ${
+                      activeConv.channelSource === 'instagram'
+                        ? 'bg-pink-100 text-pink-700 border border-pink-200'
+                        : activeConv.channelSource === 'facebook'
+                          ? 'bg-blue-100 text-blue-700 border border-blue-200'
+                          : activeConv.channelSource === 'landing'
+                            ? 'bg-amber-100 text-amber-700 border border-amber-200'
+                            : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                    }`}>
+                      {(activeConv.channelSource || 'whatsapp') === 'instagram'
+                        ? 'Instagram Direct'
+                        : (activeConv.channelSource || 'whatsapp') === 'facebook'
+                          ? 'Facebook Messenger'
+                          : (activeConv.channelSource || 'whatsapp') === 'landing'
+                            ? 'Web Chat'
+                            : (activeConv.account || 'WA1') === 'WA2'
+                              ? 'WA2'
+                              : 'WA1'}
                     </span>
                   </div>
                   <div className="text-[11px] text-slate-500 font-mono flex items-center gap-2">
@@ -1032,26 +1262,26 @@ export const WhatsAppModule: React.FC<WhatsAppModuleProps> = ({ onNavigateToTab 
         )}
       </div>
 
-{/* Discreet Session Status Banner */}
-      {connectionStatus === 'qr' && (
+{/* Discreet Session Status Banner (WhatsApp channels only) */}
+      {connectionStatus === 'qr' && (selectedChannelFilter === 'WA1' || selectedChannelFilter === 'WA2') && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-            <span className="text-xs font-bold text-amber-800">Sin sesión activa en {selectedLineFilter === 'WA2' ? 'WA2' : 'WA1'}</span>
+            <span className="text-xs font-bold text-amber-800">Sin sesión activa en {selectedChannelFilter}</span>
           </div>
           <button
-            onClick={() => { setQrModalTab(selectedLineFilter === 'WA2' ? 'WA2' : 'WA1'); setShowQRModal(true); }}
+            onClick={() => { setQrModalTab(selectedChannelFilter as 'WA1' | 'WA2'); setShowQRModal(true); }}
             className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-[11px] font-bold transition-all shrink-0"
           >
             Vincular número por QR
           </button>
         </div>
       )}
-      {connectionStatus === 'connected' && (
+      {connectionStatus === 'connected' && (selectedChannelFilter === 'WA1' || selectedChannelFilter === 'WA2') && (
         <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2.5 flex items-center gap-2">
           <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
           <span className="text-xs font-bold text-emerald-800">
-            {selectedLineFilter === 'WA2' ? 'WA2' : 'WA1'}: +1 786 {(selectedLineFilter === 'WA2' ? '555' : '450')}-{selectedLineFilter === 'WA2' ? '0244' : '2819'}
+            {selectedChannelFilter}: +1 786 {(selectedChannelFilter === 'WA2' ? '555' : '450')}-{selectedChannelFilter === 'WA2' ? '0244' : '2819'}
           </span>
         </div>
       )}

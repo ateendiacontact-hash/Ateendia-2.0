@@ -59,7 +59,38 @@ export const WhatsAppCloudSection: React.FC = () => {
   const [credentialsValid, setCredentialsValid] = useState<boolean | null>(null);
   const [messageCount, setMessageCount] = useState<number>(0);
 
-  const isConfigured = whatsAppCloudService.isConfigured(whatsAppConfig);
+  const [isConfigured, setIsConfigured] = useState<boolean>(false);
+
+  useEffect(() => {
+    // Cargar configuración real desde PocketBase asociada al tenant activo
+    const loadConfig = async () => {
+      const pbToken = JSON.parse(localStorage.getItem('pb_auth') || '{}').token;
+      try {
+        const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/integrations/whatsapp/config`, {
+          headers: { 'Authorization': `Bearer ${pbToken || ''}` }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          const config = data.data || data;
+          if (config.tenantId === currentTenant.id || config.tenantId === undefined) {
+            setIsConfigured(whatsAppCloudService.isConfigured(config));
+            if (config.phoneNumberId) setPhoneNumberId(config.phoneNumberId);
+            if (config.wabaId) setWabaId(config.wabaId);
+            if (config.accessToken) setAccessToken(config.accessToken);
+            if (config.webhookUrl) setWebhookUrl(config.webhookUrl);
+          }
+        }
+      } catch (e) {
+        // Si no hay backend, usar configuración local
+        setIsConfigured(whatsAppCloudService.isConfigured(whatsAppConfig));
+        if (whatsAppConfig.phoneNumberId) setPhoneNumberId(whatsAppConfig.phoneNumberId);
+        if (whatsAppConfig.wabaId) setWabaId(whatsAppConfig.wabaId);
+        if (whatsAppConfig.accessToken) setAccessToken(whatsAppConfig.accessToken);
+        if (whatsAppConfig.webhookUrl) setWebhookUrl(whatsAppConfig.webhookUrl);
+      }
+    };
+    loadConfig();
+  }, [currentTenant.id]);
 
   useEffect(() => {
     if (whatsAppConfig.phoneNumberId) setPhoneNumberId(whatsAppConfig.phoneNumberId);
@@ -68,23 +99,45 @@ export const WhatsAppCloudSection: React.FC = () => {
     if (whatsAppConfig.webhookUrl) setWebhookUrl(whatsAppConfig.webhookUrl);
   }, [whatsAppConfig]);
 
-  const handleSave = useCallback(() => {
+  const handleSave = useCallback(async () => {
     setIsSaving(true);
-    saveWhatsAppConfig({
+    
+    const configWithTenant = {
       phoneNumberId,
       wabaId,
       accessToken,
       webhookUrl: `${webhookUrl}${webhookUrl.includes('?') ? '&' : '?'}verify_token=${verifyToken}`,
-      connectionType: 'cloud_api'
-    });
+      connectionType: 'cloud_api' as const,
+      tenantId: currentTenant.id
+    };
+
+    saveWhatsAppConfig(configWithTenant);
+
+    try {
+      const pbToken = JSON.parse(localStorage.getItem('pb_auth') || '{}').token;
+      const response = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/integrations/whatsapp/config`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${pbToken || ''}`
+        },
+        body: JSON.stringify(configWithTenant)
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setIsConfigured(whatsAppCloudService.isConfigured(data));
+      }
+    } catch (e) {
+      console.log('✅ Configuración guardada en localStorage (modo offline)');
+    }
 
     setTimeout(() => {
       setIsSaving(false);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
-      recordAudit?.('UPDATE', 'WhatsApp', `Configuración WhatsApp Cloud API guardada para ${currentTenant.name}`);
+      recordAudit?.('UPDATE', 'Integraciones', `Configuración WhatsApp Cloud API guardada para tenant ${currentTenant.id} (${currentTenant.name})`);
     }, 500);
-  }, [phoneNumberId, wabaId, accessToken, webhookUrl, verifyToken, saveWhatsAppConfig, currentTenant.name, recordAudit]);
+  }, [phoneNumberId, wabaId, accessToken, webhookUrl, verifyToken, saveWhatsAppConfig, currentTenant.id, currentTenant.name, recordAudit]);
 
   const verifyCredentials = useCallback(async () => {
     if (!phoneNumberId || !accessToken) return;
@@ -100,27 +153,17 @@ export const WhatsAppCloudSection: React.FC = () => {
 
   const handleSendTestMessage = useCallback(async () => {
     if (!testPhoneNumber || !testMessage) return;
+    if (!accessToken || !phoneNumberId) {
+      setSendResult({ success: false, message: 'Debe configurar las credenciales de WhatsApp Cloud API antes de enviar mensajes reales.' });
+      return;
+    }
 
     setIsSending(true);
     setSendResult(null);
 
-    const isDevMode = !isConfigured || !accessToken;
-
-    if (isDevMode) {
-      await new Promise(resolve => setTimeout(resolve, 800));
-      const result = whatsAppCloudService.mockSendMessage(testPhoneNumber, testMessage, () => {
-        setMessageCount(prev => prev + 1);
-      });
-      setSendResult({
-        success: result.success,
-        message: result.success
-          ? `Mensaje simulado enviado exitosamente (Mock Mode - sin API real)`
-          : result.error || 'Error en simulación',
-        messageId: result.messageId
-      });
-    } else {
+    try {
       const result = await whatsAppCloudService.sendTextMessage(
-        { ...whatsAppConfig, phoneNumberId, wabaId, accessToken },
+        { phoneNumberId, wabaId, accessToken } as any,
         testPhoneNumber,
         testMessage,
         currentTenant.id
@@ -137,10 +180,12 @@ export const WhatsAppCloudSection: React.FC = () => {
           : `Error: ${result.error}`,
         messageId: result.messageId
       });
+    } catch (error) {
+      setSendResult({ success: false, message: `Error de conexión con WhatsApp Business API: ${error instanceof Error ? error.message : 'Error desconocido'}` });
+    } finally {
+      setIsSending(false);
     }
-
-    setIsSending(false);
-  }, [testPhoneNumber, testMessage, isConfigured, accessToken, whatsAppConfig, phoneNumberId, wabaId, currentTenant.id]);
+  }, [testPhoneNumber, testMessage, phoneNumberId, wabaId, accessToken, currentTenant.id]);
 
   const copyToClipboard = (text: string, field: string) => {
     navigator.clipboard.writeText(text);
@@ -452,7 +497,7 @@ export const WhatsAppCloudSection: React.FC = () => {
           <div className="flex items-center gap-3">
             <button
               onClick={handleSendTestMessage}
-              disabled={!testPhoneNumber || !testMessage || isSending}
+              disabled={!testPhoneNumber || !testMessage || !accessToken || !phoneNumberId || isSending}
               className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
             >
               {isSending ? (
@@ -483,20 +528,6 @@ export const WhatsAppCloudSection: React.FC = () => {
               </span>
             )}
           </div>
-
-          {/* Mock Mode Notice */}
-          {!isConfigured && (
-            <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-xl">
-              <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
-              <div>
-                <p className="text-xs font-bold text-amber-800">Modo Mock / Desarrollo</p>
-                <p className="text-[10px] text-amber-700 mt-0.5">
-                  No hay credenciales configuradas. Los mensajes se simularán sin enviarse realmente a la API de Meta.
-                  Configura las credenciales arriba para habilitar el envío real.
-                </p>
-              </div>
-            </div>
-          )}
         </div>
       </div>
 

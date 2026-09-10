@@ -1731,6 +1731,29 @@ export const INITIAL_CONVERSATIONS: WhatsAppConversation[] = [
         status: 'read'
       }
     ]
+  },
+  {
+    id: 'conv-landing-2',
+    tenantId: 'tenant-ateendia',
+    clientId: 'cli-5',
+    contactName: 'Laura Fernández',
+    contactPhone: '+1 (786) 555-0199',
+    lastMessage: 'Buenas tardes, solicité información sobre pólizas de salud a través del sitio web.',
+    lastMessageTime: 'Hoy 11:30',
+    unreadCount: 1,
+    assignedAgentId: 'usr-2',
+    channelSource: 'landing',
+    messages: [
+      {
+        id: 'msg-landing-2',
+        conversationId: 'conv-landing-2',
+        direction: 'inbound',
+        sender: 'Laura Fernández',
+        content: 'Buenas tardes, solicité información sobre pólizas de salud a través del sitio web.',
+        timestamp: 'Hoy 11:30',
+        status: 'read'
+      }
+    ]
   }
 ];
 

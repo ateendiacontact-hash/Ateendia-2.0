@@ -7,7 +7,6 @@ import {
   MessageSquare,
   Mail,
   FileText,
-  MessagesSquare,
   PhoneCall,
   CreditCard,
   Megaphone,
@@ -31,7 +30,6 @@ export type NavigationTab =
   | 'policies'
   | 'pipeline'
   | 'whatsapp'
-  | 'multichannel_chat'
   | 'email'
   | 'templates'
   | 'issabel'
@@ -117,21 +115,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
           badgeColor: 'bg-emerald-50 text-emerald-700',
           allowed: can('whatsapp', 'view')
         },
-        {
-          id: 'email' as NavigationTab,
-          label: 'Configuración SMTP / Gmail',
-          icon: Mail,
-          allowed: can('email', 'view')
-        },
+
         {
           id: 'templates' as NavigationTab,
           label: 'Plantillas de Mensajes',
           icon: FileText
-        },
-        {
-          id: 'multichannel_chat' as NavigationTab,
-          label: 'Bandeja Multicanal',
-          icon: MessagesSquare
         },
         {
           id: 'telephony' as NavigationTab,

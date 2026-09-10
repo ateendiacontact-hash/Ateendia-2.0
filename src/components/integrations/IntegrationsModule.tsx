@@ -48,7 +48,8 @@ import {
   Smartphone,
   Cloud,
   Instagram,
-  MessageCircle
+  MessageCircle,
+  Mail
 } from 'lucide-react';
 import { useTenant } from '../../context/TenantContext';
 import { VectorDocChunk } from '../../types';
@@ -58,11 +59,12 @@ import { WhatsAppAccountsConfigSection } from './WhatsAppAccountsConfigSection';
 import { WhatsAppCloudSection } from '../whatsapp/WhatsAppCloudSection';
 import { InstagramCloudSection } from '../instagram/InstagramCloudSection';
 import { FacebookCloudSection } from '../facebook/FacebookCloudSection';
+import { SmtpConfigModule } from '../email/SmtpConfigModule';
 
 export const IntegrationsModule: React.FC = () => {
   const { currentTenant, n8nConfig, updateN8nConfig, aiConfig, updateAiConfig } = useTenant();
 
-  const [activeTab, setActiveTab] = useState<'whatsapp' | 'whatsapp_cloud' | 'instagram' | 'facebook' | 'n8n' | 'ai_models' | 'rag_vectors' | 'chatbot' | 'antispam' | 'guide'>('whatsapp');
+  const [activeTab, setActiveTab] = useState<'whatsapp' | 'whatsapp_cloud' | 'instagram' | 'facebook' | 'smtp' | 'n8n' | 'ai_models' | 'rag_vectors' | 'chatbot' | 'antispam' | 'guide'>('whatsapp');
 
   // n8n state
   const [n8nEnabled, setN8nEnabled] = useState(n8nConfig.isEnabled !== false);
@@ -407,6 +409,7 @@ export const IntegrationsModule: React.FC = () => {
           { id: 'whatsapp', label: '1. WhatsApp Cuentas (WA1 / WA2)', icon: Smartphone, badge: 'QR & Multi-Línea' },
           { id: 'whatsapp_cloud', label: 'Redes & WhatsApp', icon: Cloud, badge: 'QR • Cloud • Meta' },
           { id: 'instagram', label: 'Instagram Direct', icon: Instagram, badge: 'Meta Graph' },
+          { id: 'smtp', label: 'Config. SMTP / Correo', icon: Mail, badge: 'Tenant' },
           { id: 'facebook', label: 'Facebook Messenger', icon: MessageCircle, badge: 'Meta Graph' },
           { id: 'n8n', label: '2. Automatizaciones (n8n)', icon: Workflow, badge: 'Recomendado' },
           { id: 'ai_models', label: '3. Modelos & Prompts IA', icon: Cpu, badge: 'Modelos' },
@@ -470,6 +473,13 @@ export const IntegrationsModule: React.FC = () => {
       {/* ========================================================================= */}
       {activeTab === 'facebook' && (
         <FacebookCloudSection />
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB: CONFIGURACIÓN SMTP / CORREO ELECTRÓNICO (TENANT) */}
+      {/* ========================================================================= */}
+      {activeTab === 'smtp' && (
+        <SmtpConfigModule />
       )}
 
       {/* ========================================================================= */}

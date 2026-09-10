@@ -23,7 +23,7 @@ import { WhatsAppCloudSection } from './components/whatsapp/WhatsAppCloudSection
 import { SmtpConfigModule } from './components/email/SmtpConfigModule';
 import { TemplatesModule } from './components/templates/TemplatesModule';
 import { InternalChatModule } from './components/chat/InternalChatModule';
-import { MultichannelInbox } from './components/chat/MultichannelInbox';
+
 import { IssabelModule } from './components/telephony/IssabelModule';
 import { FloatingDialer } from './components/telephony/FloatingDialer';
 import { BankingModule } from './components/banking/BankingModule';
@@ -233,11 +233,7 @@ const AppContent: React.FC = () => {
 
                 {activeTab === 'templates' && <TemplatesModule />}
 
-                {activeTab === 'multichannel_chat' && (
-                  <MultichannelInbox onNavigateToTab={setActiveTab} />
-                )}
-
-                {activeTab === 'telephony' && <IssabelModule />}
+                                {activeTab === 'telephony' && <IssabelModule />}
                 {activeTab === 'issabel' && <IssabelModule />}
 
                 {activeTab === 'campaigns' && <CampaignsModule />}
