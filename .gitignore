@@ -1,8 +1,27 @@
+```
+# Compiled and build artifacts
+*.pyc
+__pycache__/
+
+# Dependencies
 node_modules/
-build/
-dist/
-coverage/
-.DS_Store
+.venv/
+venv/
+.env
+.env.local
+.env.*
+
+# Logs and temp files
 *.log
-.env*
-!.env.example
+*.tmp
+*.swp
+
+# Editors
+.vscode/
+.idea/
+
+# Build and distribution
+dist/
+build/
+target/
+```
