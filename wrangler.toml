@@ -1,0 +1,9 @@
+# ===========================================
+# Ateendia CRM - Configuración de Cloudflare Pages
+# Solo sirve el build estático (dist/) con CDN global.
+# El backend (API) vive en un VPS con Express + MariaDB.
+# ===========================================
+
+name = "ateendia-crm"
+pages_build_output_dir = "dist"
+compatibility_date = "2024-01-01"

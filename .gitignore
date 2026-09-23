@@ -1,8 +1,27 @@
-node_modules/
-build/
-dist/
-coverage/
+# ─── Variables de entorno con secretos ───
+.env
+.env.local
+.env.*.local
+server/.env
+server/.env.local
+
+# ─── Build & Deps ───
+node_modules
+dist
+server/dist
+
+# ─── Docker ───
+mariadb_data/
+
+# ─── Herramientas de IA ───
+.roo/
+.kilo/
+.wrangler/
+
+# ─── Cache de herramientas ───
+.vite/
+*.tsbuildinfo
+
+# ─── Archivos temporales del sistema ───
 .DS_Store
-*.log
-.env*
-!.env.example
+Thumbs.db

@@ -1,0 +1,85 @@
+# docker-compose.yml
+# Ateendia CRM - Stack de desarrollo local
+# Puertos asignados: MariaDB=3307, phpMyAdmin=8081
+# (3306 y 8080 ya están en uso por otros proyectos)
+
+services:
+  # ─────────────────────────────────────────────
+  # Base de datos MariaDB 11.4
+  # Puerto host: 3307 (para no chocar con edentals-db en 3306)
+  # ─────────────────────────────────────────────
+  mariadb:
+    image: mariadb:11.4
+    container_name: ateendia-mariadb
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: ateendia_crm
+      MYSQL_USER: ateendia
+      MYSQL_PASSWORD: ateendia_password
+    ports:
+      - "3307:3306"          # ⬅️ host:contenedor — el 3307 es lo que cambia
+    volumes:
+      - mariadb_data:/var/lib/mysql
+      - ./schema.mariadb.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - ateendia-network
+
+  # ─────────────────────────────────────────────
+  # phpMyAdmin — Interfaz web para la DB
+  # URL: http://localhost:8081
+  # Login: root / rootpassword
+  # ─────────────────────────────────────────────
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin:latest
+    container_name: ateendia-phpmyadmin
+    restart: unless-stopped
+    environment:
+      PMA_HOST: mariadb
+      PMA_PORT: 3306
+      PMA_USER: root
+      PMA_PASSWORD: rootpassword
+      UPLOAD_LIMIT: 100M
+    ports:
+      - "8081:80"            # ⬅️ host:contenedor — el 8081 es lo que cambia
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    networks:
+      - ateendia-network
+
+  # ─────────────────────────────────────────────
+  # API Express (se activa en la Fase 1)
+  # Puerto: 4000 (libre)
+  # ─────────────────────────────────────────────
+  # api:
+  #   build: ./server
+  #   container_name: ateendia-api
+  #   restart: unless-stopped
+  #   environment:
+  #     NODE_ENV: development
+  #     PORT: 4000
+  #     DATABASE_URL: mysql://ateendia:ateendia_password@mariadb:3306/ateendia_crm
+  #     JWT_SECRET: dev-secret-change-in-production
+  #   ports:
+  #     - "4000:4000"
+  #   depends_on:
+  #     mariadb:
+  #       condition: service_healthy
+  #   networks:
+  #     - ateendia-network
+
+volumes:
+  mariadb_data:
+    name: ateendia_mariadb_data
+
+networks:
+  ateendia-network:
+    name: ateendia-network
+    driver: bridge
