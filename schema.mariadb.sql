@@ -77,12 +77,50 @@ CREATE TABLE IF NOT EXISTS users (
     assigned_pipeline_id  VARCHAR(64)  NULL,
     two_factor_enabled    TINYINT(1)   NOT NULL DEFAULT 0,
     two_factor_secret     VARCHAR(255) NULL,
+    is_platform_user      TINYINT(1)   NOT NULL DEFAULT 0,
     last_login            DATETIME     NULL,
     created_at            DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at            DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     CONSTRAINT fk_users_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
     INDEX idx_users_tenant (tenant_id),
     INDEX idx_users_email (email)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ─────────────────────────────────────────────
+-- 3.1. ROLES (Sistema + custom por tenant)
+-- tenant_id = NULL → rol global (del sistema SaaS)
+-- tenant_id = valor → rol custom de un tenant específico
+-- ─────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS roles (
+    id               VARCHAR(64)  NOT NULL PRIMARY KEY,
+    tenant_id        VARCHAR(64)  NULL,
+    `key`            VARCHAR(32)  NOT NULL,
+    name             VARCHAR(128) NOT NULL,
+    description      TEXT         NULL,
+    is_system        TINYINT(1)   NOT NULL DEFAULT 0,
+    is_platform_role TINYINT(1)   NOT NULL DEFAULT 0,
+    created_at       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_roles_tenant FOREIGN KEY (tenant_id) REFERENCES tenants(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_role_per_tenant (tenant_id, `key`),
+    INDEX idx_roles_tenant (tenant_id),
+    INDEX idx_roles_key (`key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ─────────────────────────────────────────────
+-- 3.2. ROLE_PERMISSIONS (permisos por rol)
+-- ─────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS role_permissions (
+    id         VARCHAR(64)  NOT NULL PRIMARY KEY,
+    role_id    VARCHAR(64)  NOT NULL,
+    module     VARCHAR(64)  NOT NULL,
+    action     VARCHAR(32)  NOT NULL,
+    allowed    TINYINT(1)   NOT NULL DEFAULT 0,
+    created_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_perm_role FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE,
+    UNIQUE KEY unique_perm_per_role (role_id, module, action),
+    INDEX idx_perm_role (role_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ─────────────────────────────────────────────

@@ -23,7 +23,7 @@
     "docker:logs": "docker compose logs -f",
     "test": "vitest",
     "test:ui": "vitest --ui",
-    "test:e2e": "playwright test",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

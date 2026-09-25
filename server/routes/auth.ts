@@ -9,7 +9,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { login, getCurrentUser } from '../services/authService.js';
-import { requireAuth } from '../middleware/index.js';
+import { requireAuth, requireTenant, getPermissionsForRole } from '../middleware/index.js';
 
 export const authRouter = Router();
 
@@ -102,3 +102,30 @@ authRouter.post('/logout', (_req, res) => {
     message: 'Sesión cerrada. Elimina el token del cliente.',
   });
 });
+
+
+// ─── GET /api/auth/permissions ───
+// Devuelve la matriz de permisos del usuario autenticado.
+// Útil para que el frontend sepa qué mostrar/ocultar según el rol.
+
+authRouter.get(
+  '/permissions',
+  requireAuth,
+  requireTenant,
+  async (req, res, next) => {
+    try {
+      const roleKey = req.user!.role;
+      const permissions = await getPermissionsForRole(roleKey);
+
+      res.json({
+        success: true,
+        role: roleKey,
+        tenantId: req.tenantId,
+        permissions,
+        count: permissions.length,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);

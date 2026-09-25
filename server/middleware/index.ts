@@ -4,3 +4,10 @@
 // ===========================================
 
 export { requireAuth, attachAuthIfPresent } from './auth.js';
+export { requireTenant, invalidateTenantCache } from './tenant.js';
+export {
+  requirePermission,
+  getPermissionsForRole,
+  invalidatePermissionsCache,
+  invalidateAllPermissionsCache,
+} from './rbac.js';
