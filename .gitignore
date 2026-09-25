@@ -4,6 +4,7 @@
 .env.*.local
 server/.env
 server/.env.local
+.env.old
 
 # ─── Build & Deps ───
 node_modules
