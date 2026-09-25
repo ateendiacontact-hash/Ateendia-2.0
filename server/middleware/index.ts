@@ -11,3 +11,4 @@ export {
   invalidatePermissionsCache,
   invalidateAllPermissionsCache,
 } from './rbac.js';
+export { auditLog } from './audit.js';
