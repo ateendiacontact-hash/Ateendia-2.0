@@ -9,7 +9,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { login, getCurrentUser } from '../services/authService.js';
-import { requireAuth, requireTenant, getPermissionsForRole, auditLog } from '../middleware/index.js';
+import { requireAuth, requireTenant, getPermissionsForRole } from '../middleware/index.js';
 
 export const authRouter = Router();
 
@@ -130,18 +130,3 @@ authRouter.get(
   }
 );
 
-// ⚠️ TEMPORAL: endpoint de prueba para verificar el middleware de auditoría.
-// Se eliminará cuando implementemos el CRUD real de clients.
-authRouter.post(
-  '/test-audit',
-  requireAuth,
-  requireTenant,
-  auditLog('CREATE', 'Autenticación'),
-  async (req, res) => {
-    res.json({
-      success: true,
-      message: 'Test de auditoría',
-      auditDetails: 'Prueba de audit log desde endpoint temporal',
-    });
-  }
-);
