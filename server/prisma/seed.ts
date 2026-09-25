@@ -113,6 +113,148 @@ async function main() {
     console.log('ℹ️  Pipeline default ya existe, se omite');
   }
 
+
+  // ─── 4. Roles globales del sistema ───
+  console.log('');
+  console.log('🔐 Sembrando roles globales...');
+
+  const GLOBAL_ROLES = [
+    {
+      id: 'role-sys-admin',
+      key: 'admin',
+      name: 'Administrador',
+      description: 'Acceso completo a todos los módulos de la agencia',
+      permissions: {
+        clients:      { view: true,  create: true,  edit: true,  delete: true,  export: true  },
+        policies:     { view: true,  create: true,  edit: true,  delete: true  },
+        pipeline:     { view: true,  edit: true,  moveCards: true,  manageStages: true  },
+        whatsapp:     { view: true,  send: true,  configure: true  },
+        email:        { view: true,  send: true,  configure: true  },
+        campaigns:    { view: true,  create: true,  execute: true  },
+        reports:      { view: true,  export: true  },
+        banking:      { view: true,  edit: true,  viewSensitive: true  },
+        telephony:    { view: true,  call: true,  viewCdr: true,  configure: true  },
+        branding:     { view: true,  edit: true  },
+        users:        { view: true,  invite: true,  editRoles: true  },
+        audit:        { view: true  },
+        integrations: { view: true,  configure: true  },
+      },
+    },
+    {
+      id: 'role-sys-supervisor',
+      key: 'supervisor',
+      name: 'Supervisor',
+      description: 'Gestión de equipos y reportes, sin acceso a configuración crítica',
+      permissions: {
+        clients:      { view: true,  create: true,  edit: true,  delete: false,  export: true  },
+        policies:     { view: true,  create: true,  edit: true,  delete: false  },
+        pipeline:     { view: true,  edit: true,  moveCards: true,  manageStages: false  },
+        whatsapp:     { view: true,  send: true,  configure: false  },
+        email:        { view: true,  send: true,  configure: false  },
+        campaigns:    { view: true,  create: true,  execute: true  },
+        reports:      { view: true,  export: true  },
+        banking:      { view: true,  edit: false,  viewSensitive: false  },
+        telephony:    { view: true,  call: true,  viewCdr: true,  configure: false  },
+        branding:     { view: true,  edit: false  },
+        users:        { view: true,  invite: true,  editRoles: false  },
+        audit:        { view: true  },
+        integrations: { view: true,  configure: false  },
+      },
+    },
+    {
+      id: 'role-sys-agent',
+      key: 'agent',
+      name: 'Agente',
+      description: 'Acceso a la operación diaria: clientes, pólizas, mensajería',
+      permissions: {
+        clients:      { view: true,  create: true,  edit: true,  delete: false,  export: false  },
+        policies:     { view: true,  create: true,  edit: true,  delete: false  },
+        pipeline:     { view: true,  edit: true,  moveCards: true,  manageStages: false  },
+        whatsapp:     { view: true,  send: true,  configure: false  },
+        email:        { view: true,  send: true,  configure: false  },
+        campaigns:    { view: true,  create: false,  execute: false  },
+        reports:      { view: false,  export: false  },
+        banking:      { view: true,  edit: false,  viewSensitive: false  },
+        telephony:    { view: true,  call: true,  viewCdr: false,  configure: false  },
+        branding:     { view: false,  edit: false  },
+        users:        { view: false,  invite: false,  editRoles: false  },
+        audit:        { view: false  },
+        integrations: { view: false,  configure: false  },
+      },
+    },
+    {
+      id: 'role-sys-readonly',
+      key: 'readonly',
+      name: 'Solo Lectura',
+      description: 'Puede ver información pero no modificarla. Ideal para auditores o consultores.',
+      permissions: {
+        clients:      { view: true,  create: false,  edit: false,  delete: false,  export: true  },
+        policies:     { view: true,  create: false,  edit: false,  delete: false  },
+        pipeline:     { view: true,  edit: false,  moveCards: false,  manageStages: false  },
+        whatsapp:     { view: true,  send: false,  configure: false  },
+        email:        { view: true,  send: false,  configure: false  },
+        campaigns:    { view: true,  create: false,  execute: false  },
+        reports:      { view: true,  export: true  },
+        banking:      { view: true,  edit: false,  viewSensitive: false  },
+        telephony:    { view: true,  call: false,  viewCdr: true,  configure: false  },
+        branding:     { view: true,  edit: false  },
+        users:        { view: false,  invite: false,  editRoles: false  },
+        audit:        { view: true  },
+        integrations: { view: true,  configure: false  },
+      },
+    },
+  ];
+
+  for (const roleData of GLOBAL_ROLES) {
+    const role = await prisma.roles.upsert({
+      where: { id: roleData.id },
+      update: {
+        name: roleData.name,
+        description: roleData.description,
+      },
+      create: {
+        id: roleData.id,
+        tenant_id: null,
+        key: roleData.key,
+        name: roleData.name,
+        description: roleData.description,
+        is_system: true,
+        is_platform_role: false,
+      },
+    });
+
+    // Idempotente: borra y recrea permisos
+    await prisma.role_permissions.deleteMany({
+      where: { role_id: role.id },
+    });
+
+    const permissionsToInsert: Array<{
+      id: string;
+      role_id: string;
+      module: string;
+      action: string;
+      allowed: boolean;
+    }> = [];
+
+    for (const [module, actions] of Object.entries(roleData.permissions)) {
+      for (const [action, allowed] of Object.entries(actions as Record<string, boolean>)) {
+        permissionsToInsert.push({
+          id: `perm-${role.key}-${module}-${action}`,
+          role_id: role.id,
+          module,
+          action,
+          allowed,
+        });
+      }
+    }
+
+    await prisma.role_permissions.createMany({
+      data: permissionsToInsert,
+    });
+
+    console.log(`✅ Rol: ${role.name} (${role.key}) — ${permissionsToInsert.length} permisos`);
+  }
+
   console.log('');
   console.log('🎉 Seed completado');
   console.log('');

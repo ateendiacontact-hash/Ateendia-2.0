@@ -252,6 +252,7 @@ model tenants {
   clients                clients[]
   pipelines              pipelines[]
   policies               policies[]
+  roles                  roles[]
   smtp_configs           smtp_configs?
   tenant_subscriptions   tenant_subscriptions?
   users                  users[]
@@ -279,6 +280,7 @@ model users {
   last_login             DateTime?                @db.DateTime(0)
   created_at             DateTime                 @default(now()) @db.DateTime(0)
   updated_at             DateTime                 @default(now()) @db.DateTime(0)
+  is_platform_user       Boolean                  @default(false)
   call_records           call_records[]
   clients                clients[]
   policies               policies[]
@@ -332,4 +334,36 @@ model whatsapp_messages {
   whatsapp_conversations whatsapp_conversations @relation(fields: [conversation_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_msg_conv")
 
   @@index([conversation_id], map: "idx_msg_conv")
+}
+
+model role_permissions {
+  id         String   @id @db.VarChar(64)
+  role_id    String   @db.VarChar(64)
+  module     String   @db.VarChar(64)
+  action     String   @db.VarChar(32)
+  allowed    Boolean  @default(false)
+  created_at DateTime @default(now()) @db.DateTime(0)
+  updated_at DateTime @default(now()) @db.DateTime(0)
+  roles      roles    @relation(fields: [role_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_perm_role")
+
+  @@unique([role_id, module, action], map: "unique_perm_per_role")
+  @@index([role_id], map: "idx_perm_role")
+}
+
+model roles {
+  id               String             @id @db.VarChar(64)
+  tenant_id        String?            @db.VarChar(64)
+  key              String             @db.VarChar(32)
+  name             String             @db.VarChar(128)
+  description      String?            @db.Text
+  is_system        Boolean            @default(false)
+  is_platform_role Boolean            @default(false)
+  created_at       DateTime           @default(now()) @db.DateTime(0)
+  updated_at       DateTime           @default(now()) @db.DateTime(0)
+  role_permissions role_permissions[]
+  tenants          tenants?           @relation(fields: [tenant_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_roles_tenant")
+
+  @@unique([tenant_id, key], map: "unique_role_per_tenant")
+  @@index([key], map: "idx_roles_key")
+  @@index([tenant_id], map: "idx_roles_tenant")
 }
