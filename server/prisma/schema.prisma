@@ -1,0 +1,335 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model audit_logs {
+  id         String   @id @db.VarChar(64)
+  tenant_id  String   @db.VarChar(64)
+  user_id    String   @db.VarChar(64)
+  user_name  String   @db.VarChar(255)
+  user_email String   @db.VarChar(255)
+  action     String   @db.VarChar(32)
+  module     String   @db.VarChar(64)
+  target_id  String?  @db.VarChar(64)
+  details    String?  @db.Text
+  ip_address String?  @db.VarChar(64)
+  timestamp  DateTime @default(now()) @db.DateTime(0)
+  tenants    tenants  @relation(fields: [tenant_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_audit_tenant")
+
+  @@index([tenant_id], map: "idx_audit_tenant")
+  @@index([timestamp], map: "idx_audit_timestamp")
+}
+
+model bank_accounts {
+  id                 String   @id @db.VarChar(64)
+  tenant_id          String   @db.VarChar(64)
+  client_id          String   @db.VarChar(64)
+  type               String   @default("bank_account") @db.VarChar(32)
+  account_holder     String   @db.VarChar(255)
+  holder_id_number   String?  @db.VarChar(64)
+  bank_name          String   @db.VarChar(255)
+  routing_number     String?  @db.VarChar(32)
+  account_number     String   @db.VarChar(64)
+  account_type       String?  @db.VarChar(64)
+  payment_method     String?  @db.VarChar(64)
+  card_brand         String?  @db.VarChar(32)
+  card_number_masked String?  @db.VarChar(32)
+  card_exp_date      String?  @db.VarChar(8)
+  card_cvv           String?  @db.VarChar(8)
+  card_type          String?  @db.VarChar(16)
+  is_default         Boolean  @default(true)
+  verified           Boolean  @default(false)
+  created_at         DateTime @default(now()) @db.DateTime(0)
+  updated_at         DateTime @default(now()) @db.DateTime(0)
+  clients            clients  @relation(fields: [client_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_bank_client")
+  tenants            tenants  @relation(fields: [tenant_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_bank_tenant")
+
+  @@index([client_id], map: "idx_bank_client")
+  @@index([tenant_id], map: "idx_bank_tenant")
+}
+
+model call_records {
+  id                 String   @id @db.VarChar(64)
+  tenant_id          String   @db.VarChar(64)
+  client_id          String?  @db.VarChar(64)
+  agent_id           String   @db.VarChar(64)
+  agent_extension    String   @db.VarChar(16)
+  destination_number String   @db.VarChar(32)
+  direction          String   @db.VarChar(16)
+  status             String   @db.VarChar(32)
+  duration_seconds   Int      @default(0)
+  recording_url      String?  @db.Text
+  notes              String?  @db.Text
+  timestamp          DateTime @default(now()) @db.DateTime(0)
+  users              users    @relation(fields: [agent_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_cdr_agent")
+  clients            clients? @relation(fields: [client_id], references: [id], onUpdate: Restrict, map: "fk_cdr_client")
+  tenants            tenants  @relation(fields: [tenant_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_cdr_tenant")
+
+  @@index([client_id], map: "fk_cdr_client")
+  @@index([agent_id], map: "idx_cdr_agent")
+  @@index([tenant_id], map: "idx_cdr_tenant")
+}
+
+model clients {
+  id                     String                   @id @db.VarChar(64)
+  tenant_id              String                   @db.VarChar(64)
+  first_name             String                   @db.VarChar(128)
+  last_name              String                   @db.VarChar(128)
+  email                  String?                  @db.VarChar(255)
+  phone                  String                   @db.VarChar(32)
+  secondary_phone        String?                  @db.VarChar(32)
+  birth_date             DateTime?                @db.Date
+  gender                 String?                  @db.VarChar(16)
+  id_number              String?                  @db.VarChar(64)
+  address_json           String?                  @db.LongText
+  marital_status         String?                  @db.VarChar(32)
+  category               String                   @default("General") @db.VarChar(64)
+  tags_json              String?                  @db.LongText
+  status                 String                   @default("Lead") @db.VarChar(32)
+  assigned_agent_id      String?                  @db.VarChar(64)
+  pipeline_id            String?                  @db.VarChar(64)
+  stage_id               String?                  @db.VarChar(64)
+  deal_value             Decimal                  @default(0.00) @db.Decimal(12, 2)
+  lead_source            String?                  @db.VarChar(128)
+  custom_fields_json     String?                  @db.LongText
+  created_at             DateTime                 @default(now()) @db.DateTime(0)
+  updated_at             DateTime                 @default(now()) @db.DateTime(0)
+  bank_accounts          bank_accounts[]
+  call_records           call_records[]
+  users                  users?                   @relation(fields: [assigned_agent_id], references: [id], onUpdate: Restrict, map: "fk_clients_agent")
+  pipelines              pipelines?               @relation(fields: [pipeline_id], references: [id], onUpdate: Restrict, map: "fk_clients_pipe")
+  pipeline_stages        pipeline_stages?         @relation(fields: [stage_id], references: [id], onUpdate: Restrict, map: "fk_clients_stage")
+  tenants                tenants                  @relation(fields: [tenant_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_clients_tenant")
+  policies               policies[]
+  whatsapp_conversations whatsapp_conversations[]
+
+  @@index([assigned_agent_id], map: "fk_clients_agent")
+  @@index([pipeline_id], map: "fk_clients_pipe")
+  @@index([stage_id], map: "fk_clients_stage")
+  @@index([phone], map: "idx_clients_phone")
+  @@index([status], map: "idx_clients_status")
+  @@index([tenant_id], map: "idx_clients_tenant")
+}
+
+model pipeline_stages {
+  id              String    @id @db.VarChar(64)
+  pipeline_id     String    @db.VarChar(64)
+  name            String    @db.VarChar(128)
+  color           String    @default("#6366f1") @db.VarChar(16)
+  stage_order     Int       @default(0)
+  win_probability Int       @default(100)
+  clients         clients[]
+  pipelines       pipelines @relation(fields: [pipeline_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_stages_pipeline")
+
+  @@index([pipeline_id], map: "idx_stages_pipeline")
+}
+
+model pipelines {
+  id              String            @id @db.VarChar(64)
+  tenant_id       String            @db.VarChar(64)
+  name            String            @db.VarChar(255)
+  is_default      Boolean           @default(false)
+  created_at      DateTime          @default(now()) @db.DateTime(0)
+  clients         clients[]
+  pipeline_stages pipeline_stages[]
+  tenants         tenants           @relation(fields: [tenant_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_pipelines_tenant")
+
+  @@index([tenant_id], map: "idx_pipelines_tenant")
+}
+
+model policies {
+  id                 String           @id @db.VarChar(64)
+  tenant_id          String           @db.VarChar(64)
+  client_id          String           @db.VarChar(64)
+  type               String           @db.VarChar(64)
+  carrier            String           @db.VarChar(128)
+  plan_name          String           @db.VarChar(255)
+  policy_number      String           @db.VarChar(64)
+  effective_date     DateTime         @db.Date
+  expiration_date    DateTime?        @db.Date
+  monthly_premium    Decimal          @default(0.00) @db.Decimal(12, 2)
+  subsidy_aptc       Decimal          @default(0.00) @db.Decimal(12, 2)
+  client_portion     Decimal          @default(0.00) @db.Decimal(12, 2)
+  payment_due_day    Int              @default(1)
+  status             String           @default("Activa") @db.VarChar(32)
+  agent_id           String?          @db.VarChar(64)
+  custom_fields_json String?          @db.LongText
+  notes              String?          @db.Text
+  created_at         DateTime         @default(now()) @db.DateTime(0)
+  updated_at         DateTime         @default(now()) @db.DateTime(0)
+  users              users?           @relation(fields: [agent_id], references: [id], onUpdate: Restrict, map: "fk_policies_agent")
+  clients            clients          @relation(fields: [client_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_policies_client")
+  tenants            tenants          @relation(fields: [tenant_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_policies_tenant")
+  policy_members     policy_members[]
+
+  @@index([agent_id], map: "fk_policies_agent")
+  @@index([client_id], map: "idx_policies_client")
+  @@index([expiration_date], map: "idx_policies_expiration")
+  @@index([status], map: "idx_policies_status")
+  @@index([tenant_id], map: "idx_policies_tenant")
+}
+
+model policy_members {
+  id           String    @id @db.VarChar(64)
+  policy_id    String    @db.VarChar(64)
+  first_name   String    @db.VarChar(128)
+  last_name    String    @db.VarChar(128)
+  relationship String    @db.VarChar(64)
+  birth_date   DateTime? @db.Date
+  gender       String?   @db.VarChar(16)
+  id_number    String?   @db.VarChar(64)
+  tobacco_user Boolean   @default(false)
+  status       String    @default("Activo") @db.VarChar(32)
+  policies     policies  @relation(fields: [policy_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_members_policy")
+
+  @@index([policy_id], map: "idx_members_policy")
+}
+
+model smtp_configs {
+  id            String   @id @db.VarChar(64)
+  tenant_id     String   @unique(map: "tenant_id") @db.VarChar(64)
+  host          String   @db.VarChar(255)
+  port          Int
+  protocol      String   @default("smtp") @db.VarChar(16)
+  sender_email  String   @db.VarChar(255)
+  sender_name   String   @db.VarChar(255)
+  app_password  String   @db.VarChar(255)
+  is_configured Boolean  @default(true)
+  updated_at    DateTime @default(now()) @db.DateTime(0)
+  tenants       tenants  @relation(fields: [tenant_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_smtp_tenant")
+}
+
+model tenant_subscriptions {
+  id                   String    @id @db.VarChar(64)
+  tenant_id            String    @unique(map: "tenant_id") @db.VarChar(64)
+  plan                 String    @default("Pro Business") @db.VarChar(64)
+  plan_id              String?   @db.VarChar(64)
+  status               String    @default("active") @db.VarChar(32)
+  monthly_price        Decimal   @default(0.00) @db.Decimal(12, 2)
+  renewal_date         DateTime? @db.DateTime(0)
+  start_date           DateTime  @default(now()) @db.DateTime(0)
+  user_quota           Int       @default(5)
+  whatsapp_lines_quota Int       @default(2)
+  storage_gb           Int       @default(10)
+  contact_email        String?   @db.VarChar(255)
+  billing_cycle        String    @default("monthly") @db.VarChar(16)
+  grace_period_days    Int       @default(5)
+  last_payment_date    DateTime? @db.DateTime(0)
+  is_auto_suspended    Boolean   @default(false)
+  created_at           DateTime  @default(now()) @db.DateTime(0)
+  updated_at           DateTime  @default(now()) @db.DateTime(0)
+  tenants              tenants   @relation(fields: [tenant_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_subs_tenant")
+}
+
+model tenants {
+  id                     String                   @id @db.VarChar(64)
+  name                   String                   @db.VarChar(255)
+  legal_name             String?                  @db.VarChar(255)
+  tax_id                 String?                  @db.VarChar(64)
+  logo_url               String?                  @db.Text
+  primary_color          String                   @default("#7c3aed") @db.VarChar(16)
+  secondary_color        String?                  @db.VarChar(16)
+  accent_color           String?                  @db.VarChar(16)
+  currency               String                   @default("USD") @db.VarChar(8)
+  language               String                   @default("es") @db.VarChar(8)
+  timezone               String                   @default("America/Caracas") @db.VarChar(64)
+  country                String?                  @db.VarChar(64)
+  city                   String?                  @db.VarChar(64)
+  is_active              Boolean                  @default(true)
+  subdomain              String?                  @unique(map: "subdomain") @db.VarChar(128)
+  custom_domain          String?                  @unique(map: "custom_domain") @db.VarChar(255)
+  created_at             DateTime                 @default(now()) @db.DateTime(0)
+  updated_at             DateTime                 @default(now()) @db.DateTime(0)
+  audit_logs             audit_logs[]
+  bank_accounts          bank_accounts[]
+  call_records           call_records[]
+  clients                clients[]
+  pipelines              pipelines[]
+  policies               policies[]
+  smtp_configs           smtp_configs?
+  tenant_subscriptions   tenant_subscriptions?
+  users                  users[]
+  whatsapp_conversations whatsapp_conversations[]
+
+  @@index([is_active], map: "idx_tenants_active")
+}
+
+model users {
+  id                     String                   @id @db.VarChar(64)
+  tenant_id              String                   @db.VarChar(64)
+  name                   String                   @db.VarChar(255)
+  email                  String                   @unique(map: "email") @db.VarChar(255)
+  password_hash          String                   @db.VarChar(255)
+  role                   String                   @default("agent") @db.VarChar(32)
+  avatar                 String?                  @db.Text
+  phone                  String?                  @db.VarChar(32)
+  extension              String?                  @db.VarChar(16)
+  status                 String                   @default("active") @db.VarChar(16)
+  is_super_admin         Boolean                  @default(false)
+  commission_rate        Decimal                  @default(0.00) @db.Decimal(5, 2)
+  assigned_pipeline_id   String?                  @db.VarChar(64)
+  two_factor_enabled     Boolean                  @default(false)
+  two_factor_secret      String?                  @db.VarChar(255)
+  last_login             DateTime?                @db.DateTime(0)
+  created_at             DateTime                 @default(now()) @db.DateTime(0)
+  updated_at             DateTime                 @default(now()) @db.DateTime(0)
+  call_records           call_records[]
+  clients                clients[]
+  policies               policies[]
+  tenants                tenants                  @relation(fields: [tenant_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_users_tenant")
+  whatsapp_conversations whatsapp_conversations[]
+
+  @@index([email], map: "idx_users_email")
+  @@index([tenant_id], map: "idx_users_tenant")
+}
+
+model whatsapp_conversations {
+  id                String              @id @db.VarChar(64)
+  tenant_id         String              @db.VarChar(64)
+  account           String              @default("WA1") @db.VarChar(8)
+  client_id         String?             @db.VarChar(64)
+  contact_name      String              @db.VarChar(255)
+  contact_phone     String              @db.VarChar(32)
+  last_message      String?             @db.Text
+  last_message_time DateTime            @default(now()) @db.DateTime(0)
+  unread_count      Int                 @default(0)
+  assigned_agent_id String?             @db.VarChar(64)
+  channel_source    String              @default("whatsapp") @db.VarChar(32)
+  created_at        DateTime            @default(now()) @db.DateTime(0)
+  users             users?              @relation(fields: [assigned_agent_id], references: [id], onUpdate: Restrict, map: "fk_wa_agent")
+  clients           clients?            @relation(fields: [client_id], references: [id], onUpdate: Restrict, map: "fk_wa_client")
+  tenants           tenants             @relation(fields: [tenant_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_wa_tenant")
+  whatsapp_messages whatsapp_messages[]
+
+  @@index([assigned_agent_id], map: "fk_wa_agent")
+  @@index([client_id], map: "fk_wa_client")
+  @@index([contact_phone], map: "idx_wa_phone")
+  @@index([tenant_id], map: "idx_wa_tenant")
+}
+
+model whatsapp_messages {
+  id                     String                 @id @db.VarChar(64)
+  conversation_id        String                 @db.VarChar(64)
+  direction              String                 @db.VarChar(16)
+  sender                 String                 @db.VarChar(128)
+  sender_name            String?                @db.VarChar(255)
+  sender_id              String?                @db.VarChar(64)
+  sender_avatar          String?                @db.Text
+  content                String?                @db.Text
+  media_type             String                 @default("text") @db.VarChar(32)
+  media_url              String?                @db.Text
+  media_duration         Int?
+  media_name             String?                @db.VarChar(255)
+  media_size             String?                @db.VarChar(32)
+  status                 String                 @default("sent") @db.VarChar(16)
+  timestamp              DateTime               @default(now()) @db.DateTime(0)
+  whatsapp_conversations whatsapp_conversations @relation(fields: [conversation_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_msg_conv")
+
+  @@index([conversation_id], map: "idx_msg_conv")
+}
