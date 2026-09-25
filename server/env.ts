@@ -54,3 +54,19 @@ if (!parsed.success) {
 export const env = parsed.data;
 export const isDev = env.NODE_ENV === 'development';
 export const isProd = env.NODE_ENV === 'production';
+
+// ===========================================
+// Tipos derivados de env
+// ===========================================
+
+/**
+ * Payload del JWT que firma el servidor.
+ * NO incluye datos sensibles (contraseñas, etc.) — solo identificadores.
+ */
+export interface JwtPayload {
+  userId: string;
+  tenantId: string;
+  role: string;
+  email?: string;
+  name?: string;
+}

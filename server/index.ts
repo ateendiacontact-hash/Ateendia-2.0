@@ -12,6 +12,7 @@ import cookieParser from 'cookie-parser';
 
 import { env, isDev } from './env.js';
 import { healthRouter } from './routes/health.js';
+import { authRouter } from './routes/auth.js';
 
 const app = express();
 
@@ -44,6 +45,8 @@ app.use(morgan(isDev ? 'dev' : 'combined'));
 
 // ─── Rutas API ───
 app.use('/api', healthRouter);
+app.use('/api/auth', authRouter);
+
 
 // ─── 404 para rutas desconocidas ───
 app.use((_req, res) => {
