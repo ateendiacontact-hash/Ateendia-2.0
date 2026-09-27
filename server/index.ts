@@ -14,6 +14,7 @@ import { env, isDev } from './env.js';
 import { healthRouter } from './routes/health.js';
 import { authRouter } from './routes/auth.js';
 import { clientsRouter } from './routes/clients.js';
+import { bankingRouter } from './routes/banking.js';
 
 const app = express();
 
@@ -48,6 +49,7 @@ app.use(morgan(isDev ? 'dev' : 'combined'));
 app.use('/api', healthRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/clients', clientsRouter);
+app.use('/api/banking', bankingRouter);
 
 
 // ─── 404 para rutas desconocidas ───
