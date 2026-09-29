@@ -16,6 +16,7 @@ import { authRouter } from './routes/auth.js';
 import { clientsRouter } from './routes/clients.js';
 import { bankingRouter } from './routes/banking.js';
 import { policiesRouter } from './routes/policies.js';
+import { usersRouter } from './routes/users.js';
 
 const app = express();
 
@@ -52,6 +53,7 @@ app.use('/api/auth', authRouter);
 app.use('/api/clients', clientsRouter);
 app.use('/api/banking', bankingRouter);
 app.use('/api/policies', policiesRouter);
+app.use('/api/users', usersRouter);
 
 
 // ─── 404 para rutas desconocidas ───
