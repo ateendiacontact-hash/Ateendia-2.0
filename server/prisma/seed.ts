@@ -8,6 +8,7 @@
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { seedPolicyCatalogs } from './seeds/seedPolicyCatalogs.js';
 
 // Cargar .env.local de server/ ANTES de importar Prisma
 const __filename = fileURLToPath(import.meta.url);
@@ -256,6 +257,8 @@ async function main() {
   }
 
   console.log('');
+    // ─── 5. Catálogos de pólizas (categorías + tipos + schemas) ───
+  await seedPolicyCatalogs(prisma);
   console.log('🎉 Seed completado');
   console.log('');
   console.log('📋 Credenciales para login (Sesión 3):');

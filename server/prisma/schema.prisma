@@ -144,35 +144,39 @@ model pipelines {
 }
 
 model policies {
-  id                 String           @id @db.VarChar(64)
-  tenant_id          String           @db.VarChar(64)
-  client_id          String           @db.VarChar(64)
-  type               String           @db.VarChar(64)
-  carrier            String           @db.VarChar(128)
-  plan_name          String           @db.VarChar(255)
-  policy_number      String           @db.VarChar(64)
-  effective_date     DateTime         @db.Date
-  expiration_date    DateTime?        @db.Date
-  monthly_premium    Decimal          @default(0.00) @db.Decimal(12, 2)
-  subsidy_aptc       Decimal          @default(0.00) @db.Decimal(12, 2)
-  client_portion     Decimal          @default(0.00) @db.Decimal(12, 2)
-  payment_due_day    Int              @default(1)
-  status             String           @default("Activa") @db.VarChar(32)
-  agent_id           String?          @db.VarChar(64)
-  custom_fields_json String?          @db.LongText
-  notes              String?          @db.Text
-  created_at         DateTime         @default(now()) @db.DateTime(0)
-  updated_at         DateTime         @default(now()) @db.DateTime(0)
-  users              users?           @relation(fields: [agent_id], references: [id], onUpdate: Restrict, map: "fk_policies_agent")
-  clients            clients          @relation(fields: [client_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_policies_client")
-  tenants            tenants          @relation(fields: [tenant_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_policies_tenant")
+  id                 String            @id @db.VarChar(64)
+  tenant_id          String            @db.VarChar(64)
+  client_id          String            @db.VarChar(64)
+  type_id            String?           @db.VarChar(64)
+  type               String            @db.VarChar(64)
+  carrier            String            @db.VarChar(128)
+  plan_name          String            @db.VarChar(255)
+  policy_number      String            @db.VarChar(64)
+  effective_date     DateTime          @db.Date
+  expiration_date    DateTime?         @db.Date
+  monthly_premium    Decimal           @default(0.00) @db.Decimal(12, 2)
+  subsidy_aptc       Decimal           @default(0.00) @db.Decimal(12, 2)
+  client_portion     Decimal           @default(0.00) @db.Decimal(12, 2)
+  payment_due_day    Int               @default(1)
+  status             String            @default("Activa") @db.VarChar(32)
+  agent_id           String?           @db.VarChar(64)
+  custom_fields_json String?           @db.LongText
+  notes              String?           @db.Text
+  created_at         DateTime          @default(now()) @db.DateTime(0)
+  updated_at         DateTime          @default(now()) @db.DateTime(0)
+  users              users?            @relation(fields: [agent_id], references: [id], onUpdate: Restrict, map: "fk_policies_agent")
+  clients            clients           @relation(fields: [client_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_policies_client")
+  tenants            tenants           @relation(fields: [tenant_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_policies_tenant")
+  policy_types       policy_types?     @relation(fields: [type_id], references: [id], onUpdate: Restrict, map: "fk_policies_type")
   policy_members     policy_members[]
+  policy_versions    policy_versions[]
 
   @@index([agent_id], map: "fk_policies_agent")
   @@index([client_id], map: "idx_policies_client")
   @@index([expiration_date], map: "idx_policies_expiration")
   @@index([status], map: "idx_policies_status")
   @@index([tenant_id], map: "idx_policies_tenant")
+  @@index([type_id], map: "idx_policies_type")
 }
 
 model policy_members {
@@ -366,4 +370,80 @@ model roles {
   @@unique([tenant_id, key], map: "unique_role_per_tenant")
   @@index([key], map: "idx_roles_key")
   @@index([tenant_id], map: "idx_roles_tenant")
+}
+
+model policy_categories {
+  id           String         @id @db.VarChar(64)
+  key          String         @unique(map: "key") @db.VarChar(64)
+  name         String         @db.VarChar(128)
+  description  String?        @db.Text
+  icon         String?        @db.VarChar(64)
+  color        String?        @db.VarChar(16)
+  sort_order   Int            @default(0)
+  is_active    Boolean        @default(true)
+  created_at   DateTime       @default(now()) @db.DateTime(0)
+  updated_at   DateTime       @default(now()) @db.DateTime(0)
+  policy_types policy_types[]
+
+  @@index([is_active], map: "idx_policy_cat_active")
+  @@index([sort_order], map: "idx_policy_cat_sort")
+}
+
+model policy_type_schemas {
+  id              String       @id @db.VarChar(64)
+  type_id         String       @db.VarChar(64)
+  field_key       String       @db.VarChar(64)
+  label           String       @db.VarChar(128)
+  description     String?      @db.Text
+  field_type      String       @db.VarChar(32)
+  options_json    String?      @db.LongText
+  default_value   String?      @db.VarChar(255)
+  placeholder     String?      @db.VarChar(255)
+  is_required     Boolean      @default(false)
+  section         String?      @db.VarChar(64)
+  sort_order      Int          @default(0)
+  validation_json String?      @db.LongText
+  is_active       Boolean      @default(true)
+  created_at      DateTime     @default(now()) @db.DateTime(0)
+  updated_at      DateTime     @default(now()) @db.DateTime(0)
+  policy_types    policy_types @relation(fields: [type_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_ptype_schema_type")
+
+  @@unique([type_id, field_key], map: "unique_field_per_type")
+  @@index([sort_order], map: "idx_ptype_schema_sort")
+  @@index([type_id], map: "idx_ptype_schema_type")
+}
+
+model policy_types {
+  id                  String                @id @db.VarChar(64)
+  category_id         String                @db.VarChar(64)
+  key                 String                @unique(map: "key") @db.VarChar(64)
+  name                String                @db.VarChar(128)
+  short_name          String?               @db.VarChar(64)
+  description         String?               @db.Text
+  icon                String?               @db.VarChar(64)
+  sort_order          Int                   @default(0)
+  is_active           Boolean               @default(true)
+  created_at          DateTime              @default(now()) @db.DateTime(0)
+  updated_at          DateTime              @default(now()) @db.DateTime(0)
+  policies            policies[]
+  policy_type_schemas policy_type_schemas[]
+  policy_categories   policy_categories     @relation(fields: [category_id], references: [id], onUpdate: Restrict, map: "fk_ptype_category")
+
+  @@index([is_active], map: "idx_ptype_active")
+  @@index([category_id], map: "idx_ptype_category")
+  @@index([sort_order], map: "idx_ptype_sort")
+}
+
+model policy_versions {
+  id            String   @id @db.VarChar(64)
+  policy_id     String   @db.VarChar(64)
+  version       Int      @default(1)
+  changed_by    String   @db.VarChar(64)
+  change_reason String?  @db.VarChar(255)
+  snapshot_json String   @db.LongText
+  created_at    DateTime @default(now()) @db.DateTime(0)
+  policies      policies @relation(fields: [policy_id], references: [id], onDelete: Cascade, onUpdate: Restrict, map: "fk_pver_policy")
+
+  @@index([created_at], map: "idx_pver_created")
+  @@index([policy_id], map: "idx_pver_policy")
 }
