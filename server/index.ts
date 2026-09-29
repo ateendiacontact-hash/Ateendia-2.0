@@ -15,6 +15,7 @@ import { healthRouter } from './routes/health.js';
 import { authRouter } from './routes/auth.js';
 import { clientsRouter } from './routes/clients.js';
 import { bankingRouter } from './routes/banking.js';
+import { policiesRouter } from './routes/policies.js';
 
 const app = express();
 
@@ -50,6 +51,7 @@ app.use('/api', healthRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/clients', clientsRouter);
 app.use('/api/banking', bankingRouter);
+app.use('/api/policies', policiesRouter);
 
 
 // ─── 404 para rutas desconocidas ───

@@ -208,20 +208,6 @@ Al agregar una ruta nueva:
 4. Validar el body con Zod antes de tocar la DB
 5. Envolver errores en try/catch o dejar que el error handler central los capture
 
-Estado Actual del Proyecto
-**Fase 0 completada:** Infraestructura Docker (MariaDB 3307, phpMyAdmin 8081), Vite proxy 3100→4000, Prisma schema 14 modelos, seed funcional, Express health check, variables entorno validadas con Zod.
-**Fase 1 Sesión 2 (en progreso):** Backend Express base funcionando. **Pendiente:** middleware auth/tenant/rbac, rutas auth/clients/policies/banking, limpiar `functions/` legacy, corregir `databaseService.ts` (nombres modelos Prisma), sincronizar tipos TypeScript.
-
-Siguiente paso:
-1. Eliminar carpeta `functions/` (código legacy D1 que rompe lint)
-2. Corregir `src/services/databaseService.ts` para usar nombres correctos de modelos Prisma (snake_case plural)
-3. Crear `server/middleware/` (auth, tenant, rbac)
-4. Crear `server/routes/auth.ts` (JWT + 2FA + password reset SMTP)
-5. Crear `server/routes/clients.ts`, `policies.ts`, `banking.ts` migrando desde `functions/api/`
-6. Actualizar `TenantContext` y `apiClient` para modo 'express' sin fallback mock
-7. Ejecutar `npm run db:push && npm run db:seed`
-8. Añadir tests Vitest + Playwright
-
 ## Comandos útiles
 
 ### Base de datos (Docker)
@@ -272,3 +258,214 @@ npm run build         # Build producción frontend
 
 ⚠️ Los puertos 3306, 3000, 8080 están ocupados por otros proyectos. 
 Por eso Ateendia usa 3307, 3100, 4000.
+
+---
+
+## Estado Actual del Proyecto (Actualizado: 2026-09-28)
+
+### ✅ Fase 0 — Infraestructura (COMPLETADA)
+- Docker Compose con MariaDB 11.4 + phpMyAdmin
+- 16 tablas en MariaDB con InnoDB, utf8mb4, foreign keys
+- Variables de entorno separadas (frontend / backend)
+- Vite con proxy /api → localhost:4000
+- Scripts npm: db:pull, db:generate, db:seed, dev, docker:up, etc.
+
+### ✅ Fase 1 — Backend Base (COMPLETADA)
+- Express 4 + TypeScript + Prisma 5.22
+- Middleware: requireAuth, requireTenant, requirePermission, auditLog
+- Auth: POST /login, GET /me, POST /logout, GET /permissions
+- RBAC: 4 roles globales (admin, supervisor, agent, readonly)
+- 156 permisos (39 por rol × 4 roles)
+- Auditoría automática en mutaciones
+
+### ✅ Fase 2 — Clients (COMPLETADA)
+- CRUD completo con paginación y filtros
+- Aislamiento multi-tenant
+- Soft delete
+- Audit logs automáticos
+
+### ✅ Fase 3.1 — Banking (COMPLETADA)
+- CRUD de cuentas ACH y tarjetas
+- Enmascaramiento por defecto (****1234)
+- Endpoint /reveal con permiso banking:viewSensitive
+- Set-default único por cliente
+
+### Resumen de endpoints funcionales (17 endpoints)
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | /api/health | Health check |
+| POST | /api/auth/login | Login + JWT + 2FA |
+| GET | /api/auth/me | Usuario actual + tenant + permisos |
+| POST | /api/auth/logout | Logout |
+| GET | /api/auth/permissions | Permisos del usuario |
+| GET | /api/clients | Listar clientes (paginado, filtros) |
+| GET | /api/clients/:id | Obtener cliente por ID |
+| POST | /api/clients | Crear cliente |
+| PATCH | /api/clients/:id | Actualizar cliente |
+| DELETE | /api/clients/:id | Soft delete cliente |
+| GET | /api/banking/accounts | Listar cuentas bancarias |
+| GET | /api/banking/accounts/:id | Obtener cuenta |
+| POST | /api/banking/accounts | Crear cuenta (ACH/tarjeta) |
+| PATCH | /api/banking/accounts/:id | Actualizar cuenta |
+| DELETE | /api/banking/accounts/:id | Eliminar cuenta |
+| POST | /api/banking/accounts/:id/set-default | Marcar como default |
+| POST | /api/banking/accounts/:id/reveal | Revelar datos sensibles |
+
+---
+
+## Roadmap del Proyecto (Fases 3-7)
+
+### Fase 3 — Core CRM (en curso)
+- 3.1 Banking ✅ COMPLETADA
+- 3.2 Policies (13 tipos + formularios dinámicos) ⏳ SIGUIENTE — 5 sesiones
+- 3.3 Users (gestión usuarios + roles) ⏳ — 2 sesiones
+- 3.4 SMTP (envío emails) ⏳ — 1 sesión
+- 3.5 SaaS Plans (planes editables + feature flags) ⏳ — 2 sesiones
+
+### Fase 4 — Multibandeja Unificada (10 sesiones)
+- 4.1 Refactor: conversations + messages unificadas
+- 4.2 WhatsApp Vendedores (Evolution #1)
+- 4.3 WhatsApp Seguimiento (Evolution #2)
+- 4.4 Web / Microlanding (leads + respuesta por email)
+- 4.5 Telegram Empresa (bot global + vinculación permanente)
+- 4.6 Instagram + Facebook (Meta Graph)
+- 4.7 Telegram SaaS Central (leads de plataforma)
+
+### Fase 5 — IA + Automatizaciones (9 sesiones)
+- 5.1 IA resúmenes por conversación (OpenRouter)
+- 5.2 IA sugerencias + auto-respuestas (RAG)
+- 5.3 n8n webhooks bidireccionales
+- 5.4 Cron jobs (cumpleaños, vencimientos, pagos)
+- 5.5 Socket.io realtime
+
+### Fase 6 — Analytics + Reportes (5 sesiones)
+- 6.1 Dashboard ejecutivo
+- 6.2 Reportes exportables
+- 6.3 Auditoría avanzada
+
+### Fase 7 — Producción (6 sesiones)
+- 7.1 CI/CD GitHub Actions
+- 7.2 Nginx + SSL + Dominios
+- 7.3 Backups automáticos
+- 7.4 Monitoring
+- 7.5 Tests E2E Playwright
+
+---
+
+## Canales de Mensajería (Multibandeja)
+
+Documenta los 7 canales:
+
+| Canal | key interno | Propósito | Configuración | Permisos |
+|-------|-------------|-----------|---------------|----------|
+| WhatsApp Vendedores | whatsapp_sales | Atención comercial | integrations/ + switch | whatsapp.view, whatsapp.send |
+| WhatsApp Seguimiento | whatsapp_support | Post-venta | integrations/ + switch | whatsapp.view, whatsapp.send |
+| Telegram Empresa | telegram | Clientes finales | integrations/ + switch | telegram.view, telegram.send |
+| Telegram SaaS | telegram_saas | Leads plataforma | saas/ + switch | (roles SaaS) |
+| Web/Microlanding | web | Consultas desde landing | integrations/ + switch | web.view |
+| Instagram | instagram | DMs de Instagram | integrations/ + switch | instagram.view, instagram.send |
+| Facebook | facebook | Messenger | integrations/ + switch | facebook.view, facebook.send |
+
+**Reglas:**
+- Cada canal aparece en la multibandeja SOLO si el switch está activo
+- Cada tenant selecciona qué usuarios gestionan cada canal
+- Todos los mensajes identifican: quién envía, quién responde, timestamp, canal
+- Web: la respuesta se envía al email que el cliente colocó en el formulario
+
+---
+
+## Arquitectura de Mensajería (Unificada)
+
+Decisión arquitectónica:
+- Tabla ÚNICA `conversations` con columna `channel` (no una tabla por canal)
+- Tabla ÚNICA `messages` con `direction` y `sender_type`
+- VENTAJAS: 1 query por multibandeja, fácil agregar canales, búsqueda global, reportes con GROUP BY
+- MIGRACIÓN: `whatsapp_conversations` → `conversations` (en Fase 4.1)
+- DEPRECAR: tablas viejas después de migrar
+
+Esquema propuesto:
+
+```sql
+conversations (
+  id, tenant_id, channel, channel_account,
+  client_id, contact_name, contact_handle,
+  last_message, last_message_at, unread_count,
+  assigned_agent_id, status, metadata_json
+)
+
+messages (
+  id, conversation_id, direction, sender_type, sender_id,
+  sender_name, content, media_type, media_url, status,
+  timestamp, metadata_json
+)
+```
+
+---
+
+## Decisiones Estratégicas Tomadas
+
+Registra estas decisiones para no perderlas:
+
+### Telegram
+- Bot global de Ateendia (no por tenant)
+- Vinculación con token PERMANENTE (no expira, solo revocable)
+- Anti-spam: rate limit por tenant configurable por plan
+- IA premium (planes Pro+)
+
+### IA
+- Proveedor: OpenRouter (multi-modelo)
+- Diseño: 1 resumen por conversación (no por mensaje — control de costos)
+- Feature premium (planes Pro+)
+
+### Planes SaaS
+- Tabla saas_plans editable por Super Admin
+- Feature flags por plan (Telegram, IA, WhatsApp, etc.)
+- Límites por plan (users, clients, msgs/día, IA tokens/mes)
+- Tenants heredan límites de su plan
+
+### Policies
+- 13 tipos GLOBALES: Salud/ACA, Salud Privada, Vida, Dental/Visión, Auto, Hogar/Propiedad, Accidentes Personales, Gastos Médicos Mayores, Viaje, Responsabilidad Civil, Mascotas, Funerario, Indemnización
+- Formularios dinámicos: campos comunes en columnas + específicos en JSON
+- Catálogos: policy_types + policy_type_schemas
+- Historial: tabla policy_versions
+- Estados (8): Activa, En Proceso, Pendiente de Pago, Vencida, Cancelada, Renovada, Suspendida, En Revisión
+
+### Retención
+- Por plan: Starter 30d, Pro 1a, Enterprise ilimitado
+- Media externa: Cloudflare R2 o S3
+
+---
+
+## Progreso del Proyecto
+
+Documenta:
+
+- Total estimado: ~40 sesiones
+- Completadas: 8 sesiones
+- Restantes: ~32 sesiones
+- Progreso: ~20%
+
+### Progreso por fase:
+
+| Fase | Descripción | Progreso |
+|------|-------------|----------|
+| Fase 0 | Infraestructura | 100% ✅ |
+| Fase 1 | Backend Base | 100% ✅ |
+| Fase 2 | Clients | 100% ✅ |
+| Fase 3 | Core CRM | 30% ⏳ |
+| Fase 4 | Multibandeja Unificada | 0% ⏳ |
+| Fase 5 | IA + Automatizaciones | 0% ⏳ |
+| Fase 6 | Analytics + Reportes | 0% ⏳ |
+| Fase 7 | Producción | 0% ⏳ |
+
+---
+
+## Siguiente paso
+
+Actualiza con:
+
+**Sesión 3.2.1:** Definir los 13 tipos de seguros + campos específicos  
+**Sesión 3.2.2:** Crear tablas policy_types, policy_type_schemas, policy_versions  
+**Sesión 3.2.3:** policiesService + validación dinámica con Zod  
+**Sesión 3.2.4:** routes/policies.ts + members + version history  
+**Sesión 3.2.5:** Frontend formularios dinámicos
