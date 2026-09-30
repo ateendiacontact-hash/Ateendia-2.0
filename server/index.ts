@@ -18,6 +18,7 @@ import { bankingRouter } from './routes/banking.js';
 import { policiesRouter } from './routes/policies.js';
 import { usersRouter } from './routes/users.js';
 import { smtpRouter } from './routes/smtp.js';
+import { saasRouter } from './routes/saas.js';
 
 const app = express();
 
@@ -56,7 +57,7 @@ app.use('/api/banking', bankingRouter);
 app.use('/api/policies', policiesRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/smtp', smtpRouter);
-
+app.use('/api/saas', saasRouter);
 
 // ─── 404 para rutas desconocidas ───
 app.use((_req, res) => {

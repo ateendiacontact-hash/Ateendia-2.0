@@ -9,6 +9,7 @@
 // ===========================================
 
 import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs';
 
 // ─── Tipos auxiliares ───
 
@@ -204,6 +205,57 @@ export async function seedSaas(prisma: PrismaClient): Promise<void> {
   console.log('');
   console.log('🏢 Sembrando SaaS Plans...');
   console.log('');
+  
+  // ─── 0. Tenant ficticio para usuarios de plataforma + Super Admin SaaS ───
+  const PLATFORM_TENANT_ID = 'platform';
+
+  const platformTenant = await prisma.tenants.upsert({
+    where: { id: PLATFORM_TENANT_ID },
+    update: {
+      name: 'Ateendia Platform',
+      is_active: false,           // No es un tenant operativo
+    },
+    create: {
+      id: PLATFORM_TENANT_ID,
+      name: 'Ateendia Platform',
+      legal_name: 'Ateendia SaaS Inc.',
+      currency: 'USD',
+      language: 'es',
+      timezone: 'America/Caracas',
+      is_active: false,
+    },
+  });
+  console.log(`✅ Tenant platform: ${platformTenant.name}`);
+
+  // ─── 0.1. Usuario Super Admin SaaS ───
+  const SAAS_ADMIN_EMAIL = 'saas@ateendia.cloud';
+  const SAAS_ADMIN_PASSWORD = 'SuperAdmin123!';
+
+  const saasAdminPasswordHash = await bcrypt.hash(SAAS_ADMIN_PASSWORD, 10);
+
+  const saasAdmin = await prisma.users.upsert({
+    where: { email: SAAS_ADMIN_EMAIL },
+    update: {
+      password_hash: saasAdminPasswordHash,
+      role: 'saas_super_admin',
+      status: 'active',
+      is_platform_user: true,
+      is_super_admin: true,
+    },
+    create: {
+      id: 'usr-saas-super-admin',
+      tenant_id: PLATFORM_TENANT_ID,
+      name: 'Super Admin SaaS',
+      email: SAAS_ADMIN_EMAIL,
+      password_hash: saasAdminPasswordHash,
+      role: 'saas_super_admin',
+      status: 'active',
+      is_super_admin: true,
+      is_platform_user: true,
+    },
+  });
+
+  console.log(`✅ Super Admin SaaS: ${saasAdmin.email}`);
 
   // ─── 1. Crear/actualizar los 3 planes ───
   let plansCreated = 0;

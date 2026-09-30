@@ -67,6 +67,15 @@ export async function requireTenant(
     return;
   }
 
+  // ─── Usuarios de plataforma SaaS NO pertenecen a un tenant específico ───
+  // Los Super Admins SaaS pueden operar sobre TODOS los tenants.
+  // Su tenantId es 'platform' (ficticio) y no requiere verificación.
+  if (req.user.tenantId === 'platform') {
+    req.tenantId = 'platform';
+    next();
+    return;
+  }
+
   const tenantId = req.user.tenantId;
 
   if (!tenantId) {
