@@ -452,4 +452,66 @@ CREATE TABLE IF NOT EXISTS policy_versions (
     INDEX idx_pver_created (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- ─────────────────────────────────────────────
+-- 13. SAAS_PLANS (Planes de suscripción SaaS)
+-- Editables por Super Admin SaaS
+-- ─────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS saas_plans (
+    id                VARCHAR(64)   NOT NULL PRIMARY KEY,
+    `key`             VARCHAR(64)   NOT NULL UNIQUE,
+    name              VARCHAR(128)  NOT NULL,
+    description       TEXT          NULL,
+    price_monthly     DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    price_quarterly   DECIMAL(10,2) NULL,
+    price_annual      DECIMAL(10,2) NULL,
+    currency          VARCHAR(8)    NOT NULL DEFAULT 'USD',
+    max_users         INT           NOT NULL DEFAULT 5,
+    max_clients       INT           NOT NULL DEFAULT 100,
+    max_policies      INT           NOT NULL DEFAULT 200,
+    max_whatsapp      INT           NOT NULL DEFAULT 1,
+    max_telegram      INT           NOT NULL DEFAULT 0,
+    storage_gb        INT           NOT NULL DEFAULT 5,
+    max_messages_day  INT           NOT NULL DEFAULT 100,
+    max_ai_tokens     INT           NOT NULL DEFAULT 0,
+    features_json     JSON          NULL,
+    message_retention_days INT      NOT NULL DEFAULT 30,
+    is_active         TINYINT(1)    NOT NULL DEFAULT 1,
+    is_public         TINYINT(1)    NOT NULL DEFAULT 1,
+    popular           TINYINT(1)    NOT NULL DEFAULT 0,
+    sort_order        INT           NOT NULL DEFAULT 0,
+    created_at        DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at        DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_saas_plans_active (`is_active`),
+    INDEX idx_saas_plans_public (`is_public`),
+    INDEX idx_saas_plans_sort (`sort_order`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ─────────────────────────────────────────────
+-- 14. SAAS_PAYMENT_METHODS (Métodos de pago SaaS)
+-- Manual, crypto semi-automático, automático
+-- ─────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS saas_payment_methods (
+    id              VARCHAR(64)  NOT NULL PRIMARY KEY,
+    `key`           VARCHAR(64)  NOT NULL UNIQUE,
+    name            VARCHAR(128) NOT NULL,
+    description     TEXT         NULL,
+    `type`          VARCHAR(32)  NOT NULL DEFAULT 'manual',
+    payment_data_json JSON       NULL,
+    logo_url        TEXT         NULL,
+    qr_code_url     TEXT         NULL,
+    instructions    TEXT         NULL,
+    crypto_network  VARCHAR(32)  NULL,
+    crypto_symbol   VARCHAR(16)  NULL,
+    crypto_wallet   VARCHAR(255) NULL,
+    crypto_explorer_api VARCHAR(64) NULL,
+    provider_config_json JSON    NULL,
+    is_active       TINYINT(1)   NOT NULL DEFAULT 1,
+    sort_order      INT          NOT NULL DEFAULT 0,
+    created_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_payment_methods_active (`is_active`),
+    INDEX idx_payment_methods_type (`type`),
+    INDEX idx_payment_methods_sort (`sort_order`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 SET FOREIGN_KEY_CHECKS = 1;
