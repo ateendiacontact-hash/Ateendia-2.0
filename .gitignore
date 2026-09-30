@@ -26,3 +26,5 @@ mariadb_data/
 # ─── Archivos temporales del sistema ───
 .DS_Store
 Thumbs.db
+# Backups de base de datos
+backups/

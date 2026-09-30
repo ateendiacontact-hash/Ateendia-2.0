@@ -1082,3 +1082,129 @@ export interface TenantLandingConfig {
 }
 
 
+// ===========================================
+// SaaS Plans (Planes de suscripción editables por Super Admin)
+// ===========================================
+
+/**
+ * Plan de suscripción SaaS.
+ * Cada tenant se asigna a un plan que define:
+ *   - Precios (mensual, trimestral, anual)
+ *   - Límites (usuarios, clientes, pólizas, etc.)
+ *   - Feature flags (módulos habilitados)
+ *   - Retención de mensajes
+ */
+export interface SaasPlan {
+  id: string;
+  key: string;
+  name: string;
+  description: string | null;
+
+  // Precios
+  priceMonthly: number;
+  priceQuarterly: number | null;
+  priceAnnual: number | null;
+  currency: string;
+
+  // Límites numéricos
+  // -1 significa "ilimitado"
+  maxUsers: number;
+  maxClients: number;
+  maxPolicies: number;
+  maxWhatsapp: number;
+  maxTelegram: number;
+  storageGb: number;
+  maxMessagesDay: number;
+  maxAiTokens: number;
+
+  // Feature flags (módulos habilitados)
+  features: SaasPlanFeatures;
+
+  // Retención de mensajes (en días, -1 = ilimitado)
+  messageRetentionDays: number;
+
+  // Metadata
+  isActive: boolean;
+  isPublic: boolean;
+  popular: boolean;
+  sortOrder: number;
+
+  // Auditoría
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Feature flags del plan.
+ * Define qué módulos están activos para los tenants con este plan.
+ */
+export interface SaasPlanFeatures {
+  // Módulos principales
+  aiAssistant: boolean;
+  campaigns: boolean;
+  telephonyPBX: boolean;
+  massImport: boolean;
+  customFields: boolean;
+  webhooks: boolean;
+  advancedAutomations: boolean;
+
+  // Canales de mensajería
+  whatsapp: boolean;
+  telegram: boolean;
+  instagram: boolean;
+  facebook: boolean;
+  webLanding: boolean;
+
+  // Otros
+  landingPage: boolean;
+  apiAccess: boolean;
+  auditLogs: boolean;
+  customDomain: boolean;
+}
+
+// ===========================================
+// SaaS Payment Methods (Métodos de pago configurables)
+// ===========================================
+
+export type SaasPaymentMethodType = 'manual' | 'crypto_semi_auto' | 'automatic';
+
+/**
+ * Método de pago configurable por Super Admin.
+ * Soporta:
+ *   - manual: Zelle, transferencia, WU, efectivo (revisión humana)
+ *   - crypto_semi_auto: Trust Wallet con verificación blockchain
+ *   - automatic: Stripe, PayPal (webhook automático)
+ */
+export interface SaasPaymentMethod {
+  id: string;
+  key: string;
+  name: string;
+  description: string | null;
+  type: SaasPaymentMethodType;
+
+  // Datos específicos (estructura depende del tipo)
+  paymentData: Record<string, any> | null;
+
+  // Recursos visuales
+  logoUrl: string | null;
+  qrCodeUrl: string | null;
+  instructions: string | null;
+
+  // Crypto (solo si type = 'crypto_semi_auto')
+  cryptoNetwork: string | null;
+  cryptoSymbol: string | null;
+  cryptoWallet: string | null;
+  cryptoExplorerApi: string | null;
+
+  // Configuración técnica (solo si type = 'automatic')
+  providerConfig: Record<string, any> | null;
+
+  // Metadata
+  isActive: boolean;
+  sortOrder: number;
+
+  // Auditoría
+  createdAt: string;
+  updatedAt: string;
+}
+
