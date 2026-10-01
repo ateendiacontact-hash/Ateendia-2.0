@@ -1208,3 +1208,81 @@ export interface SaasPaymentMethod {
   updatedAt: string;
 }
 
+
+// ===========================================
+// SaaS Registration Requests (Solicitudes de registro)
+// ===========================================
+
+export type SaasRegistrationType = 'demo' | 'payment';
+export type SaasRegistrationStatus = 'pending' | 'approved' | 'rejected' | 'expired';
+
+/**
+ * Solicitud de registro de una nueva empresa.
+ * Puede ser:
+ *   - type='demo': cuenta de prueba gratuita
+ *   - type='payment': cuenta con plan pago
+ */
+export interface SaasRegistrationRequest {
+  id: string;
+  type: SaasRegistrationType;
+
+  // Datos de la empresa
+  companyName: string;
+  companyTaxId: string | null;
+  companyEmail: string;
+  companyPhone: string;
+  companyCountry: string | null;
+  companyCity: string | null;
+
+  // Datos del admin
+  adminName: string;
+  adminEmail: string;
+  adminPhone: string | null;
+  adminPosition: string | null;
+  // ⚠️ adminPasswordHash NO se expone al frontend
+
+  // Plan seleccionado
+  planId: string;
+  planKey: string;
+  planName: string;
+  billingCycle: 'monthly' | 'quarterly' | 'annual';
+  priceAmount: number;
+  currency: string;
+
+  // Método de pago (solo si type='payment')
+  paymentMethodId: string | null;
+  paymentMethodKey: string | null;
+  paymentMethodName: string | null;
+
+  // Comprobante (solo si type='payment')
+  receiptUrl: string | null;
+  receiptFilename: string | null;
+  receiptFileSize: string | null;
+  receiptUploadedAt: string | null;
+
+  // Crypto (solo si payment_method = 'crypto_semi_auto')
+  cryptoTxHash: string | null;
+  cryptoVerified: boolean | null;
+  cryptoVerifiedAt: string | null;
+
+  // Estado
+  status: SaasRegistrationStatus;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  reviewNotes: string | null;
+  rejectionReason: string | null;
+
+  // Tenant creado (si fue aprobado)
+  createdTenantId: string | null;
+  createdUserId: string | null;
+
+  // Metadata
+  ipAddress: string | null;
+  userAgent: string | null;
+  referralSource: string | null;
+
+  // Timestamps
+  createdAt: string;
+  updatedAt: string;
+  expiresAt: string | null;
+}

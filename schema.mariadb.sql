@@ -539,4 +539,80 @@ CREATE TABLE IF NOT EXISTS saas_platform_settings (
     updated_at              DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- ─────────────────────────────────────────────
+-- 16. SAAS_REGISTRATION_REQUESTS (Registros de tenants)
+-- Soporta: DEMO (gratis) + PAYMENT (pago)
+-- ─────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS saas_registration_requests (
+    id                    VARCHAR(64)   NOT NULL PRIMARY KEY,
+    `type`                VARCHAR(16)   NOT NULL DEFAULT 'payment',
+    
+    -- Datos de la empresa
+    company_name          VARCHAR(255)  NOT NULL,
+    company_tax_id        VARCHAR(64)   NULL,
+    company_email         VARCHAR(255)  NOT NULL,
+    company_phone         VARCHAR(32)   NOT NULL,
+    company_country       VARCHAR(64)   NULL,
+    company_city          VARCHAR(64)   NULL,
+    
+    -- Datos del admin
+    admin_name            VARCHAR(255)  NOT NULL,
+    admin_email           VARCHAR(255)  NOT NULL,
+    admin_phone           VARCHAR(32)   NULL,
+    admin_position        VARCHAR(128)  NULL,
+    admin_password_hash   VARCHAR(255)  NOT NULL,
+    
+    -- Plan seleccionado
+    plan_id               VARCHAR(64)   NOT NULL,
+    plan_key              VARCHAR(64)   NOT NULL,
+    plan_name             VARCHAR(128)  NOT NULL,
+    billing_cycle         VARCHAR(16)   NOT NULL DEFAULT 'monthly',
+    price_amount          DECIMAL(10,2) NOT NULL,
+    currency              VARCHAR(8)    NOT NULL DEFAULT 'USD',
+    
+    -- Método de pago (solo si type='payment')
+    payment_method_id     VARCHAR(64)   NULL,
+    payment_method_key    VARCHAR(64)   NULL,
+    payment_method_name   VARCHAR(128)  NULL,
+    
+    -- Comprobante
+    receipt_url           TEXT          NULL,
+    receipt_filename      VARCHAR(255)  NULL,
+    receipt_file_size     VARCHAR(32)   NULL,
+    receipt_uploaded_at   DATETIME      NULL,
+    
+    -- Crypto
+    crypto_tx_hash        VARCHAR(255)  NULL,
+    crypto_verified       TINYINT(1)    NULL,
+    crypto_verified_at    DATETIME      NULL,
+    
+    -- Estado
+    `status`              VARCHAR(32)   NOT NULL DEFAULT 'pending',
+    reviewed_by           VARCHAR(64)   NULL,
+    reviewed_at           DATETIME      NULL,
+    review_notes          TEXT          NULL,
+    rejection_reason      TEXT          NULL,
+    created_tenant_id     VARCHAR(64)   NULL,
+    created_user_id       VARCHAR(64)   NULL,
+    
+    -- Metadata
+    ip_address            VARCHAR(64)   NULL,
+    user_agent            TEXT          NULL,
+    referral_source       VARCHAR(128)  NULL,
+    created_at            DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at            DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    expires_at            DATETIME      NULL,
+    
+    CONSTRAINT fk_reg_plan 
+        FOREIGN KEY (plan_id) REFERENCES saas_plans(id) ON DELETE RESTRICT,
+    CONSTRAINT fk_reg_method 
+        FOREIGN KEY (payment_method_id) REFERENCES saas_payment_methods(id) ON DELETE RESTRICT,
+    
+    INDEX idx_reg_status (`status`),
+    INDEX idx_reg_type (`type`),
+    INDEX idx_reg_created (created_at),
+    INDEX idx_reg_email (company_email),
+    INDEX idx_reg_expires (expires_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 SET FOREIGN_KEY_CHECKS = 1;
