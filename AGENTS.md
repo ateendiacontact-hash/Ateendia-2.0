@@ -79,11 +79,17 @@ server/
 ├── env.ts                # Validación Zod de variables de entorno (falla al arrancar si faltan críticas)
 ├── db.ts                 # Cliente Prisma singleton (logging condicional dev/prod)
 ├── tsconfig.json         # Config TS para backend (ESM, strict, outDir: dist)
+├── types/
+│   └── landing.ts        # Tipos backend: LandingHero, LandingFeature, LandingTestimonial, LandingFooter, SaasLandingConfig
+├── services/
+│   └── saasLandingService.ts  # Servicio landing config: get, update, normalize, default
 ├── prisma/
-│   ├── schema.prisma     # 23 modelos: audit_logs, bank_accounts, call_records, clients, pipeline_stages, pipelines, policies, policy_members, saas_payment_methods, saas_plans, saas_platform_settings, smtp_configs, tenant_subscriptions, tenants, users, whatsapp_conversations, whatsapp_messages
+│   ├── schema.prisma     # 24 modelos: audit_logs, bank_accounts, call_records, clients, pipeline_stages, pipelines, policies, policy_members, saas_payment_methods, saas_plans, saas_platform_settings, smtp_configs, tenant_subscriptions, tenants, users, whatsapp_conversations, whatsapp_messages (+ landing_config_json)
 │   └── seed.ts           # Tenant demo + admin (admin@ateendia.cloud / Admin123!) + pipeline default 5 etapas + saas_super_admin + plan DEMO
 ├── routes/
-│   └── health.ts         # GET /api/health (verifica DB con SELECT 1)
+│   ├── health.ts         # GET /api/health (verifica DB con SELECT 1)
+│   └── saas/
+│       └── landing.ts    # Sub-router: GET/PUT /api/saas/landing
 ├── .env                  # Variables reales (no commitear)
 ├── .env.example          # Template
 └── .env.local            # Override local (gitignored)
@@ -282,7 +288,7 @@ Por eso Ateendia usa 3307, 3100, 4000.
 
 ---
 
-## Estado Actual del Proyecto (Actualizado: 2026-09-30)
+## Estado Actual del Proyecto (Actualizado: 2026-10-01)
 
 ### ✅ Fase 0 — Infraestructura (COMPLETADA)
 - Docker Compose con MariaDB 11.4 + phpMyAdmin
@@ -311,7 +317,7 @@ Por eso Ateendia usa 3307, 3100, 4000.
 - Endpoint /reveal con permiso banking:viewSensitive
 - Set-default único por cliente
 
-### Resumen de endpoints funcionales (43 endpoints)
+### Resumen de endpoints funcionales (45 endpoints)
 | Método | Endpoint | Descripción |
 |--------|----------|-------------|
 | GET | /api/health | Health check |
@@ -337,6 +343,8 @@ Por eso Ateendia usa 3307, 3100, 4000.
 | POST | /api/saas/plans | Crear plan (auditado) |
 | PATCH | /api/saas/plans/:id | Editar plan (auditado) |
 | DELETE | /api/saas/plans/:id | Archivar plan (soft delete) |
+| GET | /api/saas/landing | Obtener config landing (público) |
+| PUT | /api/saas/landing | Actualizar config landing (Super Admin) |
 
 ---
 
@@ -401,10 +409,12 @@ Fila única (`id = 'global'`) que define:
   - tenants: +status, +demo_expires_at, +grace_period_ends_at
   - saas_platform_settings (config global)
   - Plan DEMO en seed
-- **3.5.B.2 — Landing configurable [⏳ SIGUIENTE]**
+- **3.5.B.2 — Landing configurable [✅ COMPLETADA]**
   - Servicio saasLandingService
   - Endpoints: GET/PUT /api/saas/landing
-- **3.5.B.3 — Tabla saas_registration_requests [⏳]**
+  - Tipos TypeScript (server/types/landing.ts + src/types/index.ts)
+  - Columna landing_config_json en saas_platform_settings
+- **3.5.B.3 — Tabla saas_registration_requests [⏳ SIGUIENTE]**
   - Con soporte para demo y pago
 - **3.5.B.4 — Flujo de registro + upgrade [⏳]**
   - POST /api/saas/register
@@ -547,9 +557,9 @@ Registra estas decisiones para no perderlas:
 Documenta:
 
 - Total estimado: ~40 sesiones
-- Completadas: 12 sesiones
-- Restantes: ~35 sesiones
-- Progreso global: **~38%**
+- Completadas: 13 sesiones
+- Restantes: ~34 sesiones
+- Progreso global: **~40%**
 
 ### Progreso por fase:
 
@@ -560,7 +570,7 @@ Documenta:
 | Fase 2 | Clients | 100% ✅ |
 | Fase 3.1-3.4 | Core CRM (Banking, Policies, Users, SMTP) | 100% ✅ |
 | Fase 3.5.A | SaaS Plans Base | 100% ✅ |
-| Fase 3.5.B | Landing + Registro + Demo | 15% ⏳ |
+| Fase 3.5.B | Landing + Registro + Demo | 25% ⏳ |
 | Fase 3.5.C-E | Pagos, Frontend SaaS, Límites | 0% ⏳ |
 | Fase 4 | Multibandeja Unificada | 0% ⏳ |
 | Fase 5 | IA + Automatizaciones | 0% ⏳ |
@@ -578,10 +588,11 @@ Documenta:
 4. Commit
 
 **Siguiente fase:**
-- Sesión 3.5.B.2 — Landing configurable
-- Servicio `saasLandingService.ts`
-- Endpoints GET/PUT /api/saas/landing
-- Tipos TypeScript
+- Sesión 3.5.B.3 — Tabla saas_registration_requests
+- Endpoints POST /api/saas/register (crear saas_registration_requests)
+- Endpoints de aprobación/rechazo (Super Admin)
+- Servicio que crea tenant + user + subscription al aprobar
+- Servicio que expira registros a los 7 días
 
 ---
 
@@ -599,3 +610,68 @@ Documenta:
 ### Memory Bank al final de cada fase
 - Actualizar AGENTS.md con cada fase completada.
 - Registrar decisiones tomadas.
+
+---
+
+## Sesión 3.5.B.2 — Landing Configurable (2026-10-01)
+
+### Resumen de Cambios
+
+#### Base de Datos
+- Nueva columna `landing_config_json TEXT NULL` en tabla `saas_platform_settings`
+- Total: 24 tablas en MariaDB (sin cambios en este número)
+- Schema Prisma: 24 modelos, `landing_config_json` agregado al modelo `saas_platform_settings`
+
+#### Backend Nuevo
+- `server/types/landing.ts` — Tipos backend: LandingHero, LandingFeature, LandingTestimonial, LandingFooter, SaasLandingConfig
+- `server/services/saasLandingService.ts` — Servicio con:
+  - `getLandingConfig()` — Lee JSON de DB, parsea, normaliza, devuelve default si vacío
+  - `updateLandingConfig(config)` — Normaliza, guarda como JSON string
+  - `normalizeLandingConfig(input)` — Valida cada campo con type guards
+  - `getDefaultLandingConfig()` — Devuelve el default
+- `server/routes/saas/landing.ts` — Sub-router con:
+  - `GET /api/saas/landing` (público, sin auth)
+  - `PUT /api/saas/landing` (protegido: JWT + rol saas_super_admin + auditLog)
+
+#### Backend Modificado
+- `server/routes/saas.ts` — Importa `landingRouter` desde './saas/landing.js' y lo monta con `saasRouter.use('/landing', landingRouter)` al final del archivo (después de la declaración de saasRouter para evitar error "usar antes de declarar")
+
+#### Frontend
+- `src/types/index.ts` — Tipos frontend agregados al final: LandingHero, LandingFeature, LandingTestimonial, LandingFooter, SaasLandingConfig
+
+#### SQL
+- `schema.mariadb.sql` — Columna `landing_config_json TEXT NULL` agregada a `saas_platform_settings` (después de platform_name)
+
+### Estructura de la Configuración Landing
+```json
+{
+  "hero": { "title", "subtitle", "ctaText", "ctaLink", "backgroundImage" },
+  "features": [{ "icon", "title", "description" }],
+  "testimonials": [{ "name", "company", "text", "avatarUrl" }],
+  "footer": { "email", "whatsapp", "social": { "twitter", "linkedin", "facebook", "instagram" } }
+}
+```
+
+### Decisiones Arquitectónicas
+- **Sub-router en lugar de router separado** — Se monta landingRouter DENTRO de saasRouter (no en index.ts) para mantener cohesión del dominio SaaS.
+- **Named exports** — Se usa `export const landingRouter = Router();` en lugar de `export default router` para consistencia con el resto del proyecto.
+- **Import desde barrel file** — Se importa desde `../../middleware/index.js` (no path directo a audit.js) para seguir el patrón del proyecto.
+- **Validación inline de rol** — Se valida `req.user.role !== 'saas_super_admin'` inline porque `requirePlatformUser` NO existe en el middleware actual. TODO: Crear `requirePlatformUser` en `middleware/rbac.ts` cuando se necesite en más rutas.
+- **Type guards en lugar de Zod** — Para la config de landing se usan type guards manuales (`isValidHero`, `isValidFeature`, etc.) en lugar de Zod, porque la estructura es flexible y queremos que campos faltantes caigan al default sin error 400.
+
+### Verificaciones
+- ✅ `npx tsc --noEmit -p server/tsconfig.json` limpio
+- ✅ `GET /api/saas/landing` devuelve JSON con config default (hero, features, testimonials, footer)
+- ✅ `PUT /api/saas/landing` sin token devuelve `{"success":false,"error":"Token de autenticación requerido","code":"AUTH_TOKEN_MISSING"}`
+
+### Commit
+- Hash: `2bf6f13`
+- Mensaje: `"feat(saas): Sesión 3.5.B.2 - Landing Configurable"`
+- 7 archivos cambiados, 330 inserciones, 1 eliminación
+- Push: `6916c0d..2bf6f13 main -> main`
+
+### Reglas Aprendidas en Esta Sesión
+- **Windows + PowerShell + curl**: Para JSON complejo con `-d`, PowerShell rompe las comillas. Usar `Invoke-RestMethod` con hashtables + `ConvertTo-Json -Depth 5` O guardar en archivo temporal y usar `--data "@body.json"`.
+- **EPERM al regenerar Prisma**: Siempre detener Express (Ctrl + C) antes de `npm run db:generate`, luego reiniciar con `npm run dev:api`.
+- **tsc con pestaña "Problemas" de VS Code**: Los errores de cSpell (palabras "Unknown word") no son errores reales de TypeScript. Solo confiar en `npx tsc --noEmit -p server/tsconfig.json`.
+- **Block-scoped variable usada antes de declarar**: Los `router.use()` deben ir DESPUÉS de la declaración `export const xRouter = Router()`. Los imports sí pueden ir arriba (hoisted).

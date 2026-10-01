@@ -14,6 +14,7 @@
 
 import { Router } from 'express';
 import { landingRouter } from './saas/landing.js';
+import { registerRouter } from './saas/register.js';
 import { z } from 'zod';
 import {
   requireAuth,
@@ -289,3 +290,4 @@ saasRouter.delete(
 // Montado en /api/saas/landing
 // ─────────────────────────────────────────────
 saasRouter.use('/landing', landingRouter);
+saasRouter.use('/register', registerRouter);

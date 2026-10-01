@@ -5,7 +5,7 @@
 
 import { prisma } from '../db.js';
 import type {
-  SaasLandingConfig,
+  SaasLandingContentConfig,
   LandingHero,
   LandingFeature,
   LandingTestimonial,
@@ -15,7 +15,7 @@ import type {
 // ─────────────────────────────────────────────
 // Configuración por defecto
 // ─────────────────────────────────────────────
-const DEFAULT_LANDING_CONFIG: SaasLandingConfig = {
+const DEFAULT_LANDING_CONFIG: SaasLandingContentConfig = {
   hero: {
     title: 'Ateendia CRM',
     subtitle: 'La plataforma todo-en-uno para agencias de seguros y servicios financieros',
@@ -107,12 +107,12 @@ function isValidFooter(footer: unknown): footer is LandingFooter {
   return typeof f.email === 'string' && typeof f.whatsapp === 'string';
 }
 
-export function normalizeLandingConfig(input: unknown): SaasLandingConfig {
+export function normalizeLandingConfig(input: unknown): SaasLandingContentConfig {
   if (!input || typeof input !== 'object') {
     return { ...DEFAULT_LANDING_CONFIG };
   }
 
-  const raw = input as Partial<SaasLandingConfig>;
+  const raw = input as Partial<SaasLandingContentConfig>;
 
   return {
     hero: isValidHero(raw.hero) ? raw.hero : DEFAULT_LANDING_CONFIG.hero,
@@ -132,7 +132,7 @@ export function normalizeLandingConfig(input: unknown): SaasLandingConfig {
 // Servicio
 // ─────────────────────────────────────────────
 
-export async function getLandingConfig(): Promise<SaasLandingConfig> {
+export async function getLandingConfig(): Promise<SaasLandingContentConfig> {
   const settings = await prisma.saas_platform_settings.findUnique({
     where: { id: SETTINGS_ID },
     select: { landing_config_json: true },
@@ -152,8 +152,8 @@ export async function getLandingConfig(): Promise<SaasLandingConfig> {
 }
 
 export async function updateLandingConfig(
-  config: Partial<SaasLandingConfig>
-): Promise<SaasLandingConfig> {
+  config: Partial<SaasLandingContentConfig>
+): Promise<SaasLandingContentConfig> {
   const normalized = normalizeLandingConfig(config);
 
   await prisma.saas_platform_settings.update({
@@ -166,6 +166,6 @@ export async function updateLandingConfig(
   return normalized;
 }
 
-export function getDefaultLandingConfig(): SaasLandingConfig {
+export function getDefaultLandingConfig(): SaasLandingContentConfig {
   return { ...DEFAULT_LANDING_CONFIG };
 }

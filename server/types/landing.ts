@@ -2,6 +2,11 @@
 // server/types/landing.ts
 // Tipos para la configuración de la landing page SaaS
 // ===========================================
+//
+// NOTA (Sesión 3.5.B.3): el tipo principal se renombró de
+// `SaasLandingConfig` a `SaasLandingContentConfig` para evitar
+// colisión con el `SaasLandingConfig` del frontend (que es el
+// CMS completo del Super Admin, con crmName, heroBadge, etc.).
 
 export interface LandingHero {
   title: string;
@@ -35,7 +40,18 @@ export interface LandingFooter {
   };
 }
 
-export interface SaasLandingConfig {
+/**
+ * Configuración de CONTENIDO de la landing page SaaS.
+ *
+ * Contiene los bloques editables por el Super Admin desde el panel:
+ * hero, features, testimonios, footer.
+ *
+ * Se guarda como JSON en `saas_platform_settings.landing_config_json`.
+ *
+ * ⚠️ NO confundir con `SaasLandingConfig` del frontend
+ * (CMS completo con crmName, pricingPlans, heroBadge, etc.).
+ */
+export interface SaasLandingContentConfig {
   hero: LandingHero;
   features: LandingFeature[];
   testimonials: LandingTestimonial[];

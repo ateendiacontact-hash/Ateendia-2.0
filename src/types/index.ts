@@ -1324,12 +1324,123 @@ export interface LandingFooter {
 }
 
 /**
- * Configuración completa de la landing page SaaS.
+ * Configuración de CONTENIDO de la landing page SaaS.
  * Se guarda en `saas_platform_settings.landing_config_json` como JSON string.
+ *
+ * ⚠️ NO confundir con `SaasLandingConfig` (arriba, línea ~886)
+ * que es el CMS completo del Super Admin.
  */
-export interface SaasLandingConfig {
+export interface SaasLandingContentConfig {
   hero: LandingHero;
   features: LandingFeature[];
   testimonials: LandingTestimonial[];
   footer: LandingFooter;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Registro de empresas (Sesión 3.5.B.3)
+// ═══════════════════════════════════════════════════════════════════
+//
+// Tipos del frontend para el flujo público de registro.
+// Espejo de server/types/registration.ts pero en camelCase.
+//
+// IMPORTANTE: Reutilizamos los tipos ya existentes `SaasRegistrationType`
+// y `SaasRegistrationStatus` (definidos arriba en este mismo archivo)
+// para evitar duplicación y colisiones de nombres.
+//
+// Uso típico:
+//   const payload: RegisterRequestPayload = { ... };
+//   const res = await fetch('/api/saas/register', { method: 'POST', ... });
+//   const data: RegisterResponse = await res.json();
+
+/**
+ * Ciclo de facturación soportado para registro de empresas.
+ * Alineado con la columna `billing_cycle` de saas_registration_requests.
+ *
+ * Nota: diferenciar de `TenantSubscription.billingCycle` que permite
+ * valores adicionales (quarterly, annual). Para el flujo de registro
+ * usamos solo monthly/yearly.
+ */
+export type BillingCycle = 'monthly' | 'yearly';
+
+/**
+ * Payload que el frontend envía a POST /api/saas/register.
+ *
+ * ⚠️ Incluye `adminPassword` en tránsito (HTTPS).
+ * NUNCA se persiste en claro en la DB.
+ * El backend lo hashea con bcrypt y lo descarta.
+ */
+export interface RegisterRequestPayload {
+  /** 'demo' o 'payment'. Reutiliza SaasRegistrationType existente. */
+  type: SaasRegistrationType;
+
+  // Empresa
+  companyName: string;
+  companyTaxId?: string;
+  companyEmail: string;
+  companyPhone: string;
+  companyCountry?: string;
+  companyCity?: string;
+
+  // Admin
+  adminName: string;
+  adminEmail: string;
+  adminPhone?: string;
+  adminPosition?: string;
+  adminPassword: string;
+
+  // Plan
+  planId: string;
+  planKey: string;
+  planName: string;
+  billingCycle: BillingCycle;
+  priceAmount: number;
+  currency: string;
+
+  // Pago (opcional, solo si type === 'payment')
+  paymentMethodId?: string;
+  paymentMethodKey?: string;
+  paymentMethodName?: string;
+
+  // Comprobante (opcional, solo si type === 'payment')
+  receiptUrl?: string;
+  receiptFilename?: string;
+  receiptFileSize?: string;
+
+  // Crypto (opcional, futuro)
+  cryptoTxHash?: string;
+
+  // Marketing
+  referralSource?: string;
+}
+
+/**
+ * Resultado de crear una solicitud de registro.
+ * El backend devuelve esto con 201 Created.
+ *
+ * Anti-enumeración: si el email ya existía, el backend devuelve
+ * el mismo formato con un requestId "fake". El frontend NO puede
+ * distinguir entre éxito real y duplicado.
+ */
+export interface RegisterRequestResult {
+  requestId: string;
+  expiresAt: string; // ISO 8601
+}
+
+/**
+ * Respuesta completa del endpoint POST /api/saas/register.
+ */
+export interface RegisterResponse {
+  success: true;
+  data: RegisterRequestResult;
+}
+
+/**
+ * Respuesta de error del endpoint POST /api/saas/register.
+ */
+export interface RegisterErrorResponse {
+  success: false;
+  error: string;
+  code: 'VALIDATION_ERROR' | 'DOMAIN_VALIDATION_ERROR' | 'RATE_LIMIT_EXCEEDED';
+  details?: unknown;
 }
