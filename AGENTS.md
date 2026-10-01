@@ -9,7 +9,7 @@ Backend: TypeScript + Express 4 + Prisma ORM + MariaDB + JWT (bcryptjs, jsonwebt
 
 Frontend: React 19 con TypeScript, Vite 6, TailwindCSS 4, Lucide React (iconos), Motion (animaciones)
 
-Base de datos: MariaDB 11.4 (InnoDB, utf8mb4) como única base de datos. Esquema definido en `server/prisma/schema.prisma` (14 modelos) y `schema.mariadb.sql` (14 tablas, idénticas). Puerto local: 3307 (host) / 3306 (contenedor).
+Base de datos: MariaDB 11.4 (InnoDB, utf8mb4) como única base de datos. Esquema definido en `server/prisma/schema.prisma` (23 modelos) y `schema.mariadb.sql` (23 tablas, idénticas). Puerto local: 3307 (host) / 3306 (contenedor).
 
 Control de versiones: Git
 
@@ -80,8 +80,8 @@ server/
 ├── db.ts                 # Cliente Prisma singleton (logging condicional dev/prod)
 ├── tsconfig.json         # Config TS para backend (ESM, strict, outDir: dist)
 ├── prisma/
-│   ├── schema.prisma     # 14 modelos: audit_logs, bank_accounts, call_records, clients, pipeline_stages, pipelines, policies, policy_members, smtp_configs, tenant_subscriptions, tenants, users, whatsapp_conversations, whatsapp_messages
-│   └── seed.ts           # Tenant demo + admin (admin@ateendia.cloud / Admin123!) + pipeline default 5 etapas
+│   ├── schema.prisma     # 23 modelos: audit_logs, bank_accounts, call_records, clients, pipeline_stages, pipelines, policies, policy_members, saas_payment_methods, saas_plans, saas_platform_settings, smtp_configs, tenant_subscriptions, tenants, users, whatsapp_conversations, whatsapp_messages
+│   └── seed.ts           # Tenant demo + admin (admin@ateendia.cloud / Admin123!) + pipeline default 5 etapas + saas_super_admin + plan DEMO
 ├── routes/
 │   └── health.ts         # GET /api/health (verifica DB con SELECT 1)
 ├── .env                  # Variables reales (no commitear)
@@ -208,6 +208,27 @@ Al agregar una ruta nueva:
 4. Validar el body con Zod antes de tocar la DB
 5. Envolver errores en try/catch o dejar que el error handler central los capture
 
+### Middlewares y usuarios de plataforma
+- Todo middleware de tenant DEBE tener excepción para `tenantId === 'platform'`.
+- Los Super Admins SaaS (`is_platform_user = 1`) NO están sujetos a verificaciones de tenant.
+- Ejemplo en `requireTenant`: si `req.user.tenantId === 'platform'`, saltar verificación.
+
+### Naming de Prisma
+- Los modelos mantienen snake_case del SQL: `prisma.saas_plans`, `prisma.saas_payment_methods`, `prisma.saas_platform_settings`.
+- Los campos también: `price_monthly`, `max_users`, `is_public`, etc.
+
+### JSON en MariaDB
+- Prisma convierte JSON a `String?` en MariaDB.
+- Serializar con `JSON.stringify()` al guardar.
+- Parsear con `JSON.parse()` al leer.
+- Ejemplo: `features_json` en `saas_plans`.
+
+### Precios con decimales
+- Los precios DEBEN mostrarse con 2 decimales en la UI (`$29.00`, `$29.50`).
+- Backend usa `DECIMAL(10,2)`.
+- Los límites numéricos son enteros (`max_users`, `max_clients`).
+- `sort_order` es entero.
+
 ## Comandos útiles
 
 ### Base de datos (Docker)
@@ -261,7 +282,7 @@ Por eso Ateendia usa 3307, 3100, 4000.
 
 ---
 
-## Estado Actual del Proyecto (Actualizado: 2026-09-28)
+## Estado Actual del Proyecto (Actualizado: 2026-09-30)
 
 ### ✅ Fase 0 — Infraestructura (COMPLETADA)
 - Docker Compose con MariaDB 11.4 + phpMyAdmin
@@ -290,7 +311,7 @@ Por eso Ateendia usa 3307, 3100, 4000.
 - Endpoint /reveal con permiso banking:viewSensitive
 - Set-default único por cliente
 
-### Resumen de endpoints funcionales (17 endpoints)
+### Resumen de endpoints funcionales (43 endpoints)
 | Método | Endpoint | Descripción |
 |--------|----------|-------------|
 | GET | /api/health | Health check |
@@ -310,6 +331,50 @@ Por eso Ateendia usa 3307, 3100, 4000.
 | DELETE | /api/banking/accounts/:id | Eliminar cuenta |
 | POST | /api/banking/accounts/:id/set-default | Marcar como default |
 | POST | /api/banking/accounts/:id/reveal | Revelar datos sensibles |
+| GET | /api/saas/plans | Lista admin (incluye inactivos) |
+| GET | /api/saas/plans/public | Lista pública (sin auth, para landing) |
+| GET | /api/saas/plans/:id | Detalle de plan |
+| POST | /api/saas/plans | Crear plan (auditado) |
+| PATCH | /api/saas/plans/:id | Editar plan (auditado) |
+| DELETE | /api/saas/plans/:id | Archivar plan (soft delete) |
+
+---
+
+## Sistema DEMO + Registro
+
+Documenta el sistema DEMO y su flujo:
+
+### Plan DEMO
+- `id: 'plan-demo'`, `key: 'demo'`, `price_monthly: 0`
+- `sort_order: 0` (aparece primero en la landing)
+- Límites: 2 usuarios, 20 clientes, 30 pólizas, 1 WhatsApp, 100 msgs/día, 1 GB storage
+- Features deshabilitadas: IA, Telegram, Instagram, Facebook, webhooks, import masivo, landing page
+- Features habilitadas: WhatsApp básico, audit logs
+- Duración: configurable desde `saas_platform_settings` (default 14 días)
+- Grace period: 30 días en modo lectura antes de suspensión total
+- Marca de agua "DEMO" en UI (frontend lee `tenant.status === 'demo'`)
+
+### Estados de Tenant
+Los tenants pueden estar en uno de 6 estados:
+- `demo` — Cuenta de prueba gratuita (14 días default)
+- `pending_payment` — Registro pago, esperando aprobación del Super Admin
+- `active` — Cuenta activa con plan pago
+- `suspended` — Suspendido por falta de pago
+- `cancelled` — Cancelado voluntariamente o por impago prolongado
+- `expired` — Demo expirado sin conversión
+
+### Configuración Global (saas_platform_settings)
+Fila única (`id = 'global'`) que define:
+- `demo_enabled` — Activar/desactivar registro demo
+- `demo_duration_days` — Duración del demo (14 default)
+- `demo_grace_period_days` — Días de lectura tras expirar (30 default)
+- `demo_requires_email` — Requiere verificación email (0 default)
+- `demo_watermark_enabled` — Marca de agua activa (1 default)
+- `demo_plan_id` — ID del plan usado para demos (`plan-demo`)
+- `default_currency` — Moneda por defecto (USD)
+- `grace_period_days` — Días de gracia para pago (5 default)
+- `auto_suspend_on_expire` — Auto-suspender al expirar (1 default)
+- `support_email`, `support_whatsapp`, `platform_name` — Info de contacto
 
 ---
 
@@ -320,7 +385,48 @@ Por eso Ateendia usa 3307, 3100, 4000.
 - 3.2 Policies (13 tipos + formularios dinámicos) ⏳ SIGUIENTE — 5 sesiones
 - 3.3 Users (gestión usuarios + roles) ⏳ — 2 sesiones
 - 3.4 SMTP (envío emails) ⏳ — 1 sesión
-- 3.5 SaaS Plans (planes editables + feature flags) ⏳ — 2 sesiones
+- 3.5 SaaS Central ⏳ — 19 sesiones
+
+### Roadmap Fase 3.5 (SaaS Central)
+
+### 3.5.A — SaaS Plans Base [✅ 100% COMPLETADA]
+- Tablas: saas_plans, saas_payment_methods
+- Rol: saas_super_admin + 8 permisos SaaS
+- Usuario: saas@ateendia.cloud / SuperAdmin123!
+- Endpoints: 5 (CRUD de planes)
+- Frontend pendiente
+
+### 3.5.B — Landing + Registro + Demo [⏳ EN CURSO]
+- **3.5.B.1 — Base DEMO + Registro [✅ COMPLETADA]**
+  - tenants: +status, +demo_expires_at, +grace_period_ends_at
+  - saas_platform_settings (config global)
+  - Plan DEMO en seed
+- **3.5.B.2 — Landing configurable [⏳ SIGUIENTE]**
+  - Servicio saasLandingService
+  - Endpoints: GET/PUT /api/saas/landing
+- **3.5.B.3 — Tabla saas_registration_requests [⏳]**
+  - Con soporte para demo y pago
+- **3.5.B.4 — Flujo de registro + upgrade [⏳]**
+  - POST /api/saas/register
+  - Endpoints de aprobación/rechazo
+
+### 3.5.C — Pagos, Verificación, Suspensión [⏳ ~10 sesiones]
+- 3.5.C.1 — Métodos de pago (manual + crypto + auto)
+- 3.5.C.2 — Flujo manual (comprobantes + revisión)
+- 3.5.C.3 — Flujo crypto (Trust Wallet + blockchain API)
+- 3.5.C.4 — Flujo automático (Stripe + PayPal)
+- 3.5.C.5 — Ciclo de vida (renovaciones, upgrade, suspensión)
+- 3.5.C.6 — Cron jobs (expiración, notificaciones)
+
+### 3.5.D — Frontend SaaS Central [⏳ 4 sesiones]
+- Dashboard con MRR, conversión demo→pago
+- Pipeline de tenants (demo → pending → active → suspended)
+- Filtros avanzados por estado/plan/fecha
+- Verificación de pagos
+- Configuración de landing general
+
+### 3.5.E — Verificación de límites [⏳ 1 sesión]
+- Middleware que valida límites al crear recursos
 
 ### Fase 4 — Multibandeja Unificada (10 sesiones)
 - 4.1 Refactor: conversations + messages unificadas
@@ -441,9 +547,9 @@ Registra estas decisiones para no perderlas:
 Documenta:
 
 - Total estimado: ~40 sesiones
-- Completadas: 8 sesiones
-- Restantes: ~32 sesiones
-- Progreso: ~20%
+- Completadas: 12 sesiones
+- Restantes: ~35 sesiones
+- Progreso global: **~38%**
 
 ### Progreso por fase:
 
@@ -452,7 +558,10 @@ Documenta:
 | Fase 0 | Infraestructura | 100% ✅ |
 | Fase 1 | Backend Base | 100% ✅ |
 | Fase 2 | Clients | 100% ✅ |
-| Fase 3 | Core CRM | 30% ⏳ |
+| Fase 3.1-3.4 | Core CRM (Banking, Policies, Users, SMTP) | 100% ✅ |
+| Fase 3.5.A | SaaS Plans Base | 100% ✅ |
+| Fase 3.5.B | Landing + Registro + Demo | 15% ⏳ |
+| Fase 3.5.C-E | Pagos, Frontend SaaS, Límites | 0% ⏳ |
 | Fase 4 | Multibandeja Unificada | 0% ⏳ |
 | Fase 5 | IA + Automatizaciones | 0% ⏳ |
 | Fase 6 | Analytics + Reportes | 0% ⏳ |
@@ -462,10 +571,31 @@ Documenta:
 
 ## Siguiente paso
 
-Actualiza con:
+**Próximo paso inmediato:**
+1. Crear tabla `saas_registration_requests` (SQL 3)
+2. Actualizar schema.mariadb.sql
+3. Regenerar Prisma
+4. Commit
 
-**Sesión 3.2.1:** Definir los 13 tipos de seguros + campos específicos  
-**Sesión 3.2.2:** Crear tablas policy_types, policy_type_schemas, policy_versions  
-**Sesión 3.2.3:** policiesService + validación dinámica con Zod  
-**Sesión 3.2.4:** routes/policies.ts + members + version history  
-**Sesión 3.2.5:** Frontend formularios dinámicos
+**Siguiente fase:**
+- Sesión 3.5.B.2 — Landing configurable
+- Servicio `saasLandingService.ts`
+- Endpoints GET/PUT /api/saas/landing
+- Tipos TypeScript
+
+---
+
+## Reglas del Desarrollo
+
+### Verificación doble
+- Antes de responder, verificar cada dato técnico 2 veces.
+- Cuando no se pueda verificar, decirlo explícitamente.
+- Confiar en las herramientas (Prisma, `docker compose ps`, `information_schema`) antes que en el conteo mental.
+
+### Commits al final de cada sesión
+- git add → git commit → git push.
+- Nunca dejar un commit sin push.
+
+### Memory Bank al final de cada fase
+- Actualizar AGENTS.md con cada fase completada.
+- Registrar decisiones tomadas.
