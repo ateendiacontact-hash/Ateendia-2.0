@@ -506,12 +506,37 @@ CREATE TABLE IF NOT EXISTS saas_payment_methods (
     crypto_explorer_api VARCHAR(64) NULL,
     provider_config_json JSON    NULL,
     is_active       TINYINT(1)   NOT NULL DEFAULT 1,
+    status                 VARCHAR(32)  NOT NULL DEFAULT 'active',
+    demo_expires_at        DATETIME     NULL,
+    grace_period_ends_at   DATETIME     NULL,
     sort_order      INT          NOT NULL DEFAULT 0,
     created_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_payment_methods_active (`is_active`),
     INDEX idx_payment_methods_type (`type`),
     INDEX idx_payment_methods_sort (`sort_order`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ─────────────────────────────────────────────
+-- 15. SAAS_PLATFORM_SETTINGS (Configuración global SaaS)
+-- Fila única (id = 'global')
+-- ─────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS saas_platform_settings (
+    id                      VARCHAR(64)   NOT NULL PRIMARY KEY,
+    demo_enabled            TINYINT(1)    NOT NULL DEFAULT 1,
+    demo_duration_days      INT           NOT NULL DEFAULT 14,
+    demo_grace_period_days  INT           NOT NULL DEFAULT 30,
+    demo_requires_email     TINYINT(1)    NOT NULL DEFAULT 0,
+    demo_watermark_enabled  TINYINT(1)    NOT NULL DEFAULT 1,
+    demo_plan_id            VARCHAR(64)   NULL,
+    default_currency        VARCHAR(8)    NOT NULL DEFAULT 'USD',
+    grace_period_days       INT           NOT NULL DEFAULT 5,
+    auto_suspend_on_expire  TINYINT(1)    NOT NULL DEFAULT 1,
+    support_email           VARCHAR(255)  NULL,
+    support_whatsapp        VARCHAR(32)   NULL,
+    platform_name           VARCHAR(128)  NOT NULL DEFAULT 'Ateendia',
+    created_at              DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at              DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 SET FOREIGN_KEY_CHECKS = 1;

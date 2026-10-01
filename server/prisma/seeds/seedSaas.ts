@@ -184,6 +184,50 @@ const SAAS_PLANS: PlanDefinition[] = [
       customDomain: true,
     },
   },
+
+  
+  // ═══════════════════════════════════════════════════════
+  // PLAN 0 — DEMO (para cuentas de prueba gratuita)
+  // ═══════════════════════════════════════════════════════
+  {
+    id: 'plan-demo',
+    key: 'demo',
+    name: 'Demo',
+    description: 'Cuenta de prueba gratuita por 14 días. Todos los módulos visibles pero con límites reducidos.',
+    priceMonthly: 0.00,
+    priceQuarterly: 0.00,
+    priceAnnual: 0.00,
+    maxUsers: 2,
+    maxClients: 20,
+    maxPolicies: 30,
+    maxWhatsapp: 1,
+    maxTelegram: 0,
+    storageGb: 1,
+    maxMessagesDay: 100,
+    maxAiTokens: 0,
+    messageRetentionDays: 15,
+    popular: false,
+    sortOrder: 0,
+    features: {
+      aiAssistant: false,
+      campaigns: false,
+      telephonyPBX: false,
+      massImport: false,
+      customFields: false,
+      webhooks: false,
+      advancedAutomations: false,
+      whatsapp: true,
+      telegram: false,
+      instagram: false,
+      facebook: false,
+      webLanding: false,
+      landingPage: false,
+      apiAccess: false,
+      auditLogs: true,
+      customDomain: false,
+    },
+  },
+
 ];
 
 // ─── Permisos SaaS ───
