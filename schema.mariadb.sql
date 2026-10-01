@@ -535,6 +535,7 @@ CREATE TABLE IF NOT EXISTS saas_platform_settings (
     support_email           VARCHAR(255)  NULL,
     support_whatsapp        VARCHAR(32)   NULL,
     platform_name           VARCHAR(128)  NOT NULL DEFAULT 'Ateendia',
+    landing_config_json TEXT NULL
     created_at              DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at              DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

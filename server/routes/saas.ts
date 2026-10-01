@@ -13,6 +13,7 @@
 // ===========================================
 
 import { Router } from 'express';
+import { landingRouter } from './saas/landing.js';
 import { z } from 'zod';
 import {
   requireAuth,
@@ -282,3 +283,9 @@ saasRouter.delete(
     }
   }
 );
+
+// ─────────────────────────────────────────────
+// Sub-router: Landing config
+// Montado en /api/saas/landing
+// ─────────────────────────────────────────────
+saasRouter.use('/landing', landingRouter);

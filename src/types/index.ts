@@ -1286,3 +1286,50 @@ export interface SaasRegistrationRequest {
   updatedAt: string;
   expiresAt: string | null;
 }
+
+// ===========================================
+// SaaS Landing Config (Configuración de la landing page)
+// ===========================================
+
+export interface LandingHero {
+  title: string;
+  subtitle: string;
+  ctaText: string;
+  ctaLink: string;
+  backgroundImage?: string | null;
+}
+
+export interface LandingFeature {
+  icon: string;         // Nombre del icono de Lucide (ej: "Shield", "Users")
+  title: string;
+  description: string;
+}
+
+export interface LandingTestimonial {
+  name: string;
+  company: string;
+  text: string;
+  avatarUrl?: string | null;
+}
+
+export interface LandingFooter {
+  email: string;
+  whatsapp: string;
+  social: {
+    twitter?: string;
+    linkedin?: string;
+    facebook?: string;
+    instagram?: string;
+  };
+}
+
+/**
+ * Configuración completa de la landing page SaaS.
+ * Se guarda en `saas_platform_settings.landing_config_json` como JSON string.
+ */
+export interface SaasLandingConfig {
+  hero: LandingHero;
+  features: LandingFeature[];
+  testimonials: LandingTestimonial[];
+  footer: LandingFooter;
+}
