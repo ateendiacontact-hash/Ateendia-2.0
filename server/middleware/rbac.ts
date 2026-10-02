@@ -135,3 +135,50 @@ export async function getPermissionsForRole(roleKey: string): Promise<string[]> 
   const permissions = await loadPermissionsForRole(roleKey);
   return Array.from(permissions);
 }
+
+/**
+ * Middleware que exige que el usuario autenticado sea un Super Admin
+ * de plataforma (rol `saas_super_admin`).
+ *
+ * A diferencia de `requirePermission`, esta validación es SÍNCRONA y
+ * no consulta la DB: el rol ya viene firmado en el JWT y se adjunta
+ * a `req.user` por `requireAuth`.
+ *
+ * Uso típico: rutas del panel SaaS Central (planes, landing, registros).
+ *
+ * IMPORTANTE: debe ejecutarse SIEMPRE después de `requireAuth`, ya que
+ * depende de `req.user` para funcionar.
+ *
+ * @example
+ * router.get('/registrations',
+ *   requireAuth,
+ *   requirePlatformUser,
+ *   handler
+ * );
+ */
+export function requirePlatformUser(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): void {
+  if (!req.user) {
+    res.status(401).json({
+      success: false,
+      error: 'Autenticación requerida antes de verificar rol de plataforma',
+      code: 'AUTH_REQUIRED_BEFORE_PLATFORM_CHECK',
+    });
+    return;
+  }
+
+  if (req.user.role !== 'saas_super_admin') {
+    res.status(403).json({
+      success: false,
+      error: 'Acceso denegado: se requiere rol de Super Admin de plataforma',
+      code: 'PLATFORM_USER_REQUIRED',
+      role: req.user.role,
+    });
+    return;
+  }
+
+  next();
+}

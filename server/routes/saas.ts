@@ -15,6 +15,7 @@
 import { Router } from 'express';
 import { landingRouter } from './saas/landing.js';
 import { registerRouter } from './saas/register.js';
+import { registrationsRouter } from './saas/registrations.js';
 import { z } from 'zod';
 import {
   requireAuth,
@@ -285,9 +286,15 @@ saasRouter.delete(
   }
 );
 
-// ─────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
 // Sub-router: Landing config
 // Montado en /api/saas/landing
-// ─────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
 saasRouter.use('/landing', landingRouter);
 saasRouter.use('/register', registerRouter);
+
+// ─────────────────────────────────────────────────────────────
+// Sub-router: Registros de nuevas empresas (Super Admin)
+// Montado en /api/saas/registrations
+// ─────────────────────────────────────────────────────────────
+saasRouter.use('/registrations', registrationsRouter);

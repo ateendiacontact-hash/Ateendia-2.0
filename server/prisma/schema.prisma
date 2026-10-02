@@ -274,6 +274,7 @@ model users {
   name                   String                   @db.VarChar(255)
   email                  String                   @unique(map: "email") @db.VarChar(255)
   password_hash          String                   @db.VarChar(255)
+  must_reset_password    Boolean                  @default(false)
   role                   String                   @default("agent") @db.VarChar(32)
   avatar                 String?                  @db.Text
   phone                  String?                  @db.VarChar(32)
