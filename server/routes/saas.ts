@@ -16,6 +16,7 @@ import { Router } from 'express';
 import { landingRouter } from './saas/landing.js';
 import { registerRouter } from './saas/register.js';
 import { registrationsRouter } from './saas/registrations.js';
+import { paymentMethodsRouter } from './saas/paymentMethods.js';
 import { z } from 'zod';
 import {
   requireAuth,
@@ -292,6 +293,7 @@ saasRouter.delete(
 // ─────────────────────────────────────────────────────────────
 saasRouter.use('/landing', landingRouter);
 saasRouter.use('/register', registerRouter);
+saasRouter.use('/payment-methods', paymentMethodsRouter);
 
 // ─────────────────────────────────────────────────────────────
 // Sub-router: Registros de nuevas empresas (Super Admin)

@@ -54,6 +54,31 @@ interface PlanDefinition {
   features: PlanFeatureFlags;
 }
 
+/**
+ * Definición de método de pago para el seed.
+ * Alineado con el modelo `saas_payment_methods`.
+ *
+ * ⚠️ Los datos son PLACEHOLDERS. Se reemplazan por valores reales
+ * desde el panel Super Admin en la sesión 3.5.C.1.
+ */
+interface PaymentMethodDefinition {
+  id: string;
+  key: string;
+  name: string;
+  description: string;
+  type: 'manual' | 'crypto_semi_auto' | 'automatic';
+  paymentData: Record<string, unknown> | null;
+  logoUrl: string | null;
+  qrCodeUrl: string | null;
+  instructions: string;
+  cryptoNetwork: string | null;
+  cryptoSymbol: string | null;
+  cryptoWallet: string | null;
+  cryptoExplorerApi: string | null;
+  providerConfig: Record<string, unknown> | null;
+  sortOrder: number;
+}
+
 // ─── Base: todos los flags en false ───
 
 const ALL_FEATURES_DISABLED: PlanFeatureFlags = {
@@ -230,6 +255,85 @@ const SAAS_PLANS: PlanDefinition[] = [
 
 ];
 
+// ─── Definición de métodos de pago ───
+// ⚠️ PLACEHOLDERS: los datos reales (wallet crypto, Stripe keys, logos)
+//    se cargan desde el panel Super Admin en la sesión 3.5.C.1.
+
+const SAAS_PAYMENT_METHODS: PaymentMethodDefinition[] = [
+  // ── 1. Manual: Zelle ──
+  {
+    id: 'pm-zelle-001',
+    key: 'zelle',
+    name: 'Zelle',
+    description: 'Transferencia instantánea desde tu banco vía Zelle.',
+    type: 'manual',
+    paymentData: {
+      bankName: 'Chase Bank',
+      accountHolder: 'Ateendia LLC',
+      email: 'ateendia.contact@gmail.com',
+    },
+    logoUrl: null,
+    qrCodeUrl: null,
+    instructions:
+      'Enviar el monto exacto a ateendia.contact@gmail.com desde tu app bancaria. ' +
+      'Adjuntar el comprobante (captura de pantalla) en el siguiente paso.',
+    cryptoNetwork: null,
+    cryptoSymbol: null,
+    cryptoWallet: null,
+    cryptoExplorerApi: null,
+    providerConfig: null,
+    sortOrder: 10,
+  },
+
+  // ── 2. Crypto semi-automático: USDT (TRC-20) ──
+  {
+    id: 'pm-usdt-trc20-001',
+    key: 'usdt_trc20',
+    name: 'USDT (TRC-20)',
+    description: 'Pago en USDT sobre red Tron. Comisiones bajas (~$1 USD).',
+    type: 'crypto_semi_auto',
+    paymentData: null,
+    logoUrl: null,
+    qrCodeUrl: null,
+    instructions:
+      'Enviar el monto exacto en USDT (red TRC-20) a la wallet indicada. ' +
+      'Copiar el hash de la transacción y pegarlo en el siguiente paso. ' +
+      'La verificación es semi-automática (revisión humana + verificación blockchain).',
+    cryptoNetwork: 'TRC-20',
+    cryptoSymbol: 'USDT',
+    // ⚠️ PLACEHOLDER: reemplazar por la wallet real de Ateendia en 3.5.C.1
+    cryptoWallet: 'TQn9Y2khEsLJW1ChVWFMSMeRDow5KcbLSE',
+    cryptoExplorerApi: 'tronscan',
+    providerConfig: null,
+    sortOrder: 20,
+  },
+
+  // ── 3. Automático: Stripe (tarjeta) ──
+  {
+    id: 'pm-stripe-001',
+    key: 'stripe',
+    name: 'Tarjeta de crédito/débito',
+    description: 'Pago seguro con tarjeta vía Stripe. Acreditación inmediata.',
+    type: 'automatic',
+    paymentData: null,
+    logoUrl: null,
+    qrCodeUrl: null,
+    instructions:
+      'Serás redirigido a Stripe para completar el pago con tarjeta. ' +
+      'Al confirmar el pago, tu suscripción se activa automáticamente.',
+    cryptoNetwork: null,
+    cryptoSymbol: null,
+    cryptoWallet: null,
+    cryptoExplorerApi: null,
+    // ⚠️ PLACEHOLDER: cargar las keys reales desde el panel Super Admin en 3.5.C.1.
+    //    NUNCA cargar la secret key acá — va como variable de entorno server-side.
+    providerConfig: {
+      publishableKey: 'pk_test_PLACEHOLDER',
+    },
+    sortOrder: 30,
+  },
+];
+
 // ─── Permisos SaaS ───
 
 const SAAS_PERMISSIONS = [
@@ -383,6 +487,63 @@ export async function seedSaas(prisma: PrismaClient): Promise<void> {
   }
 
   console.log(`✅ Permisos SaaS: ${permissionsCreated}`);
+    // ─── 3. Métodos de pago ───
+  console.log('');
+  console.log('💳 Sembrando métodos de pago...');
+
+  let paymentMethodsCreated = 0;
+
+  for (const pm of SAAS_PAYMENT_METHODS) {
+    await prisma.saas_payment_methods.upsert({
+      where: { id: pm.id },
+      update: {
+        key: pm.key,
+        name: pm.name,
+        description: pm.description,
+        type: pm.type,
+        payment_data_json: pm.paymentData
+          ? JSON.stringify(pm.paymentData)
+          : null,
+        logo_url: pm.logoUrl,
+        qr_code_url: pm.qrCodeUrl,
+        instructions: pm.instructions,
+        crypto_network: pm.cryptoNetwork,
+        crypto_symbol: pm.cryptoSymbol,
+        crypto_wallet: pm.cryptoWallet,
+        crypto_explorer_api: pm.cryptoExplorerApi,
+        provider_config_json: pm.providerConfig
+          ? JSON.stringify(pm.providerConfig)
+          : null,
+        is_active: true,
+        sort_order: pm.sortOrder,
+      },
+      create: {
+        id: pm.id,
+        key: pm.key,
+        name: pm.name,
+        description: pm.description,
+        type: pm.type,
+        payment_data_json: pm.paymentData
+          ? JSON.stringify(pm.paymentData)
+          : null,
+        logo_url: pm.logoUrl,
+        qr_code_url: pm.qrCodeUrl,
+        instructions: pm.instructions,
+        crypto_network: pm.cryptoNetwork,
+        crypto_symbol: pm.cryptoSymbol,
+        crypto_wallet: pm.cryptoWallet,
+        crypto_explorer_api: pm.cryptoExplorerApi,
+        provider_config_json: pm.providerConfig
+          ? JSON.stringify(pm.providerConfig)
+          : null,
+        is_active: true,
+        sort_order: pm.sortOrder,
+      },
+    });
+    paymentMethodsCreated++;
+  }
+
+  console.log(`✅ Métodos de pago: ${paymentMethodsCreated}`);
   console.log('');
   console.log('🏢 SaaS completado.');
   console.log('');
