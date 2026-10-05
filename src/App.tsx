@@ -38,6 +38,7 @@ import { SaasLandingPreviewModal } from './components/saas/SaasLandingPreviewMod
 import { SuspendedCompanyLockScreen } from './components/saas/SuspendedCompanyLockScreen';
 import { TenantBranding } from './types';
 import { LoginView } from './components/auth/LoginView';
+import { RegisterView } from './components/auth/RegisterView';
 import { authService } from './services/authService';
 
 const AppContent: React.FC = () => {
@@ -47,15 +48,20 @@ const AppContent: React.FC = () => {
     currentTenant,
     currentUser,
     setCurrentTenantId,
+    setCurrentTenant,
+    setCurrentUser,
     users,
     logoutUser: contextLogoutUser,
     saasLandingConfig,
     activeConversationId,
     setActiveConversationId,
+    fetchClients,
+    fetchPolicies,
   } = useTenant();
 
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
+  const [authView, setAuthView] = useState<'login' | 'register'>('login');
   const [activeTab, setActiveTab] = useState<string>('dashboard');
 
   // Modal states
@@ -80,6 +86,8 @@ const AppContent: React.FC = () => {
       const state = authService.getState();
       if (state.isAuthenticated && state.user) {
         setIsAuthenticated(true);
+        if (state.user) setCurrentUser(state.user);
+        if (state.tenant) setCurrentTenant(state.tenant);
       }
       setAuthChecked(true);
     };
@@ -88,13 +96,24 @@ const AppContent: React.FC = () => {
     // Subscribe to auth changes
     const unsubscribe = authService.subscribe((state) => {
       setIsAuthenticated(state.isAuthenticated);
+      if (state.user) setCurrentUser(state.user);
+      if (state.tenant) setCurrentTenant(state.tenant);
     });
 
+    // Fetch initial data when tenant is set
+    if (currentTenant?.id) {
+      fetchClients();
+      fetchPolicies();
+    }
+
     return unsubscribe;
-  }, []);
+  }, [setCurrentUser, setCurrentTenant]);
 
   const handleLoginSuccess = () => {
     setIsAuthenticated(true);
+    // Cargar datos iniciales después del login
+    fetchClients();
+    fetchPolicies();
   };
 
   const handleLogout = async () => {
@@ -145,8 +164,16 @@ const AppContent: React.FC = () => {
     );
   }
 
-  if (!isAuthenticated) {
-    return <LoginView onLoginSuccess={handleLoginSuccess} />;
+    if (!isAuthenticated) {
+    if (authView === 'register') {
+      return <RegisterView onBackToLogin={() => setAuthView('login')} />;
+    }
+    return (
+      <LoginView
+        onLoginSuccess={handleLoginSuccess}
+        onGoToRegister={() => setAuthView('register')}
+      />
+    );
   }
 
   const handleOpenMicroLanding = () => {
@@ -180,7 +207,7 @@ const AppContent: React.FC = () => {
 
           {/* Content Area */}
           <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-[#F8FAFC]">
-            {currentTenant.subscription?.status === 'suspended' && activeTab !== 'saas_central' ? (
+            {currentTenant?.subscription?.status === 'suspended' && activeTab !== 'saas_central' ? (
               <SuspendedCompanyLockScreen />
             ) : (
               <>
@@ -233,7 +260,9 @@ const AppContent: React.FC = () => {
 
                 {activeTab === 'templates' && <TemplatesModule />}
 
-                                {activeTab === 'telephony' && <IssabelModule />}
+                {activeTab === 'chat' && <InternalChatModule />}
+
+                {activeTab === 'telephony' && <IssabelModule />}
                 {activeTab === 'issabel' && <IssabelModule />}
 
                 {activeTab === 'campaigns' && <CampaignsModule />}

@@ -19,9 +19,11 @@ import { authService, LoginCredentials } from '../../services/authService';
 
 interface LoginViewProps {
   onLoginSuccess: () => void;
+  /** Callback para navegar a la pantalla de registro. Opcional para retrocompatibilidad. */
+  onGoToRegister?: () => void;
 }
 
-export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
+export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onGoToRegister }) => {
   const [step, setStep] = useState<'credentials' | 'otp' | 'forgot' | 'reset'>('credentials');
   const [credentials, setCredentials] = useState<LoginCredentials>({
     email: '',
@@ -328,7 +330,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                 )}
               </button>
 
-              {/* Forgot Password Link */}
+                            {/* Forgot Password Link */}
               <div className="text-center">
                 <button
                   type="button"
@@ -339,6 +341,22 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                   <span>¿Olvidaste tu contraseña?</span>
                 </button>
               </div>
+
+              {/* Register Link (solo si el padre lo habilita) */}
+              {onGoToRegister && (
+                <div className="text-center pt-4 border-t border-slate-100">
+                  <p className="text-xs text-slate-500">
+                    ¿No tenés cuenta?{' '}
+                    <button
+                      type="button"
+                      onClick={onGoToRegister}
+                      className="font-bold text-purple-600 hover:text-purple-700 hover:underline"
+                    >
+                      Registrate gratis
+                    </button>
+                  </p>
+                </div>
+              )}
             </form>
           )}
 

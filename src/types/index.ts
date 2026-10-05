@@ -1414,6 +1414,89 @@ export interface RegisterRequestPayload {
   referralSource?: string;
 }
 
+
+// ─────────────────────────────────────────────────────────────────────
+// SaaS — Planes públicos (landing + formulario de registro)
+// Sesión 3.5.B.4.a.2
+// Espejo exacto del DTO del backend (server/routes/saas.ts → GET /api/saas/plans/public)
+// ─────────────────────────────────────────────────────────────────────
+
+/**
+ * Plan SaaS expuesto públicamente en GET /api/saas/plans/public.
+ * Espejo exacto del DTO del backend.
+ *
+ * Nota: los campos numéricos con valor `-1` significan "ilimitado".
+ */
+export interface SaasPlanPublic {
+  id: string;
+  key: string;
+  name: string;
+  description: string | null;
+  priceMonthly: number;
+  priceQuarterly: number;
+  priceAnnual: number;
+  currency: string;
+  maxUsers: number;
+  maxClients: number;
+  maxPolicies: number;
+  maxWhatsapp: number;
+  maxTelegram: number;
+  storageGb: number;
+  maxMessagesDay: number;
+  maxAiTokens: number;
+  features: SaasPlanFeatures;
+  messageRetentionDays: number;
+  isActive: boolean;
+  isPublic: boolean;
+  popular: boolean;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Respuesta del endpoint GET /api/saas/plans/public.
+ */
+export interface SaasPlansPublicResponse {
+  success: true;
+  plans: SaasPlanPublic[];
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// SaaS — Métodos de pago públicos (formulario de registro)
+// Sesión 3.5.B.4.a.2
+// Espejo exacto del DTO del backend (server/types/paymentMethod.ts)
+// ─────────────────────────────────────────────────────────────────────
+
+/**
+ * Método de pago expuesto públicamente en GET /api/saas/payment-methods/public.
+ * Espejo exacto del DTO del backend.
+ *
+ * ⚠️ NO incluye `provider_config_json` (API keys) ni `crypto_explorer_api`.
+ */
+export interface PublicPaymentMethod {
+  id: string;
+  key: string;
+  name: string;
+  description: string | null;
+  type: SaasPaymentMethodType;
+  paymentData: Record<string, unknown> | null;
+  logoUrl: string | null;
+  qrCodeUrl: string | null;
+  instructions: string | null;
+  cryptoNetwork: string | null;
+  cryptoSymbol: string | null;
+  cryptoWallet: string | null;
+}
+
+/**
+ * Respuesta del endpoint GET /api/saas/payment-methods/public.
+ */
+export interface PublicPaymentMethodsResponse {
+  success: true;
+  data: PublicPaymentMethod[];
+}
+
 /**
  * Resultado de crear una solicitud de registro.
  * El backend devuelve esto con 201 Created.
