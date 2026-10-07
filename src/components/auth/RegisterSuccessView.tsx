@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
   CheckCircle2,
   Mail,
@@ -31,6 +31,15 @@ export const RegisterSuccessView: React.FC<RegisterSuccessViewProps> = ({
   onBackToLogin,
 }) => {
   const isDemo = type === 'demo';
+  
+  // Persistir el requestId en localStorage para que CheckStatusModal
+  // pueda autocompletar el input la próxima vez (Sesión 3.5.B.4.b).
+  // Clave compartida: ver src/components/auth/CheckStatusModal.tsx → LOCALSTORAGE_KEY.
+  useEffect(() => {
+    if (requestId) {
+      localStorage.setItem('ateendia_last_registration_request_id', requestId);
+    }
+  }, [requestId]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-purple-900 via-indigo-900 to-slate-900 p-4">

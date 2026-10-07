@@ -12,10 +12,12 @@ import {
   EyeOff,
   Key,
   RotateCcw,
-  ChevronLeft
+  ChevronLeft,
+  Search,
 } from 'lucide-react';
 import { useTenant } from '../../context/TenantContext';
 import { authService, LoginCredentials } from '../../services/authService';
+import { CheckStatusModal } from './CheckStatusModal';
 
 interface LoginViewProps {
   onLoginSuccess: () => void;
@@ -42,6 +44,8 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onGoToRegi
   const [otpSent, setOtpSent] = useState(false);
   const [resendTimer, setResendTimer] = useState(0);
   const [userEmail, setUserEmail] = useState<string>('');
+  // Estado del modal de consulta de estado de solicitud (Sesión 3.5.B.4.b)
+  const [showCheckStatus, setShowCheckStatus] = useState(false);
 
   // Resend timer
   useEffect(() => {
@@ -342,7 +346,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onGoToRegi
                 </button>
               </div>
 
-              {/* Register Link (solo si el padre lo habilita) */}
+                            {/* Register Link (solo si el padre lo habilita) */}
               {onGoToRegister && (
                 <div className="text-center pt-4 border-t border-slate-100">
                   <p className="text-xs text-slate-500">
@@ -357,6 +361,18 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onGoToRegi
                   </p>
                 </div>
               )}
+
+              {/* Check Status Link (Sesión 3.5.B.4.b) */}
+              <div className="text-center pt-3">
+                <button
+                  type="button"
+                  onClick={() => setShowCheckStatus(true)}
+                  className="text-xs font-semibold text-purple-600 hover:text-purple-700 hover:underline flex items-center justify-center gap-1.5 mx-auto"
+                >
+                  <Search className="w-3.5 h-3.5" />
+                  <span>¿Ya enviaste tu solicitud? Consultá el estado</span>
+                </button>
+              </div>
             </form>
           )}
 
@@ -630,13 +646,19 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onGoToRegi
             </div>
           )}
 
-          {/* Security Note */}
+                    {/* Security Note */}
           <div className="mt-6 pt-4 border-t border-slate-100 text-center text-[11px] text-slate-400 flex items-center justify-center gap-1.5">
             <Lock className="w-3 h-3 text-slate-400" />
             <span>Sesión encriptada con aislamiento multi-empresa</span>
           </div>
         </div>
       </div>
+
+      {/* Modal de consulta de estado de solicitud (Sesión 3.5.B.4.b) */}
+      <CheckStatusModal
+        isOpen={showCheckStatus}
+        onClose={() => setShowCheckStatus(false)}
+      />
     </div>
   );
 };

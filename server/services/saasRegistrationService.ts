@@ -27,6 +27,8 @@ import type {
   NormalizedRegisterPayload,
   RegistrationType,
   BillingCycle,
+  RegistrationStatus,
+  RegistrationStatusDTO,
 } from '../types/registration.js';
 
 /** Días de expiración de una solicitud de registro. */
@@ -286,4 +288,98 @@ export async function createRegistrationRequest(
     requestId: normalized.id,
     expiresAt: normalized.expires_at.toISOString(),
   };
+}
+
+/**
+ * Obtiene el estado público de una solicitud de registro por su requestId.
+ *
+ * Frontera de seguridad (ver RegistrationStatusDTO en types/registration.ts):
+ * - Devuelve un DTO SANITIZADO: solo status, type, companyName, createdAt,
+ *   updatedAt, expiresAt, reviewedAt.
+ * - NUNCA devuelve el row crudo de Prisma. El select es EXPLÍCITO para que
+ *   agregar un campo al schema NO lo exponga automáticamente al público.
+ * - El select excluye: admin_*, company_email, company_tax_id, company_phone,
+ *   payment_method_*, receipt_*, crypto_*, reviewed_by, review_notes,
+ *   rejection_reason, created_tenant_id, created_user_id, ip_address,
+ *   user_agent, referral_source. Todos esos quedan fuera por diseño.
+ *
+ * Anti-enumeración:
+ * - Si el requestId no existe, devuelve null. El router lo traduce a un
+ *   404 con mensaje genérico ("Solicitud no encontrada"), sin revelar
+ *   si el ID existía o no.
+ *
+ * Robustez ante datos corruptos:
+ * - Si la DB tiene un status/type distinto de los esperados (por ejemplo,
+ *   un typo en un seed o migración manual), los type guards normalizan
+ *   al valor seguro ('pending' / 'demo') y emiten un warning. NO se lanza
+ *   error para no romper el endpoint público por un dato inconsistente.
+ *
+ * @param requestId - UUID de la solicitud (ya validado por Zod en el router).
+ * @returns DTO sanitizado, o null si no existe.
+ */
+export async function getRegistrationStatus(
+  requestId: string,
+): Promise<RegistrationStatusDTO | null> {
+  const row = await prisma.saas_registration_requests.findUnique({
+    where: { id: requestId },
+    // Select explícito: NO hacemos SELECT * para que Prisma no traiga
+    // campos sensibles que después podríamos olvidar excluir.
+    select: {
+      status: true,
+      type: true,
+      company_name: true,
+      created_at: true,
+      updated_at: true,
+      expires_at: true,
+      reviewed_at: true,
+    },
+  });
+
+  if (!row) return null;
+
+  return {
+    status: normalizeRegistrationStatus(row.status),
+    type: normalizeRegistrationType(row.type),
+    companyName: row.company_name,
+    createdAt: row.created_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
+    expiresAt: row.expires_at ? row.expires_at.toISOString() : null,
+    reviewedAt: row.reviewed_at ? row.reviewed_at.toISOString() : null,
+  };
+}
+
+/**
+ * Normaliza el status de Prisma a un valor del union type RegistrationStatus.
+ *
+ * Si el valor es inesperado (typo en DB, migración manual, seed corrupto),
+ * cae a 'pending' (valor seguro) y emite warning. Nunca lanza excepción:
+ * un endpoint público no debe devolver 500 por un dato inconsistente.
+ */
+function normalizeRegistrationStatus(raw: string): RegistrationStatus {
+  if (
+    raw === 'pending' ||
+    raw === 'approved' ||
+    raw === 'rejected' ||
+    raw === 'expired'
+  ) {
+    return raw;
+  }
+  console.warn(
+    `[getRegistrationStatus] status inesperado en DB: "${raw}". Fallback a "pending".`,
+  );
+  return 'pending';
+}
+
+/**
+ * Normaliza el type de Prisma a un valor del union type RegistrationType.
+ *
+ * Si el valor es inesperado, cae a 'demo' (valor más conservador desde el
+ * punto de vista del usuario: no promete acceso pago).
+ */
+function normalizeRegistrationType(raw: string): RegistrationType {
+  if (raw === 'demo' || raw === 'payment') return raw;
+  console.warn(
+    `[getRegistrationStatus] type inesperado en DB: "${raw}". Fallback a "demo".`,
+  );
+  return 'demo';
 }

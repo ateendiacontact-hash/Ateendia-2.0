@@ -16,6 +16,7 @@ import { Router } from 'express';
 import { landingRouter } from './saas/landing.js';
 import { registerRouter } from './saas/register.js';
 import { registrationsRouter } from './saas/registrations.js';
+import { registrationStatusRouter } from './saas/registrationStatus.js';
 import { paymentMethodsRouter } from './saas/paymentMethods.js';
 import { z } from 'zod';
 import {
@@ -300,3 +301,18 @@ saasRouter.use('/payment-methods', paymentMethodsRouter);
 // Montado en /api/saas/registrations
 // ─────────────────────────────────────────────────────────────
 saasRouter.use('/registrations', registrationsRouter);
+
+// ─────────────────────────────────────────────────────────────────────
+// Sub-router: Consulta pública de estado de solicitud (sin auth)
+// Montado en /api/saas/registrations/:requestId/status
+//
+// ⚠️ ORDEN IMPORTA: se monta DESPUÉS del panel admin para que las
+// rutas más específicas (GET /, POST /:id/approve, POST /:id/reject)
+// tengan prioridad. NO agregar rutas catch-all GET /:id al panel
+// admin sin revisar este orden.
+//
+// Por qué funciona: el panel admin solo define GET /, POST /:id/approve
+// y POST /:id/reject. Ninguna matchea GET /:requestId/status. Express
+// evalúa los use() en orden; si el primero no matchea, cae al segundo.
+// ─────────────────────────────────────────────────────────────────────
+saasRouter.use('/registrations', registrationStatusRouter);

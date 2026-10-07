@@ -1527,3 +1527,78 @@ export interface RegisterErrorResponse {
   code: 'VALIDATION_ERROR' | 'DOMAIN_VALIDATION_ERROR' | 'RATE_LIMIT_EXCEEDED';
   details?: unknown;
 }
+
+export interface RegistrationStatusDTO {
+  /** Estado actual de la solicitud. */
+  status: SaasRegistrationStatus;   // ← reutilizo si ya existe con mismos valores
+
+  /** Tipo: 'demo' o 'payment'. */
+  type: SaasRegistrationType;       // ← reutilizo si ya existe con mismos valores
+
+  /** Nombre de la empresa (el usuario lo tipeó al registrarse). */
+  companyName: string;
+
+  /** Fecha ISO 8601 de creación de la solicitud. */
+  createdAt: string;
+
+  /** Fecha ISO 8601 del último cambio de estado. */
+  updatedAt: string;
+
+  /** Fecha ISO 8601 de expiración. Null si la DB no la tenía. */
+  expiresAt: string | null;
+
+  /** Fecha ISO 8601 de aprobación/rechazo. Null si pending/expired. */
+  reviewedAt: string | null;
+}
+
+/**
+ * Respuesta exitosa del endpoint público de consulta de estado.
+ */
+export interface RegistrationStatusSuccessResponse {
+  success: true;
+  data: RegistrationStatusDTO;
+}
+
+/**
+ * Respuesta de error del endpoint público de consulta de estado.
+ *
+ * Códigos posibles:
+ * - INVALID_REQUEST_ID:      el UUID no tiene formato válido (400).
+ * - REGISTRATION_NOT_FOUND:  UUID válido pero inexistente (404).
+ * - RATE_LIMIT_EXCEEDED:     más de 10 req/15min por IP (429).
+ */
+export interface RegistrationStatusErrorResponse {
+  success: false;
+  error: string;
+  code: 'INVALID_REQUEST_ID' | 'REGISTRATION_NOT_FOUND' | 'RATE_LIMIT_EXCEEDED';
+}
+
+/**
+ * Resultado discriminado para uso en el servicio frontend.
+ *
+ * Permite type-narrowing seguro:
+ *   if (result.success) { result.data.status } else { result.error }
+ */
+export type RegistrationStatusResult =
+  | RegistrationStatusSuccessResponse
+  | RegistrationStatusErrorResponse;
+
+  /**
+ * Resultado discriminado de fetchRegistrationStatus del frontend.
+ *
+ * Vive acá (no en registrationService.ts) para que TypeScript lo trate
+ * como union discriminado puro y permita narrowing en los componentes.
+ */
+export type FetchStatusResult =
+  | { success: true; data: RegistrationStatusDTO }
+  | {
+      success: false;
+      error: string;
+      code:
+        | 'INVALID_REQUEST_ID'
+        | 'REGISTRATION_NOT_FOUND'
+        | 'RATE_LIMIT_EXCEEDED'
+        | 'NETWORK_ERROR'
+        | 'UNKNOWN_ERROR';
+      details?: unknown;
+    };

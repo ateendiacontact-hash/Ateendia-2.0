@@ -158,3 +158,105 @@ export interface NormalizedRegisterPayload {
 
   expires_at: Date;
 }
+
+
+/**
+ * DTO sanitizado que devuelve el endpoint público
+ * GET /api/saas/registrations/:requestId/status.
+ *
+ * IMPORTANTE — Frontera de seguridad:
+ * Este tipo define EXACTAMENTE qué campos se exponen al público (sin auth).
+ * Cualquier campo que NO esté acá NO debe salir del servicio.
+ *
+ * Campos EXCLUIDOS deliberadamente (nunca se devuelven):
+ * - admin_email, admin_name, admin_phone, admin_position
+ * - admin_password_hash (jamás, ni hasheado)
+ * - company_email, company_tax_id, company_phone, company_address
+ * - payment_method_id, payment_method_key, payment_method_name
+ * - receipt_url, receipt_filename, receipt_file_size, receipt_uploaded_at
+ * - crypto_tx_hash
+ * - rejection_reason, review_notes (motivos internos del revisor)
+ * - ip_address, user_agent, referral_source (metadata server-side)
+ *
+ * Razón de la exclusión (anti-enumeración + privacidad):
+ * - Un atacante con un requestId filtrado NO debe poder extraer emails,
+ *   tax_ids, datos de pago, ni motivos de rechazo desde este endpoint.
+ * - El dueño legítimo de la solicitud ya conoce estos datos: los tipeó él.
+ *   No necesita que el endpoint se los recuerde.
+ * - Solo se devuelve lo necesario para que el usuario entienda su estado:
+ *   status, type, companyName, timestamps.
+ *
+ * Campos INCLUIDOS y su justificación:
+ * - status:        el propósito del endpoint.
+ * - type:          demo vs pago — cambia el mensaje al usuario.
+ * - companyName:   confirmación de "esta es mi solicitud" (el usuario lo tipeó).
+ * - createdAt:     cuándo se envió (el usuario lo sabe, refuerza contexto).
+ * - updatedAt:     última modificación (útil si cambió de estado recientemente).
+ * - expiresAt:     cuándo expira (crítico para status='pending', el usuario
+ *                  necesita saber cuánto tiempo tiene).
+ * - reviewedAt:    cuándo se aprobó/rechazó (null si pending/expired).
+ *                  Útil para que el usuario sepa cuándo revisar el email.
+ */
+/**
+ * DTO sanitizado que devuelve el endpoint público
+ * GET /api/saas/registrations/:requestId/status.
+ *
+ * IMPORTANTE — Frontera de seguridad:
+ * Este tipo define EXACTAMENTE qué campos se exponen al público (sin auth).
+ * Cualquier campo que NO esté acá NO debe salir del servicio.
+ *
+ * Campos EXCLUIDOS deliberadamente (nunca se devuelven):
+ * - admin_email, admin_name, admin_phone, admin_position
+ * - admin_password_hash (jamás, ni hasheado)
+ * - company_email, company_tax_id, company_phone, company_address
+ * - plan_id, plan_key, plan_name, billing_cycle, price_amount, currency
+ * - payment_method_id, payment_method_key, payment_method_name
+ * - receipt_url, receipt_filename, receipt_file_size, receipt_uploaded_at
+ * - crypto_tx_hash, crypto_verified, crypto_verified_at
+ * - reviewed_by (ID del revisor interno)
+ * - review_notes, rejection_reason (motivos internos)
+ * - created_tenant_id, created_user_id
+ * - ip_address, user_agent, referral_source (metadata server-side)
+ *
+ * Razón de la exclusión (anti-enumeración + privacidad):
+ * - Un atacante con un requestId filtrado NO debe poder extraer emails,
+ *   tax_ids, datos de pago, ni motivos de rechazo desde este endpoint.
+ * - El dueño legítimo de la solicitud ya conoce estos datos: los tipeó él.
+ *   No necesita que el endpoint se los recuerde.
+ * - Solo se devuelve lo necesario para que el usuario entienda su estado.
+ *
+ * Campos INCLUIDOS y su justificación:
+ * - status:        el propósito del endpoint.
+ * - type:          demo vs pago — cambia el mensaje al usuario.
+ * - companyName:   confirmación de "esta es mi solicitud".
+ * - createdAt:     cuándo se envió.
+ * - updatedAt:     último cambio de estado (updated_at se actualiza manualmente
+ *                  en approve/reject/expire del review service — verificado).
+ * - expiresAt:     cuándo expira. Nullable en DB → nullable en DTO.
+ *                  El frontend muestra "sin fecha" si es null.
+ * - reviewedAt:    cuándo se aprobó/rechazó (null si pending/expired).
+ */
+export interface RegistrationStatusDTO {
+  status: RegistrationStatus;
+  type: RegistrationType;
+  companyName: string;
+  createdAt: string;
+  updatedAt: string;
+  expiresAt: string | null;
+  reviewedAt: string | null;
+}
+
+/**
+ * Respuesta del endpoint público de consulta de estado.
+ *
+ * Estructura discriminada por `success`:
+ * - Éxito:  { success: true,  data: RegistrationStatusDTO }
+ * - Error:  { success: false, error: string, code: string }
+ *
+ * Nota: el tipo de error se define en el router (no acá) porque es
+ * específico del transporte HTTP, no del dominio.
+ */
+export interface RegistrationStatusSuccessResponse {
+  success: true;
+  data: RegistrationStatusDTO;
+}
