@@ -20,7 +20,8 @@ export type AuditAction =
   | 'EXPORT'
   | 'CALL'
   | 'SEND_MESSAGE'
-  | 'STATUS_CHANGE';
+  | 'STATUS_CHANGE'
+  | 'UPDATE_PASSWORD';
 
 export type AuditModule =
   | 'Clientes'

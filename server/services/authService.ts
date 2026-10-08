@@ -27,6 +27,7 @@ export interface LoginResult {
     phone: string | null;
     extension: string | null;
   };
+  mustResetPassword: boolean;
 }
 
 // ─── Funciones ───
@@ -78,9 +79,10 @@ export async function login(input: LoginInput): Promise<LoginResult> {
   };
 
   const token = jwt.sign(payload, env.JWT_SECRET, {
-  expiresIn: env.JWT_EXPIRES_IN as jwt.SignOptions['expiresIn'],
-  }); 
+    expiresIn: env.JWT_EXPIRES_IN as jwt.SignOptions['expiresIn'],
+  });
 
+  // 6. Devolver token + user + mustResetPassword
   return {
     token,
     user: {
@@ -93,6 +95,7 @@ export async function login(input: LoginInput): Promise<LoginResult> {
       phone: user.phone,
       extension: user.extension,
     },
+    mustResetPassword: user.must_reset_password,
   };
 }
 
@@ -122,6 +125,7 @@ export async function getCurrentUser(userId: string) {
     twoFactorEnabled: user.two_factor_enabled,
     lastLogin: user.last_login,
     createdAt: user.created_at,
+    mustResetPassword: user.must_reset_password,
   };
 }
 
@@ -131,4 +135,49 @@ export async function getCurrentUser(userId: string) {
  */
 export async function hashPassword(plain: string): Promise<string> {
   return bcrypt.hash(plain, 10);
+}
+
+/**
+ * Cambia la contraseña de un usuario que tiene must_reset_password = true.
+ * Requiere que el usuario ya esté autenticado (JWT válido).
+ *
+ * @throws Error('USER_NOT_FOUND') si el userId no existe
+ * @throws Error('PASSWORD_ALREADY_SET') si must_reset_password ya es false
+ * @throws Error('INVALID_CURRENT_PASSWORD') si la contraseña actual no coincide
+ */
+export async function changeInitialPassword(
+  userId: string,
+  currentPassword: string,
+  newPassword: string
+): Promise<void> {
+  // 1. Buscar usuario
+  const user = await prisma.users.findUnique({
+    where: { id: userId },
+  });
+
+  if (!user) {
+    throw new Error('USER_NOT_FOUND');
+  }
+
+  // 2. Validar que deba cambiar la contraseña
+  if (!user.must_reset_password) {
+    throw new Error('PASSWORD_ALREADY_SET');
+  }
+
+  // 3. Verificar contraseña actual
+  const passwordOk = await bcrypt.compare(currentPassword, user.password_hash);
+  if (!passwordOk) {
+    throw new Error('INVALID_CURRENT_PASSWORD');
+  }
+
+  // 4. Hashear nueva contraseña y actualizar
+  const newHash = await bcrypt.hash(newPassword, 10);
+
+  await prisma.users.update({
+    where: { id: user.id },
+    data: {
+      password_hash: newHash,
+      must_reset_password: false,
+    },
+  });
 }
