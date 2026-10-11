@@ -637,8 +637,8 @@ export interface AuditLogEntry {
   userId: string;
   userName: string;
   userEmail: string;
-  action: 'CREATE' | 'UPDATE' | 'DELETE' | 'LOGIN' | 'LOGOUT' | 'EXPORT' | 'CALL' | 'SEND_MESSAGE' | 'STATUS_CHANGE';
-  module: 'Clientes' | 'Pólizas' | 'Pipeline' | 'WhatsApp' | 'Email' | 'Bancos' | 'Telefonía' | 'Configuración' | 'Usuarios' | 'Campañas' | 'Integraciones';
+  action: 'CREATE' | 'UPDATE' | 'DELETE' | 'LOGIN' | 'LOGOUT' | 'EXPORT' | 'CALL' | 'SEND_MESSAGE' | 'STATUS_CHANGE' | 'UPDATE_PASSWORD';
+  module: 'Clientes' | 'Pólizas' | 'Pipeline' | 'WhatsApp' | 'Email' | 'Bancos' | 'Telefonía' | 'Configuración' | 'Usuarios' | 'Campañas' | 'Integraciones' | 'Autenticación';
   targetId?: string;
   targetName?: string;
   entityId?: string;
@@ -1602,3 +1602,97 @@ export type FetchStatusResult =
         | 'UNKNOWN_ERROR';
       details?: unknown;
     };
+
+    // ═══════════════════════════════════════════════════════════════════
+// Auth — Primer login con must_reset_password (Sesión 3.5.B.4.c)
+// ═══════════════════════════════════════════════════════════════════
+//
+// Tipos del frontend para el flujo de cambio de contraseña obligatorio.
+// Espejo del backend (server/types/auth.ts) + el DTO real del endpoint
+// POST /api/auth/login.
+
+/**
+ * Usuario devuelto por el endpoint POST /api/auth/login.
+ * Espejo exacto de la estructura que devuelve el backend.
+ */
+export interface AuthLoginUser {
+  id: string;
+  tenantId: string;
+  name: string;
+  email: string;
+  role: string;
+  avatar: string | null;
+  phone: string | null;
+  extension: string | null;
+}
+
+/**
+ * Respuesta exitosa de POST /api/auth/login.
+ *
+ * `mustResetPassword` indica si el usuario debe cambiar su contraseña
+ * antes de poder usar el CRM (primer login tras aprobación de registro).
+ */
+export interface AuthLoginResponse {
+  success: true;
+  token: string;
+  user: AuthLoginUser;
+  mustResetPassword: boolean;
+}
+
+/**
+ * Resultado interno del servicio de auth.
+ * Discriminated union para type-narrowing seguro en LoginView.
+ */
+export type AuthLoginResult =
+  | { success: true; mustResetPassword: boolean; requires2FA?: false }
+  | { success: true; requires2FA: true; mustResetPassword: false }
+  | { success: false; error: string };
+
+/**
+ * Payload para POST /api/auth/change-initial-password.
+ * Espejo exacto del backend.
+ */
+export interface ChangeInitialPasswordPayload {
+  currentPassword: string;
+  newPassword: string;
+  confirmPassword: string;
+}
+
+/**
+ * Respuesta exitosa de POST /api/auth/change-initial-password.
+ */
+export interface ChangeInitialPasswordResponse {
+  success: true;
+  message: string;
+}
+
+/**
+ * Respuesta de error de POST /api/auth/change-initial-password.
+ *
+ * Códigos posibles:
+ * - VALIDATION_ERROR:        body inválido o password no cumple regex (400).
+ * - USER_NOT_FOUND:          usuario del JWT no existe (404).
+ * - PASSWORD_ALREADY_SET:    must_reset_password ya era 0 (400).
+ * - INVALID_CURRENT_PASSWORD: la contraseña actual no coincide (401).
+ * - AUTH_TOKEN_MISSING:      no se envió JWT (401).
+ * - AUTH_TOKEN_INVALID:      JWT inválido o expirado (401).
+ */
+export interface ChangeInitialPasswordErrorResponse {
+  success: false;
+  error: string;
+  code:
+    | 'VALIDATION_ERROR'
+    | 'USER_NOT_FOUND'
+    | 'PASSWORD_ALREADY_SET'
+    | 'INVALID_CURRENT_PASSWORD'
+    | 'AUTH_TOKEN_MISSING'
+    | 'AUTH_TOKEN_INVALID';
+  details?: unknown;
+}
+
+/**
+ * Resultado discriminado para uso en el servicio frontend.
+ */
+export type ChangeInitialPasswordResult =
+  | ChangeInitialPasswordResponse
+  | ChangeInitialPasswordErrorResponse;

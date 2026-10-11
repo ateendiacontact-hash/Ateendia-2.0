@@ -1,3 +1,13 @@
+// ===========================================
+// src/components/auth/LoginView.tsx
+// Vista de login con soporte para:
+//   - Email + password (flujo principal)
+//   - 2FA (OTP) — STUB temporal, pendiente SMTP transaccional
+//   - Recuperación de contraseña — STUB temporal, pendiente SMTP
+//   - Consulta de estado de solicitud (3.5.B.4.b)
+//   - Redirección a must_reset_password (3.5.B.4.c)
+// ===========================================
+
 import React, { useState, useEffect } from 'react';
 import {
   Shield,
@@ -15,13 +25,17 @@ import {
   ChevronLeft,
   Search,
 } from 'lucide-react';
-import { useTenant } from '../../context/TenantContext';
 import { authService, LoginCredentials } from '../../services/authService';
 import { CheckStatusModal } from './CheckStatusModal';
 
 interface LoginViewProps {
-  onLoginSuccess: () => void;
-  /** Callback para navegar a la pantalla de registro. Opcional para retrocompatibilidad. */
+  /**
+   * Callback cuando el login fue exitoso.
+   * Recibe `mustResetPassword` para que App.tsx decida si redirige
+   * a la vista de cambio obligatorio o al dashboard.
+   */
+  onLoginSuccess: (mustResetPassword: boolean) => void;
+  /** Callback para navegar a la pantalla de registro. */
   onGoToRegister?: () => void;
 }
 
@@ -41,13 +55,11 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onGoToRegi
   const [success, setSuccess] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
-  const [otpSent, setOtpSent] = useState(false);
   const [resendTimer, setResendTimer] = useState(0);
   const [userEmail, setUserEmail] = useState<string>('');
-  // Estado del modal de consulta de estado de solicitud (Sesión 3.5.B.4.b)
   const [showCheckStatus, setShowCheckStatus] = useState(false);
 
-  // Resend timer
+  // Resend timer para OTP
   useEffect(() => {
     if (resendTimer <= 0) return;
     const interval = setInterval(() => {
@@ -56,7 +68,8 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onGoToRegi
     return () => clearInterval(interval);
   }, [resendTimer]);
 
-  const handleCredentialsSubmit = async (e: React.FormEvent) => {
+  // ─── Submit: credenciales ───
+    const handleCredentialsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setSuccess(null);
@@ -68,17 +81,22 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onGoToRegi
         password: credentials.password,
       });
 
-      if (result.success && result.requires2FA) {
-        // OTP sent, move to step 2
+      // TypeScript no siempre hace narrowing en uniones complejas.
+      // Usamos un type guard explícito para forzar el discriminante.
+      if (result.success === true && result.requires2FA === true) {
+        // Rama: login exitoso pero requiere 2FA
         setUserEmail(credentials.email);
         setStep('otp');
-        setOtpSent(true);
         setResendTimer(60);
-      } else if (result.success) {
-        // Direct login (no 2FA)
-        onLoginSuccess();
-      } else {
+      } else if (result.success === true && result.requires2FA === false) {
+        // Rama: login completo
+        onLoginSuccess(result.mustResetPassword);
+      } else if (result.success === false) {
+        // Rama: error de credenciales
         setError(result.error || 'Credenciales inválidas');
+      } else {
+        // Fallback defensivo (no debería pasar con el tipo actual)
+        setError('Respuesta inesperada del servidor');
       }
     } catch (err: any) {
       setError(err.message || 'Error inesperado');
@@ -87,6 +105,9 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onGoToRegi
     }
   };
 
+  // ─── Submit: OTP ───
+  // STUB: el backend Express todavía no soporta 2FA real.
+  // Se neutraliza con un mensaje user-friendly.
   const handleOtpSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (otpCode.length !== 6) {
@@ -98,17 +119,10 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onGoToRegi
     setIsLoading(true);
 
     try {
-      const result = await authService.login({
-        email: userEmail,
-        password: credentials.password,
-        twoFactorCode: otpCode,
-      });
-
-      if (result.success) {
-        onLoginSuccess();
-      } else {
-        setError(result.error || 'Código inválido');
-      }
+      // TODO 3.5.B.4.g: implementar POST /api/auth/verify-otp
+      // Por ahora, rechazar con mensaje explícito.
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      setError('La verificación 2FA todavía no está disponible. Contactá a soporte.');
     } catch (err: any) {
       setError(err.message || 'Error inesperado');
     } finally {
@@ -116,17 +130,16 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onGoToRegi
     }
   };
 
+  // ─── Resend OTP ───
+  // STUB: pendiente backend 2FA.
   const handleResendOtp = async () => {
     if (resendTimer > 0) return;
-    
     setIsLoading(true);
     setError(null);
 
     try {
-      await authService.resendOtp(userEmail);
-      setOtpSent(true);
-      setResendTimer(60);
-      setOtpCode('');
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      setError('El reenvío de código 2FA todavía no está disponible.');
     } catch (err: any) {
       setError(err.message || 'Error al reenviar código');
     } finally {
@@ -134,10 +147,12 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onGoToRegi
     }
   };
 
+  // ─── Forgot password ───
+  // STUB: pendiente backend + SMTP transaccional.
   const handleForgotSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!forgotEmail) {
-      setError('Ingresa tu correo electrónico');
+      setError('Ingresá tu correo electrónico');
       return;
     }
 
@@ -146,14 +161,8 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onGoToRegi
     setIsLoading(true);
 
     try {
-      const result = await authService.requestPasswordReset(forgotEmail);
-      if (result.success) {
-        setSuccess('Se ha enviado un enlace de restablecimiento a tu correo. Revisa tu bandeja de entrada y spam.');
-        setStep('credentials');
-        setForgotEmail('');
-      } else {
-        setError(result.error || 'Error al solicitar restablecimiento');
-      }
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      setError('La recuperación de contraseña todavía no está disponible. Contactá a soporte.');
     } catch (err: any) {
       setError(err.message || 'Error inesperado');
     } finally {
@@ -161,6 +170,8 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onGoToRegi
     }
   };
 
+  // ─── Reset password ───
+  // STUB: pendiente backend + SMTP transaccional.
   const handleResetSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -170,8 +181,8 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onGoToRegi
       setError('Token de restablecimiento requerido');
       return;
     }
-    if (newPassword.length < 8) {
-      setError('La contraseña debe tener al menos 8 caracteres');
+    if (newPassword.length < 6) {
+      setError('La contraseña debe tener al menos 6 caracteres');
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -182,18 +193,8 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onGoToRegi
     setIsLoading(true);
 
     try {
-      const result = await authService.confirmPasswordReset(resetToken, newPassword, confirmPassword);
-      if (result.success) {
-        setSuccess('Contraseña actualizada correctamente. Redirigiendo al inicio de sesión...');
-        setTimeout(() => {
-          setStep('credentials');
-          setResetToken('');
-          setNewPassword('');
-          setConfirmPassword('');
-        }, 2000);
-      } else {
-        setError(result.error || 'Error al restablecer contraseña');
-      }
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      setError('El restablecimiento de contraseña todavía no está disponible. Contactá a soporte.');
     } catch (err: any) {
       setError(err.message || 'Error inesperado');
     } finally {
@@ -201,10 +202,10 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onGoToRegi
     }
   };
 
+  // ─── Navegación entre steps ───
   const handleBackToCredentials = () => {
     setStep('credentials');
     setOtpCode('');
-    setOtpSent(false);
     setResendTimer(0);
     setUserEmail('');
     setError(null);
@@ -218,7 +219,6 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onGoToRegi
   };
 
   const handleShowReset = () => {
-    // Extract token from URL if present
     const urlParams = new URLSearchParams(window.location.search);
     const token = urlParams.get('token');
     if (token) {
@@ -238,10 +238,10 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onGoToRegi
             <Shield className="w-8 h-8 text-white" />
           </div>
           <h1 className="text-2xl font-black text-slate-900">Ateendia CRM</h1>
-          <p className="text-sm text-slate-500 mt-1">Inicia sesión para acceder a tu panel</p>
+          <p className="text-sm text-slate-500 mt-1">Iniciá sesión para acceder a tu panel</p>
         </div>
 
-        {/* Step Indicator - only for login flow */}
+        {/* Step Indicator */}
         {(step === 'credentials' || step === 'otp') && (
           <div className="flex items-center justify-center gap-2 mb-6">
             <div className={`flex items-center gap-1.5 ${step === 'credentials' ? 'text-purple-600' : 'text-slate-400'}`}>
@@ -260,7 +260,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onGoToRegi
           </div>
         )}
 
-        {/* Login Card */}
+        {/* Card */}
         <div className="bg-white rounded-2xl shadow-xl border border-slate-200 p-6 sm:p-8">
           {(error || success) && (
             <div className={`mb-5 p-3 rounded-xl text-sm flex items-center gap-2 animate-in fade-in ${
@@ -334,7 +334,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onGoToRegi
                 )}
               </button>
 
-                            {/* Forgot Password Link */}
+              {/* Forgot Password Link */}
               <div className="text-center">
                 <button
                   type="button"
@@ -346,7 +346,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onGoToRegi
                 </button>
               </div>
 
-                            {/* Register Link (solo si el padre lo habilita) */}
+              {/* Register Link */}
               {onGoToRegister && (
                 <div className="text-center pt-4 border-t border-slate-100">
                   <p className="text-xs text-slate-500">
@@ -362,7 +362,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onGoToRegi
                 </div>
               )}
 
-              {/* Check Status Link (Sesión 3.5.B.4.b) */}
+              {/* Check Status Link */}
               <div className="text-center pt-3">
                 <button
                   type="button"
@@ -376,7 +376,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onGoToRegi
             </form>
           )}
 
-          {/* Step 2: OTP Verification */}
+          {/* Step 2: OTP Verification (STUB) */}
           {step === 'otp' && (
             <div className="space-y-5">
               <div className="text-center space-y-2 pb-4 border-b border-slate-100">
@@ -384,9 +384,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onGoToRegi
                   <Mail className="w-6 h-6" />
                 </div>
                 <h3 className="text-lg font-bold text-slate-900">Verificación en Dos Pasos</h3>
-                <p className="text-xs text-slate-500">
-                  Hemos enviado un código de 6 dígitos a
-                </p>
+                <p className="text-xs text-slate-500">Hemos enviado un código de 6 dígitos a</p>
                 <p className="text-sm font-mono font-bold text-purple-700 bg-purple-50 px-3 py-1.5 rounded-lg inline-block">
                   {userEmail}
                 </p>
@@ -424,8 +422,8 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onGoToRegi
                         }}
                         id={`otp-${i}`}
                         className={`w-10 h-12 text-center text-2xl font-mono font-bold tracking-widest rounded-xl border-2 ${
-                          otpCode[i] 
-                            ? 'border-purple-500 bg-purple-50 text-purple-800' 
+                          otpCode[i]
+                            ? 'border-purple-500 bg-purple-50 text-purple-800'
                             : 'border-slate-200 bg-white focus:border-purple-500'
                         } focus:outline-none focus:ring-1 focus:ring-purple-500 transition-all`}
                         disabled={isLoading}
@@ -455,7 +453,6 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onGoToRegi
                 </button>
               </form>
 
-              {/* Resend OTP */}
               <div className="pt-4 border-t border-slate-100 space-y-3">
                 <button
                   type="button"
@@ -467,9 +464,9 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onGoToRegi
                 >
                   <RefreshCw className="w-3.5 h-3.5" />
                   <span>
-                    {resendTimer > 0 
-                      ? `Reenviar código en ${resendTimer}s` 
-                      : 'No recibiste el código? Reenviar'}
+                    {resendTimer > 0
+                      ? `Reenviar código en ${resendTimer}s`
+                      : '¿No recibiste el código? Reenviar'}
                   </span>
                 </button>
 
@@ -485,7 +482,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onGoToRegi
             </div>
           )}
 
-          {/* Step 3: Forgot Password - Request Reset Email */}
+          {/* Step 3: Forgot Password (STUB) */}
           {step === 'forgot' && (
             <div className="space-y-5">
               <div className="text-center space-y-2 pb-4 border-b border-slate-100">
@@ -494,7 +491,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onGoToRegi
                 </div>
                 <h3 className="text-lg font-bold text-slate-900">Recuperar Contraseña</h3>
                 <p className="text-xs text-slate-500">
-                  Ingresa tu correo electrónico y te enviaremos un enlace para restablecer tu contraseña.
+                  Ingresá tu correo electrónico y te enviaremos un enlace para restablecer tu contraseña.
                 </p>
               </div>
 
@@ -546,7 +543,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onGoToRegi
             </div>
           )}
 
-          {/* Step 4: Reset Password - New Password Form */}
+          {/* Step 4: Reset Password (STUB) */}
           {step === 'reset' && (
             <div className="space-y-5">
               <div className="text-center space-y-2 pb-4 border-b border-slate-100">
@@ -554,9 +551,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onGoToRegi
                   <RotateCcw className="w-6 h-6" />
                 </div>
                 <h3 className="text-lg font-bold text-slate-900">Nueva Contraseña</h3>
-                <p className="text-xs text-slate-500">
-                  Define tu nueva contraseña de acceso.
-                </p>
+                <p className="text-xs text-slate-500">Definí tu nueva contraseña de acceso.</p>
               </div>
 
               <form onSubmit={handleResetSubmit} className="space-y-5">
@@ -574,7 +569,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onGoToRegi
                       type={showNewPassword ? 'text' : 'password'}
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
-                      placeholder="Mínimo 8 caracteres"
+                      placeholder="Mínimo 6 caracteres"
                       className="w-full pl-10 pr-12 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
                       required
                       autoComplete="new-password"
@@ -599,26 +594,18 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onGoToRegi
                       type={showNewPassword ? 'text' : 'password'}
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
-                      placeholder="Repite la contraseña"
+                      placeholder="Repetí la contraseña"
                       className="w-full pl-10 pr-12 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:border-purple-500 focus:outline-none focus:ring-1 focus:ring-purple-500"
                       required
                       autoComplete="new-password"
                       disabled={isLoading}
                     />
-                    <button
-                      type="button"
-                      onClick={() => setShowNewPassword(!showNewPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                      tabIndex={-1}
-                    >
-                      {showNewPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                    </button>
                   </div>
                 </div>
 
                 <button
                   type="submit"
-                  disabled={isLoading || newPassword.length < 8 || newPassword !== confirmPassword}
+                  disabled={isLoading || newPassword.length < 6 || newPassword !== confirmPassword}
                   className="w-full py-3 px-4 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-sm shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   {isLoading ? (
@@ -646,7 +633,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onGoToRegi
             </div>
           )}
 
-                    {/* Security Note */}
+          {/* Security Note */}
           <div className="mt-6 pt-4 border-t border-slate-100 text-center text-[11px] text-slate-400 flex items-center justify-center gap-1.5">
             <Lock className="w-3 h-3 text-slate-400" />
             <span>Sesión encriptada con aislamiento multi-empresa</span>
@@ -654,7 +641,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onGoToRegi
         </div>
       </div>
 
-      {/* Modal de consulta de estado de solicitud (Sesión 3.5.B.4.b) */}
+      {/* Modal de consulta de estado */}
       <CheckStatusModal
         isOpen={showCheckStatus}
         onClose={() => setShowCheckStatus(false)}

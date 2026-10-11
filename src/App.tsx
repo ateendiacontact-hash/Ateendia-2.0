@@ -39,12 +39,13 @@ import { SuspendedCompanyLockScreen } from './components/saas/SuspendedCompanyLo
 import { TenantBranding } from './types';
 import { LoginView } from './components/auth/LoginView';
 import { RegisterView } from './components/auth/RegisterView';
+import { FirstLoginPasswordChangeView } from './components/auth/FirstLoginPasswordChangeView';
 import { authService } from './services/authService';
 
 const AppContent: React.FC = () => {
-  const { 
-    clients, 
-    policies, 
+  const {
+    clients,
+    policies,
     currentTenant,
     currentUser,
     setCurrentTenantId,
@@ -61,7 +62,7 @@ const AppContent: React.FC = () => {
 
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
-  const [authView, setAuthView] = useState<'login' | 'register'>('login');
+  const [authView, setAuthView] = useState<'login' | 'register' | 'firstLoginPasswordChange'>('login');
   const [activeTab, setActiveTab] = useState<string>('dashboard');
 
   // Modal states
@@ -80,7 +81,11 @@ const AppContent: React.FC = () => {
   const [landingPreviewMode, setLandingPreviewMode] = useState<'saas_master' | 'tenant_agency'>('tenant_agency');
   const [landingPreviewTenant, setLandingPreviewTenant] = useState<TenantBranding | null>(null);
 
-  // Check auth on mount
+  // ─── Check auth on mount ───
+  // Deps vacías: se ejecuta UNA sola vez al montar.
+  // Las dependencias `setCurrentUser` y `setCurrentTenant` del contexto
+  // ya son estables (useCallback), pero las dejamos fuera para evitar
+  // re-ejecuciones en cascada.
   useEffect(() => {
     const checkAuth = async () => {
       const state = authService.getState();
@@ -93,24 +98,25 @@ const AppContent: React.FC = () => {
     };
     checkAuth();
 
-    // Subscribe to auth changes
+    // Suscribirse a cambios del authService
     const unsubscribe = authService.subscribe((state) => {
       setIsAuthenticated(state.isAuthenticated);
       if (state.user) setCurrentUser(state.user);
       if (state.tenant) setCurrentTenant(state.tenant);
     });
 
-    // Fetch initial data when tenant is set
-    if (currentTenant?.id) {
-      fetchClients();
-      fetchPolicies();
-    }
+    return () => { unsubscribe(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-    return unsubscribe;
-  }, [setCurrentUser, setCurrentTenant]);
-
-  const handleLoginSuccess = () => {
+  const handleLoginSuccess = (mustResetPassword: boolean = false) => {
     setIsAuthenticated(true);
+    // Si el usuario debe cambiar la contraseña, redirigir a la vista
+    // de primer login en lugar de cargar el dashboard.
+    if (mustResetPassword) {
+      setAuthView('firstLoginPasswordChange');
+      return;
+    }
     // Cargar datos iniciales después del login
     fetchClients();
     fetchPolicies();
@@ -151,7 +157,7 @@ const AppContent: React.FC = () => {
     setIsPolicyFormOpen(true);
   };
 
-  // Show login screen if not authenticated
+  // Show loading spinner while checking auth
   if (!authChecked) {
     return (
       <div className="min-h-screen w-full bg-gradient-to-br from-slate-50 via-white to-indigo-50 flex items-center justify-center">
@@ -164,7 +170,26 @@ const AppContent: React.FC = () => {
     );
   }
 
-    if (!isAuthenticated) {
+  // ─── VISTA DE CAMBIO OBLIGATORIO DE CONTRASEÑA ───
+  // Se chequea ANTES del check de isAuthenticated porque el usuario
+  // YA está autenticado (isAuthenticated=true) pero debe cambiar la
+  // contraseña antes de ver el dashboard.
+  if (authView === 'firstLoginPasswordChange') {
+    return (
+      <FirstLoginPasswordChangeView
+        onSuccess={() => {
+          // Al cambiar la contraseña con éxito, redirigir al dashboard
+          setAuthView('login');
+          fetchClients();
+          fetchPolicies();
+        }}
+        onLogout={handleLogout}
+      />
+    );
+  }
+
+  // ─── VISTAS DE LOGIN / REGISTRO ───
+  if (!isAuthenticated) {
     if (authView === 'register') {
       return <RegisterView onBackToLogin={() => setAuthView('login')} />;
     }
