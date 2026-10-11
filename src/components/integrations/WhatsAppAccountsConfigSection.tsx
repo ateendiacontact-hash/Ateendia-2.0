@@ -355,7 +355,8 @@ export const WhatsAppAccountsConfigSection: React.FC = () => {
         }
       } catch (e) {
         // Endpoint connectionState no disponible, continuar con fetchInstances
-        console.log('ℹ️ Endpoint connectionState no disponible, usando fetchInstances...');
+        // [KILL SWITCH] Silenciado: el polling de connectionState no está activo.
+        // console.log('ℹ️ Endpoint connectionState no disponible, usando fetchInstances...');
       }
 
       // Fallback: /instance/fetchInstances - manejar múltiples formatos de respuesta
@@ -1049,11 +1050,14 @@ const handleGenerateQR = async () => {
       console.log('🔄 Credenciales actualizadas para', instance);
     });
 
-    // Conectar al socket.io del Evolution API
-    socketService?.connect();
+        // [KILL SWITCH] Conexión Socket.io deshabilitada en el componente.
+    // El kill switch principal está en whatsappSocketService.ts (SOCKET_IO_ENABLED = false).
+    // socketService?.connect();
 
-    // POLLING DE RESCATE: verificar cada 5 segundos usando endpoint de conexión directa
-    const pollInterval = setInterval(async () => {
+        // [KILL SWITCH] Polling de rescate deshabilitado.
+    // Reactivar cuando Evolution API esté estable.
+    const pollInterval: ReturnType<typeof setInterval> = setInterval(async () => {
+      if (true) return; // ← kill switch: salir inmediatamente, sin hacer fetch
       (['WA1', 'WA2'] as const).forEach(async (tab) => {
         const instanceName = getInstanceName(tab);
         try {

@@ -2,6 +2,24 @@ import { useEffect } from 'react';
 import { useTenant } from '../context/TenantContext';
 import { getEvolutionConfig } from './evolutionApi';
 
+// ═══════════════════════════════════════════════════════════════════
+// ⚠️ KILL SWITCH ACTIVADO — Sesión Fix Bloque Extendido (2026-10-11)
+// ═══════════════════════════════════════════════════════════════════
+// El contenedor Evolution API está crasheando por un problema de
+// configuración de nginx (`must-revalidate` inválido). Por lo tanto,
+// el endpoint `/socket.io/` NO existe y cualquier intento de conexión
+// genera un bucle infinito de errores WebSocket en el navegador.
+//
+// Solución temporal: deshabilitar la conexión automática a Socket.io
+// hasta que Evolution API esté estable. La pantalla sigue funcionando
+// con los botones manuales ("Verificar Conexión" y "Generar QR").
+//
+// Cuando Evolution API esté estable:
+//   1. Cambiar SOCKET_IO_ENABLED a true.
+//   2. Reiniciar Vite.
+// ═══════════════════════════════════════════════════════════════════
+const SOCKET_IO_ENABLED = false;
+
 // Types for Evolution API events
 interface ConnectionUpdateEvent {
   instance: string;
@@ -32,6 +50,7 @@ class WhatsAppSocketService {
   private readonly apiUrl: string;
   private readonly apiKey: string;
   private ioLibrary: any = null;
+  private warnedDisabled = false;
 
   private constructor() {
     const config = getEvolutionConfig();
@@ -62,14 +81,24 @@ class WhatsAppSocketService {
   }
 
   /**
-   * Connect to Evolution API Socket.io server
-   * Evolution API uses Socket.io internally for Baileys events
+   * Connect to Evolution API Socket.io server.
+   * ⚠️ DESHABILITADO por kill switch (SOCKET_IO_ENABLED = false).
    */
   public async connect(): Promise<void> {
+    if (!SOCKET_IO_ENABLED) {
+      if (!this.warnedDisabled) {
+        console.info(
+          '[KILL SWITCH] whatsappSocketService.connect() deshabilitado. ' +
+          'Evolution API no está estable. La pantalla funciona con polling manual.'
+        );
+        this.warnedDisabled = true;
+      }
+      return;
+    }
+
     if (this.socket) return;
 
     try {
-      // Load socket.io-client dynamically
       const io = await this.loadSocketLibrary();
       if (!io) {
         console.warn('Socket.io client not available, using polling fallback for WhatsApp state updates');
@@ -139,7 +168,7 @@ class WhatsAppSocketService {
     const handlers = this.eventHandlers.get(event)!;
     handlers.add(handler);
 
-    // Ensure socket is connected
+    // Ensure socket is connected (no-op si kill switch está activo)
     if (!this.socket) {
       this.connect();
     }
@@ -188,7 +217,8 @@ export const useWhatsAppSocket = () => {
   const { currentTenant } = useTenant();
 
   useEffect(() => {
-    // Conectar cuando el tenant cambia o se monta el componente
+    // ⚠️ Kill switch: no conectar automáticamente.
+    // Cambiar SOCKET_IO_ENABLED a true cuando Evolution API esté estable.
     socketService.connect();
 
     return () => {

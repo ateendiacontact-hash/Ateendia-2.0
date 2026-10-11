@@ -49,6 +49,25 @@ import {
   N8nConfig,
   AiIntegrationConfig,
   VectorDocChunk,
+  // ═══════════════════════════════════════════════════════════════
+  // NUEVOS TIPOS — Sesión Fix Pantallas Bloque Extendido (WhatsApp + IG/FB)
+  // ═══════════════════════════════════════════════════════════════
+  WhatsAppConfig,
+  WhatsAppAccountConfig,
+  WhatsAppAlertRecipient,
+  WhatsAppMessage,
+  InstagramConfig,
+  FacebookConfig,
+  ChatMessage,
+  ScheduledRule,
+  AntiSpamSettings,
+  CustomFieldDefinition,
+  SmtpConfig,
+  SystemAlert,
+  AppNotification,
+  SaasDatabaseConfig,
+  SaasVpsDeploymentConfig,
+  SaasPaymentReceipt,
 } from '../types';
 
 // ═══════════════════════════════════════════════════════════════════
@@ -181,7 +200,7 @@ interface TenantContextType {
     policyTypes: string[];
   };
 
-  // ─── NUEVOS STUBS (Sesión Fix Pantallas en Blanco) ───
+  // ─── STUBS Sesión #20 (Fix Pantallas Bloque Base) ───
 
   /** Plantillas de mensaje (WhatsApp / Email) reutilizables en campañas */
   templates: MessageTemplate[];
@@ -205,6 +224,138 @@ interface TenantContextType {
   aiConfig: AiIntegrationConfig;
   /** Actualiza la configuración de IA */
   updateAiConfig: (config: Partial<AiIntegrationConfig>) => void;
+
+  // ═══════════════════════════════════════════════════════════════════
+  // NUEVOS STUBS — Sesión Fix Pantallas Bloque Extendido
+  // ═══════════════════════════════════════════════════════════════════
+
+  // ─── Bloque 11: WhatsApp ───
+  /** Configuración multi-cuenta de WhatsApp (WA1 y WA2).
+   * Se carga desde GET /api/whatsapp/config en la sesión de conexión. */
+  whatsAppConfig: WhatsAppConfig;
+  /** Actualiza parcialmente la configuración de una cuenta específica (WA1/WA2). */
+  updateWhatsAppAccountConfig: (accountId: 'WA1' | 'WA2', config: Partial<WhatsAppAccountConfig>) => void;
+  /** Persiste toda la configuración de WhatsApp del tenant. */
+  saveWhatsAppConfig: (config: Partial<WhatsAppConfig>) => void;
+  /** Envía un mensaje de texto en una conversación de WhatsApp existente. */
+  sendWhatsAppMessage: (conversationId: string, text: string) => Promise<void>;
+  /** Alterna una reacción (emoji) en un mensaje de WhatsApp. */
+  toggleWhatsAppReaction: (messageId: string, emoji: string) => void;
+
+  // ─── Bloque 12: Instagram / Facebook ───
+  /** Configuración de la integración con Instagram (Meta Graph). */
+  instagramConfig: InstagramConfig;
+  /** Persiste la configuración de Instagram del tenant. */
+  saveInstagramConfig: (config: Partial<InstagramConfig>) => void;
+  /** Configuración de la integración con Facebook Messenger (Meta Graph). */
+  facebookConfig: FacebookConfig;
+  /** Persiste la configuración de Facebook del tenant. */
+  saveFacebookConfig: (config: Partial<FacebookConfig>) => void;
+
+  // ─── Bloque 13: Auditoría global ───
+  /** Registra un evento manual en la bitácora de auditoría del tenant. */
+  recordAudit: (
+    action: AuditLogEntry['action'],
+    module: AuditLogEntry['module'],
+    targetId?: string,
+    details?: string
+  ) => void;
+
+  // ─── Bloque 1: Notificaciones y Alertas ───
+  /** Descarta (marca como leída) una alerta del sistema. */
+  dismissAlert: (id: string) => void;
+  /** Última notificación en vivo (WhatsApp entrante, lead, etc.). */
+  latestLiveNotification: AppNotification | null;
+  /** Limpia la última notificación en vivo. */
+  clearLatestLiveNotification: () => void;
+
+  // ─── Bloque 2: Clientes Extendido ───
+  /** Alias de addClient con firma DDD. */
+  createClient: (clientData: any) => Promise<any>;
+  /** Definiciones de campos personalizados del tenant. */
+  customFields: CustomFieldDefinition[];
+  /** Agrega una definición de campo personalizado. */
+  addCustomField: (field: CustomFieldDefinition) => void;
+  /** Agrega una nota a un cliente. */
+  addNote: (clientId: string, note: any) => Promise<void>;
+  /** Agrega un documento a un cliente. */
+  addDocument: (clientId: string, doc: any) => Promise<void>;
+  /** Elimina un documento de un cliente. */
+  deleteDocument: (clientId: string, docId: string) => Promise<void>;
+  /** Configuración SMTP del tenant. */
+  smtpConfig: SmtpConfig;
+  /** Envía un email transaccional. */
+  sendEmailMessage: (to: string, subject: string, body: string) => Promise<boolean>;
+
+  // ─── Bloque 3: Pólizas Extendido ───
+  /** Alias de addPolicy con firma DDD. */
+  createPolicy: (policyData: any) => Promise<any>;
+
+  // ─── Bloque 4: Pipeline ───
+  /** Mueve un cliente a otra etapa del pipeline. */
+  moveClientStage: (clientId: string, stageId: string) => Promise<void>;
+
+  // ─── Bloque 5: Plantillas ───
+  /** Crea una plantilla de mensaje. */
+  createTemplate: (data: Partial<MessageTemplate>) => Promise<void>;
+  /** Actualiza una plantilla existente. */
+  updateTemplate: (id: string, data: Partial<MessageTemplate>) => Promise<void>;
+  /** Elimina una plantilla. */
+  deleteTemplate: (id: string) => Promise<void>;
+
+  // ─── Bloque 6: Telefonía Extendido ───
+  /** Finaliza una llamada activa. */
+  endCall: (callId: string) => void;
+
+  // ─── Bloque 7: Auth y 2FA ───
+  /** Indica si el usuario ya pasó la verificación 2FA. */
+  isTwoFactorVerified: boolean;
+  /** Datos pendientes del segundo factor (email parcial, etc.). */
+  pendingTwoFactor: any | null;
+  /** Verifica un código OTP de 6 dígitos. */
+  verify2FACode: (code: string) => Promise<boolean>;
+  /** Login alternativo (email + password). */
+  loginUser: (email: string, password: string) => Promise<{ success: boolean; requires2FA?: boolean }>;
+
+  // ─── Bloque 8: Header / Sidebar ───
+  /** Setter por ID (alternativa a setCurrentUser). */
+  setCurrentUserId: (id: string) => void;
+  /** Mensajes del chat interno (multicanal). */
+  chatMessages: ChatMessage[];
+
+  // ─── Bloque 9: Automatizaciones ───
+  /** Reglas programadas (cumpleaños, vencimientos, pagos). */
+  scheduledRules: ScheduledRule[];
+  /** Actualiza las reglas programadas. */
+  updateScheduledRules: (rules: ScheduledRule[]) => void;
+  /** Configuración anti-spam (límites diarios, jitter, etc.). */
+  antiSpamSettings: AntiSpamSettings;
+  /** Actualiza la configuración anti-spam. */
+  updateAntiSpamSettings: (settings: Partial<AntiSpamSettings>) => void;
+
+  // ─── Bloque 10: Chat Interno ───
+  /** Envía un mensaje a un canal del chat interno. */
+  sendInternalChatMessage: (channelId: string, text: string) => Promise<void>;
+  /** Alterna una reacción en un mensaje del chat interno. */
+  toggleInternalChatReaction: (messageId: string, emoji: string) => void;
+
+  // ─── Bloque 14: SaaS Extendido ───
+  /** Envía un comprobante de pago de renovación al Super Admin. */
+  submitRenewalPaymentReceipt: (receipt: Partial<SaasPaymentReceipt>) => Promise<void>;
+  /** Envía un lead desde la micro-landing pública. */
+  submitMicroLandingLead: (lead: any) => Promise<void>;
+  /** Registra un nuevo tenant con flujo de pago completo (wizard). */
+  registerNewTenantWithPayment: (data: any) => Promise<void>;
+  /** Configuración de la base de datos SaaS (VPS). */
+  saasDatabaseConfig: SaasDatabaseConfig;
+  /** Actualiza la configuración de la base de datos SaaS. */
+  updateSaasDatabaseConfig: (config: Partial<SaasDatabaseConfig>) => void;
+  /** Prueba la conexión a la base de datos SaaS. */
+  testDatabaseConnection: (config: Partial<SaasDatabaseConfig>) => Promise<boolean>;
+  /** Configuración de despliegue VPS (Hetzner, Contabo, etc.). */
+  saasVpsConfig: SaasVpsDeploymentConfig;
+  /** Actualiza la configuración de despliegue VPS. */
+  updateSaasVpsConfig: (config: Partial<SaasVpsDeploymentConfig>) => void;
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -509,6 +660,120 @@ const defaultAiConfig: AiIntegrationConfig = {
 };
 
 // ═══════════════════════════════════════════════════════════════════
+// NUEVOS MOCKS — Sesión Fix Pantallas Bloque Extendido
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * Configuración por defecto de WhatsApp multi-cuenta.
+ * Se carga desde GET /api/whatsapp/config en la sesión de conexión.
+ */
+const defaultWhatsAppConfig: WhatsAppConfig = {
+  tenantId: 'tenant-demo',
+  activeAccountTab: 'WA1',
+  selectedPipelineId: 'pipe-1',
+  defaultPipelineId: 'pipe-1',
+  alertRecipients: [],
+  connectionType: 'qr_bridge',
+  qrConnected: false,
+  connectedPhone: '',
+  accounts: {
+    WA1: {
+      id: 'WA1',
+      name: 'WhatsApp WA1 (Línea Principal)',
+      phone: '+1 (786) 450-2819',
+      selectedPipelineId: 'pipe-1',
+      defaultPipelineId: 'pipe-1',
+      qrConnected: false,
+      qrStatus: 'disconnected',
+      alertRecipients: [],
+      changeLog: [],
+      autoReply: true,
+      roundRobinAgents: true,
+    },
+    WA2: {
+      id: 'WA2',
+      name: 'WhatsApp WA2 (Soporte / Cobranza)',
+      phone: '+1 (786) 555-0244',
+      selectedPipelineId: 'pipe-1',
+      defaultPipelineId: 'pipe-1',
+      qrConnected: false,
+      qrStatus: 'disconnected',
+      alertRecipients: [],
+      changeLog: [],
+      autoReply: true,
+      roundRobinAgents: false,
+    },
+  },
+  changeLog: [],
+};
+
+/**
+ * Configuración por defecto de Instagram (Meta Graph).
+ * Se carga desde GET /api/integrations/instagram en la sesión de conexión.
+ */
+const defaultInstagramConfig: InstagramConfig = {
+  tenantId: 'tenant-demo',
+  connectionType: 'none',
+  changeLog: [],
+};
+
+/**
+ * Configuración por defecto de Facebook Messenger (Meta Graph).
+ * Se carga desde GET /api/integrations/facebook en la sesión de conexión.
+ */
+const defaultFacebookConfig: FacebookConfig = {
+  tenantId: 'tenant-demo',
+  connectionType: 'none',
+  changeLog: [],
+};
+
+/**
+ * Configuración SMTP por defecto del tenant.
+ * Se carga desde GET /api/email/config en la sesión de conexión.
+ */
+const defaultSmtpConfig: SmtpConfig = {
+  tenantId: 'tenant-demo',
+  protocol: 'smtp',
+  host: '',
+  port: 465,
+  senderEmail: '',
+  senderName: '',
+  appPassword: '',
+  isConfigured: false,
+};
+
+/**
+ * Configuración por defecto de la base de datos SaaS (VPS).
+ * Se carga desde GET /api/saas/database en la sesión de conexión.
+ */
+const defaultSaasDatabaseConfig: SaasDatabaseConfig = {
+  provider: 'local',
+  engine: 'local',
+  status: 'disconnected',
+  isConnected: false,
+  autoSync: false,
+};
+
+/**
+ * Configuración por defecto del despliegue VPS.
+ * Se carga desde GET /api/saas/vps en la sesión de conexión.
+ */
+const defaultSaasVpsConfig: SaasVpsDeploymentConfig = {
+  serverIp: '',
+  sshPort: 22,
+  sshUser: 'root',
+  primaryDomain: '',
+  certbotEmail: '',
+  appPort: 4000,
+  nodeEnv: 'production',
+  useDocker: true,
+  useNginx: true,
+  useCertbotSsl: true,
+  sslEnabled: false,
+  nginxConfigured: false,
+};
+
+// ═══════════════════════════════════════════════════════════════════
 // NORMALIZADORES
 // ═══════════════════════════════════════════════════════════════════
 
@@ -577,7 +842,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [saasPaymentReceipts, setSaasPaymentReceipts] = useState<any[]>([]);
   const [globalSaasMetrics, setGlobalSaasMetrics] = useState<any>({ totalMrr: 0 });
 
-  // ─── NUEVOS ESTADOS (Fix pantallas en blanco) ───
+  // ─── ESTADOS Sesión #20 (Fix Pantallas Bloque Base) ───
   /** Plantillas de mensaje para campañas */
   const [templates, setTemplates] = useState<MessageTemplate[]>(initialTemplatesMock);
   /** Roles RBAC del tenant */
@@ -592,6 +857,48 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [n8nConfig, setN8nConfig] = useState<N8nConfig>(defaultN8nConfig);
   /** Configuración de IA */
   const [aiConfig, setAiConfig] = useState<AiIntegrationConfig>(defaultAiConfig);
+
+  // ═══════════════════════════════════════════════════════════════════
+  // NUEVOS ESTADOS — Sesión Fix Pantallas Bloque Extendido
+  // ═══════════════════════════════════════════════════════════════════
+
+  // ─── WhatsApp (Bloque 11) ───
+  const [whatsAppConfig, setWhatsAppConfig] = useState<WhatsAppConfig>(defaultWhatsAppConfig);
+
+  // ─── Instagram / Facebook (Bloque 12) ───
+  const [instagramConfig, setInstagramConfig] = useState<InstagramConfig>(defaultInstagramConfig);
+  const [facebookConfig, setFacebookConfig] = useState<FacebookConfig>(defaultFacebookConfig);
+
+  // ─── Notificaciones y Alertas (Bloque 1) ───
+  const [latestLiveNotification, setLatestLiveNotification] = useState<AppNotification | null>(null);
+
+  // ─── Clientes Extendido (Bloque 2) ───
+  const [customFields, setCustomFields] = useState<CustomFieldDefinition[]>([]);
+  const [smtpConfig, setSmtpConfig] = useState<SmtpConfig>(defaultSmtpConfig);
+
+  // ─── Auth y 2FA (Bloque 7) ───
+  const [isTwoFactorVerified, setIsTwoFactorVerified] = useState<boolean>(false);
+  const [pendingTwoFactor, setPendingTwoFactor] = useState<any | null>(null);
+
+  // ─── Header / Sidebar (Bloque 8) ───
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+
+  // ─── Automatizaciones (Bloque 9) ───
+  const [scheduledRules, setScheduledRules] = useState<ScheduledRule[]>([]);
+  const [antiSpamSettings, setAntiSpamSettings] = useState<AntiSpamSettings>({
+    whatsappDailyLimit: 200,
+    emailDailyLimit: 500,
+    minIntervalSeconds: 3,
+    maxIntervalSeconds: 12,
+    randomizeDelay: true,
+    randomJitter: true,
+    alertOnSpamRisk: true,
+    autoPauseOnHighFailureRate: true,
+  });
+
+  // ─── SaaS Extendido (Bloque 14) ───
+  const [saasDatabaseConfig, setSaasDatabaseConfig] = useState<SaasDatabaseConfig>(defaultSaasDatabaseConfig);
+  const [saasVpsConfig, setSaasVpsConfig] = useState<SaasVpsDeploymentConfig>(defaultSaasVpsConfig);
 
   // ─── Refs para evitar re-ejecuciones ───
   const fetchedTenantRef = useRef<string | null>(null);
@@ -614,6 +921,10 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const setCurrentTenantId = useCallback((id: string) => {
     setCurrentTenantState((prev) => ({ ...prev, id }));
+  }, []);
+
+  const setCurrentUserId = useCallback((id: string) => {
+    setCurrentUserState((prev) => (prev ? { ...prev, id } : null));
   }, []);
 
   /**
@@ -668,18 +979,14 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     console.warn('[STUB] rejectPaymentReceipt — pendiente de conectar a POST /api/saas/receipts/:id/reject');
   };
 
-  // ─── NUEVOS STUBS (Fix pantallas en blanco) ───
+  
+  // ═══════════════════════════════════════════════════════════════════
+  // STUBS Sesión #20 (Fix Pantallas Bloque Base)
+  // ═══════════════════════════════════════════════════════════════════
 
   /**
    * Inicia una llamada saliente vía Issabel PBX (click-to-call).
-   *
-   * STUB: actualmente solo emite un console.warn. En la sesión de conexión
-   * debe llamar a POST /api/telephony/call con { phone, clientName, clientId }.
-   * El backend hará el origination vía AMI y devolverá el callId.
-   *
-   * @param phone      Número destino (E.164 o local)
-   * @param clientName Nombre del cliente (para mostrar en el softphone)
-   * @param clientId   ID del cliente en el CRM (opcional)
+   * STUB: pendiente de conectar a POST /api/telephony/call.
    */
   const startCall = useCallback((phone: string, clientName: string, clientId?: string) => {
     console.warn('[STUB] startCall — pendiente de conectar a POST /api/telephony/call', { phone, clientName, clientId });
@@ -688,14 +995,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   /**
    * Inicia (o navega a) una conversación de WhatsApp con un cliente.
-   *
-   * STUB: actualmente solo emite un console.warn. En la sesión de conexión
-   * debe llamar a POST /api/whatsapp/conversations con { clientId, phone, clientName }
-   * y setear activeConversationId con el ID devuelto.
-   *
-   * @param clientId   ID del cliente
-   * @param phone      Número de WhatsApp
-   * @param clientName Nombre display
+   * STUB: pendiente de conectar a POST /api/whatsapp/conversations.
    */
   const startWhatsAppConversation = useCallback((clientId: string, phone: string, clientName: string) => {
     console.warn('[STUB] startWhatsAppConversation — pendiente de conectar a POST /api/whatsapp/conversations', { clientId, phone, clientName });
@@ -703,11 +1003,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   /**
    * Actualiza la configuración de Issabel PBX del tenant.
-   *
-   * STUB: actualmente solo actualiza el estado local. En la sesión de conexión
-   * debe llamar a PATCH /api/telephony/config y persistir en MariaDB.
-   *
-   * @param config Campos parciales de IssabelConfig a actualizar
+   * STUB: pendiente de conectar a PATCH /api/telephony/config.
    */
   const updateIssabelConfig = useCallback((config: Partial<IssabelConfig>) => {
     console.warn('[STUB] updateIssabelConfig — pendiente de conectar a PATCH /api/telephony/config', config);
@@ -716,11 +1012,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   /**
    * Crea una campaña masiva (WhatsApp / Email).
-   *
-   * STUB: actualmente solo emite un console.warn. En la sesión de conexión
-   * debe llamar a POST /api/campaigns y agregar el resultado a `campaigns`.
-   *
-   * @param campaignData Datos parciales de la campaña
+   * STUB: pendiente de conectar a POST /api/campaigns.
    */
   const createCampaign = useCallback((campaignData: Partial<Campaign>) => {
     console.warn('[STUB] createCampaign — pendiente de conectar a POST /api/campaigns', campaignData);
@@ -744,12 +1036,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   /**
    * Actualiza la matriz de permisos de un rol.
-   *
-   * STUB: actualmente solo actualiza el estado local. En la sesión de conexión
-   * debe llamar a PATCH /api/roles/:key/permissions y persistir en MariaDB.
-   *
-   * @param roleKey     Clave del rol (admin, supervisor, agent, readonly)
-   * @param permissions Nueva matriz de permisos
+   * STUB: pendiente de conectar a PATCH /api/roles/:key/permissions.
    */
   const updateRolePermissions = useCallback((roleKey: UserRole, permissions: Role['permissions']) => {
     console.warn('[STUB] updateRolePermissions — pendiente de conectar a PATCH /api/roles/:key/permissions', { roleKey, permissions });
@@ -758,12 +1045,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   /**
    * Invita a un nuevo usuario al tenant.
-   *
-   * STUB: actualmente solo emite un console.warn. En la sesión de conexión
-   * debe llamar a POST /api/users/invite con { name, email, role, extension }.
-   * El backend crea el usuario con must_reset_password=1 y envía email.
-   *
-   * @param userData Datos del usuario a invitar
+   * STUB: pendiente de conectar a POST /api/users/invite.
    */
   const inviteUser = useCallback((userData: { name: string; email: string; role: UserRole; extension?: string }) => {
     console.warn('[STUB] inviteUser — pendiente de conectar a POST /api/users/invite', userData);
@@ -781,11 +1063,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   /**
    * Activa/desactiva un usuario del tenant.
-   *
-   * STUB: actualmente solo actualiza el estado local. En la sesión de conexión
-   * debe llamar a PATCH /api/users/:id/status y persistir en MariaDB.
-   *
-   * @param userId ID del usuario
+   * STUB: pendiente de conectar a PATCH /api/users/:id/status.
    */
   const toggleUserStatus = useCallback((userId: string) => {
     console.warn('[STUB] toggleUserStatus — pendiente de conectar a PATCH /api/users/:id/status', userId);
@@ -798,11 +1076,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   /**
    * Actualiza la configuración de n8n.
-   *
-   * STUB: actualmente solo actualiza el estado local. En la sesión de conexión
-   * debe llamar a PATCH /api/integrations/n8n y persistir en MariaDB.
-   *
-   * @param config Campos parciales de N8nConfig
+   * STUB: pendiente de conectar a PATCH /api/integrations/n8n.
    */
   const updateN8nConfig = useCallback((config: Partial<N8nConfig>) => {
     console.warn('[STUB] updateN8nConfig — pendiente de conectar a PATCH /api/integrations/n8n', config);
@@ -811,15 +1085,357 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   /**
    * Actualiza la configuración del proveedor de IA.
-   *
-   * STUB: actualmente solo actualiza el estado local. En la sesión de conexión
-   * debe llamar a PATCH /api/integrations/ai y persistir en MariaDB.
-   *
-   * @param config Campos parciales de AiIntegrationConfig
+   * STUB: pendiente de conectar a PATCH /api/integrations/ai.
    */
   const updateAiConfig = useCallback((config: Partial<AiIntegrationConfig>) => {
     console.warn('[STUB] updateAiConfig — pendiente de conectar a PATCH /api/integrations/ai', config);
     setAiConfig((prev) => ({ ...prev, ...config }));
+  }, []);
+
+  // ═══════════════════════════════════════════════════════════════════
+  // NUEVOS STUBS — Sesión Fix Pantallas Bloque Extendido
+  // ═══════════════════════════════════════════════════════════════════
+
+  // ─── Bloque 11: WhatsApp ───
+
+  /**
+   * Actualiza parcialmente la configuración de una cuenta WhatsApp (WA1/WA2).
+   * STUB: pendiente de conectar a PATCH /api/whatsapp/config/:accountId.
+   */
+  const updateWhatsAppAccountConfig = useCallback(
+    (accountId: 'WA1' | 'WA2', config: Partial<WhatsAppAccountConfig>) => {
+      console.warn('[STUB] updateWhatsAppAccountConfig — pendiente de conectar a PATCH /api/whatsapp/config/:accountId', { accountId, config });
+      setWhatsAppConfig((prev) => ({
+        ...prev,
+        accounts: prev.accounts
+          ? {
+              ...prev.accounts,
+              [accountId]: { ...prev.accounts[accountId], ...config } as WhatsAppAccountConfig,
+            }
+          : prev.accounts,
+      }));
+    },
+    []
+  );
+
+  /**
+   * Persiste la configuración completa de WhatsApp del tenant.
+   * STUB: pendiente de conectar a PUT /api/whatsapp/config.
+   */
+  const saveWhatsAppConfig = useCallback((config: Partial<WhatsAppConfig>) => {
+    console.warn('[STUB] saveWhatsAppConfig — pendiente de conectar a PUT /api/whatsapp/config', config);
+    setWhatsAppConfig((prev) => ({ ...prev, ...config }));
+  }, []);
+
+  /**
+   * Envía un mensaje de texto en una conversación de WhatsApp.
+   * STUB: pendiente de conectar a POST /api/whatsapp/messages.
+   */
+  const sendWhatsAppMessage = useCallback(async (conversationId: string, text: string) => {
+    console.warn('[STUB] sendWhatsAppMessage — pendiente de conectar a POST /api/whatsapp/messages', { conversationId, text });
+  }, []);
+
+  /**
+   * Alterna una reacción (emoji) en un mensaje de WhatsApp.
+   * STUB: pendiente de conectar a POST /api/whatsapp/messages/:id/reactions.
+   */
+  const toggleWhatsAppReaction = useCallback((messageId: string, emoji: string) => {
+    console.warn('[STUB] toggleWhatsAppReaction — pendiente de conectar a POST /api/whatsapp/messages/:id/reactions', { messageId, emoji });
+  }, []);
+
+  // ─── Bloque 12: Instagram / Facebook ───
+
+  /**
+   * Persiste la configuración de Instagram del tenant.
+   * STUB: pendiente de conectar a PUT /api/integrations/instagram.
+   */
+  const saveInstagramConfig = useCallback((config: Partial<InstagramConfig>) => {
+    console.warn('[STUB] saveInstagramConfig — pendiente de conectar a PUT /api/integrations/instagram', config);
+    setInstagramConfig((prev) => ({ ...prev, ...config }));
+  }, []);
+
+  /**
+   * Persiste la configuración de Facebook del tenant.
+   * STUB: pendiente de conectar a PUT /api/integrations/facebook.
+   */
+  const saveFacebookConfig = useCallback((config: Partial<FacebookConfig>) => {
+    console.warn('[STUB] saveFacebookConfig — pendiente de conectar a PUT /api/integrations/facebook', config);
+    setFacebookConfig((prev) => ({ ...prev, ...config }));
+  }, []);
+
+  // ─── Bloque 13: Auditoría global ───
+
+  /**
+   * Registra un evento manual en la bitácora de auditoría del tenant.
+   * STUB: pendiente de conectar a POST /api/audit.
+   */
+  const recordAudit = useCallback(
+    (
+      action: AuditLogEntry['action'],
+      module: AuditLogEntry['module'],
+      targetId?: string,
+      details?: string
+    ) => {
+      console.warn('[STUB] recordAudit — pendiente de conectar a POST /api/audit', { action, module, targetId, details });
+    },
+    []
+  );
+
+  // ─── Bloque 1: Notificaciones y Alertas ───
+
+  /**
+   * Descarta (marca como leída) una alerta del sistema.
+   * STUB: pendiente de conectar a PATCH /api/alerts/:id/dismiss.
+   */
+  const dismissAlert = useCallback((id: string) => {
+    console.warn('[STUB] dismissAlert — pendiente de conectar a PATCH /api/alerts/:id/dismiss', id);
+    setAlerts((prev) => prev.filter((a) => a.id !== id));
+  }, []);
+
+  /**
+   * Limpia la última notificación en vivo.
+   * STUB: pendiente de conectar a WebSocket / Socket.io.
+   */
+  const clearLatestLiveNotification = useCallback(() => {
+    console.warn('[STUB] clearLatestLiveNotification — pendiente de conectar a WebSocket / Socket.io');
+    setLatestLiveNotification(null);
+  }, []);
+
+  // ─── Bloque 2: Clientes Extendido ───
+
+  /**
+   * Alias DDD de addClient.
+   */
+  const createClient = useCallback(async (clientData: any) => {
+    console.warn('[STUB] createClient — alias de addClient, pendiente de conectar a POST /api/clients');
+    return addClient(clientData);
+  }, []);
+
+  /**
+   * Agrega una definición de campo personalizado.
+   * STUB: pendiente de conectar a POST /api/custom-fields.
+   */
+  const addCustomField = useCallback((field: CustomFieldDefinition) => {
+    console.warn('[STUB] addCustomField — pendiente de conectar a POST /api/custom-fields', field);
+    setCustomFields((prev) => [...prev, field]);
+  }, []);
+
+  /**
+   * Agrega una nota a un cliente.
+   * STUB: pendiente de conectar a POST /api/clients/:id/notes.
+   */
+  const addNote = useCallback(async (clientId: string, note: any) => {
+    console.warn('[STUB] addNote — pendiente de conectar a POST /api/clients/:id/notes', { clientId, note });
+    setNotes((prev) => [...prev, { ...note, id: `note-${Date.now()}`, clientId }]);
+  }, []);
+
+  /**
+   * Agrega un documento a un cliente.
+   * STUB: pendiente de conectar a POST /api/clients/:id/documents.
+   */
+  const addDocument = useCallback(async (clientId: string, doc: any) => {
+    console.warn('[STUB] addDocument — pendiente de conectar a POST /api/clients/:id/documents', { clientId, doc });
+    setDocuments((prev) => [...prev, { ...doc, id: `doc-${Date.now()}`, clientId }]);
+  }, []);
+
+  /**
+   * Elimina un documento de un cliente.
+   * STUB: pendiente de conectar a DELETE /api/clients/:id/documents/:docId.
+   */
+  const deleteDocument = useCallback(async (clientId: string, docId: string) => {
+    console.warn('[STUB] deleteDocument — pendiente de conectar a DELETE /api/clients/:id/documents/:docId', { clientId, docId });
+    setDocuments((prev) => prev.filter((d) => d.id !== docId));
+  }, []);
+
+  /**
+   * Envía un email transaccional.
+   * STUB: pendiente de conectar a POST /api/email/send.
+   */
+  const sendEmailMessage = useCallback(async (to: string, subject: string, body: string) => {
+    console.warn('[STUB] sendEmailMessage — pendiente de conectar a POST /api/email/send', { to, subject, body });
+    return true;
+  }, []);
+
+  // ─── Bloque 3: Pólizas Extendido ───
+
+  /**
+   * Alias DDD de addPolicy.
+   */
+  const createPolicy = useCallback(async (policyData: any) => {
+    console.warn('[STUB] createPolicy — alias de addPolicy, pendiente de conectar a POST /api/policies');
+    return addPolicy(policyData);
+  }, []);
+
+  // ─── Bloque 4: Pipeline ───
+
+  /**
+   * Mueve un cliente a otra etapa del pipeline.
+   * STUB: pendiente de conectar a PATCH /api/pipeline/clients/:id/stage.
+   */
+  const moveClientStage = useCallback(async (clientId: string, stageId: string) => {
+    console.warn('[STUB] moveClientStage — pendiente de conectar a PATCH /api/pipeline/clients/:id/stage', { clientId, stageId });
+  }, []);
+
+  // ─── Bloque 5: Plantillas ───
+
+  /**
+   * Crea una plantilla de mensaje.
+   * STUB: pendiente de conectar a POST /api/templates.
+   */
+  const createTemplate = useCallback(async (data: Partial<MessageTemplate>) => {
+    console.warn('[STUB] createTemplate — pendiente de conectar a POST /api/templates', data);
+    const newTemplate: MessageTemplate = {
+      id: `tmpl-${Date.now()}`,
+      tenantId: currentTenantIdRef.current,
+      name: data.name || 'Nueva Plantilla',
+      channel: data.channel || 'whatsapp',
+      category: data.category || 'General',
+      body: data.body || '',
+      variables: data.variables || [],
+      createdAt: new Date().toISOString(),
+    };
+    setTemplates((prev) => [newTemplate, ...prev]);
+  }, []);
+
+  /**
+   * Actualiza una plantilla existente.
+   * STUB: pendiente de conectar a PATCH /api/templates/:id.
+   */
+  const updateTemplate = useCallback(async (id: string, data: Partial<MessageTemplate>) => {
+    console.warn('[STUB] updateTemplate — pendiente de conectar a PATCH /api/templates/:id', { id, data });
+    setTemplates((prev) => prev.map((t) => (t.id === id ? { ...t, ...data } : t)));
+  }, []);
+
+  /**
+   * Elimina una plantilla.
+   * STUB: pendiente de conectar a DELETE /api/templates/:id.
+   */
+  const deleteTemplate = useCallback(async (id: string) => {
+    console.warn('[STUB] deleteTemplate — pendiente de conectar a DELETE /api/templates/:id', id);
+    setTemplates((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
+  // ─── Bloque 6: Telefonía Extendido ───
+
+  /**
+   * Finaliza una llamada activa.
+   * STUB: pendiente de conectar a POST /api/telephony/call/:id/end.
+   */
+  const endCall = useCallback((callId: string) => {
+    console.warn('[STUB] endCall — pendiente de conectar a POST /api/telephony/call/:id/end', callId);
+  }, []);
+
+  // ─── Bloque 7: Auth y 2FA ───
+
+  /**
+   * Verifica un código OTP de 6 dígitos.
+   * STUB: pendiente de conectar a POST /api/auth/verify-2fa.
+   */
+  const verify2FACode = useCallback(async (code: string) => {
+    console.warn('[STUB] verify2FACode — pendiente de conectar a POST /api/auth/verify-2fa', code);
+    setIsTwoFactorVerified(true);
+    setPendingTwoFactor(null);
+    return true;
+  }, []);
+
+  /**
+   * Login alternativo (email + password).
+   * STUB: pendiente de conectar a POST /api/auth/login.
+   */
+  const loginUser = useCallback(async (email: string, password: string) => {
+    console.warn('[STUB] loginUser — pendiente de conectar a POST /api/auth/login', { email });
+    return { success: true, requires2FA: false };
+  }, []);
+
+  // ─── Bloque 10: Chat Interno ───
+
+  /**
+   * Envía un mensaje a un canal del chat interno.
+   * STUB: pendiente de conectar a POST /api/chat/channels/:id/messages.
+   */
+  const sendInternalChatMessage = useCallback(async (channelId: string, text: string) => {
+    console.warn('[STUB] sendInternalChatMessage — pendiente de conectar a POST /api/chat/channels/:id/messages', { channelId, text });
+  }, []);
+
+  /**
+   * Alterna una reacción en un mensaje del chat interno.
+   * STUB: pendiente de conectar a POST /api/chat/messages/:id/reactions.
+   */
+  const toggleInternalChatReaction = useCallback((messageId: string, emoji: string) => {
+    console.warn('[STUB] toggleInternalChatReaction — pendiente de conectar a POST /api/chat/messages/:id/reactions', { messageId, emoji });
+  }, []);
+
+  // ─── Bloque 9: Automatizaciones ───
+
+  /**
+   * Actualiza las reglas programadas.
+   * STUB: pendiente de conectar a PUT /api/automations/rules.
+   */
+  const updateScheduledRules = useCallback((rules: ScheduledRule[]) => {
+    console.warn('[STUB] updateScheduledRules — pendiente de conectar a PUT /api/automations/rules', rules);
+    setScheduledRules(rules);
+  }, []);
+
+  /**
+   * Actualiza la configuración anti-spam.
+   * STUB: pendiente de conectar a PUT /api/automations/anti-spam.
+   */
+  const updateAntiSpamSettings = useCallback((settings: Partial<AntiSpamSettings>) => {
+    console.warn('[STUB] updateAntiSpamSettings — pendiente de conectar a PUT /api/automations/anti-spam', settings);
+    setAntiSpamSettings((prev) => ({ ...prev, ...settings }));
+  }, []);
+
+  // ─── Bloque 14: SaaS Extendido ───
+
+  /**
+   * Envía un comprobante de pago de renovación al Super Admin.
+   * STUB: pendiente de conectar a POST /api/saas/receipts.
+   */
+  const submitRenewalPaymentReceipt = useCallback(async (receipt: Partial<SaasPaymentReceipt>) => {
+    console.warn('[STUB] submitRenewalPaymentReceipt — pendiente de conectar a POST /api/saas/receipts', receipt);
+  }, []);
+
+  /**
+   * Envía un lead desde la micro-landing pública.
+   * STUB: pendiente de conectar a POST /api/public/leads.
+   */
+  const submitMicroLandingLead = useCallback(async (lead: any) => {
+    console.warn('[STUB] submitMicroLandingLead — pendiente de conectar a POST /api/public/leads', lead);
+  }, []);
+
+  /**
+   * Registra un nuevo tenant con flujo de pago completo (wizard).
+   * STUB: pendiente de conectar a POST /api/saas/register.
+   */
+  const registerNewTenantWithPayment = useCallback(async (data: any) => {
+    console.warn('[STUB] registerNewTenantWithPayment — pendiente de conectar a POST /api/saas/register', data);
+  }, []);
+
+  /**
+   * Actualiza la configuración de la base de datos SaaS.
+   * STUB: pendiente de conectar a PUT /api/saas/database.
+   */
+  const updateSaasDatabaseConfig = useCallback((config: Partial<SaasDatabaseConfig>) => {
+    console.warn('[STUB] updateSaasDatabaseConfig — pendiente de conectar a PUT /api/saas/database', config);
+    setSaasDatabaseConfig((prev) => ({ ...prev, ...config }));
+  }, []);
+
+  /**
+   * Prueba la conexión a la base de datos SaaS.
+   * STUB: pendiente de conectar a POST /api/saas/database/test.
+   */
+  const testDatabaseConnection = useCallback(async (config: Partial<SaasDatabaseConfig>) => {
+    console.warn('[STUB] testDatabaseConnection — pendiente de conectar a POST /api/saas/database/test', config);
+    return true;
+  }, []);
+
+  /**
+   * Actualiza la configuración de despliegue VPS.
+   * STUB: pendiente de conectar a PUT /api/saas/vps.
+   */
+  const updateSaasVpsConfig = useCallback((config: Partial<SaasVpsDeploymentConfig>) => {
+    console.warn('[STUB] updateSaasVpsConfig — pendiente de conectar a PUT /api/saas/vps', config);
+    setSaasVpsConfig((prev) => ({ ...prev, ...config }));
   }, []);
 
   // ─── fetchClients con useCallback y ref para tenantId ───
@@ -1039,12 +1655,9 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   // ─── CONTROL DE EJECUCIÓN ÚNICA ───
-  // Se dispara solo cuando cambia el tenantId. Usa un ref para evitar
-  // dependencia de `currentUser` (que cambia de referencia en cada render).
   useEffect(() => {
     const currentId = currentTenant.id || 'tenant-demo';
 
-    // Si ya se ejecutó la consulta para este tenantId, se detiene
     if (fetchedTenantRef.current === currentId) {
       return;
     }
@@ -1173,7 +1786,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         // ─── Catálogos ───
         catalogs,
 
-        // ─── NUEVOS STUBS (Fix pantallas en blanco) ───
+        // ─── Stubs Sesión #20 (Fix Pantallas Bloque Base) ───
         templates,
         createCampaign,
         roles,
@@ -1185,12 +1798,92 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         updateN8nConfig,
         aiConfig,
         updateAiConfig,
+
+        // ═══════════════════════════════════════════════════════════════
+        // NUEVOS STUBS — Sesión Fix Pantallas Bloque Extendido
+        // ═══════════════════════════════════════════════════════════════
+
+        // ─── Bloque 11: WhatsApp ───
+        whatsAppConfig,
+        updateWhatsAppAccountConfig,
+        saveWhatsAppConfig,
+        sendWhatsAppMessage,
+        toggleWhatsAppReaction,
+
+        // ─── Bloque 12: Instagram / Facebook ───
+        instagramConfig,
+        saveInstagramConfig,
+        facebookConfig,
+        saveFacebookConfig,
+
+        // ─── Bloque 13: Auditoría global ───
+        recordAudit,
+
+        // ─── Bloque 1: Notificaciones y Alertas ───
+        dismissAlert,
+        latestLiveNotification,
+        clearLatestLiveNotification,
+
+        // ─── Bloque 2: Clientes Extendido ───
+        createClient,
+        customFields,
+        addCustomField,
+        addNote,
+        addDocument,
+        deleteDocument,
+        smtpConfig,
+        sendEmailMessage,
+
+        // ─── Bloque 3: Pólizas Extendido ───
+        createPolicy,
+
+        // ─── Bloque 4: Pipeline ───
+        moveClientStage,
+
+        // ─── Bloque 5: Plantillas ───
+        createTemplate,
+        updateTemplate,
+        deleteTemplate,
+
+        // ─── Bloque 6: Telefonía Extendido ───
+        endCall,
+
+        // ─── Bloque 7: Auth y 2FA ───
+        isTwoFactorVerified,
+        pendingTwoFactor,
+        verify2FACode,
+        loginUser,
+
+        // ─── Bloque 8: Header / Sidebar ───
+        setCurrentUserId,
+        chatMessages,
+
+        // ─── Bloque 9: Automatizaciones ───
+        scheduledRules,
+        updateScheduledRules,
+        antiSpamSettings,
+        updateAntiSpamSettings,
+
+        // ─── Bloque 10: Chat Interno ───
+        sendInternalChatMessage,
+        toggleInternalChatReaction,
+
+        // ─── Bloque 14: SaaS Extendido ───
+        submitRenewalPaymentReceipt,
+        submitMicroLandingLead,
+        registerNewTenantWithPayment,
+        saasDatabaseConfig,
+        updateSaasDatabaseConfig,
+        testDatabaseConnection,
+        saasVpsConfig,
+        updateSaasVpsConfig,
       }}
     >
       {children}
     </TenantContext.Provider>
   );
 };
+
 
 /**
  * Hook para consumir el TenantContext.
