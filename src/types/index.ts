@@ -38,6 +38,44 @@ export interface PermissionMatrix {
 
 export type ModuleKey = keyof PermissionMatrix;
 
+
+/**
+ * Rol del sistema con su matriz de permisos.
+ *
+ * Los roles son configurables por el Super Admin de cada tenant
+ * (no solo los 4 roles base: admin, supervisor, agent, readonly).
+ *
+ * La matriz de permisos sigue el shape de PermissionMatrix (Record de módulos
+ * con sus acciones booleanas). Pero para permitir flexibilidad, se acepta
+ * también un Record<string, string[]> para roles custom.
+ *
+ * @example
+ * const adminRole: Role = {
+ *   key: 'admin',
+ *   name: 'Administrador',
+ *   description: 'Acceso total al tenant',
+ *   isSystem: true,
+ *   permissions: { clients: { view: true, create: true, ... }, ... }
+ * };
+ */
+export interface Role {
+  /** Clave única del rol (ej: 'admin', 'supervisor', 'agent', 'readonly') */
+  key: UserRole;
+  /** Nombre display en la UI (ej: 'Administrador') */
+  name: string;
+  /** Descripción opcional del rol */
+  description?: string;
+  /**
+   * Matriz de permisos.
+   * Puede ser:
+   *   - PermissionMatrix completa (roles del sistema)
+   *   - Record<string, string[]> (roles custom con módulos → acciones)
+   */
+  permissions: PermissionMatrix | Record<string, string[] | Record<string, boolean>>;
+  /** true para roles del sistema que NO se pueden borrar */
+  isSystem?: boolean;
+}
+
 export interface TenantSubscription {
   plan: 'Starter' | 'Pro Business' | 'Enterprise' | string;
   planId?: string;

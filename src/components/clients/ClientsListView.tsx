@@ -58,7 +58,7 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({
   // Filter clients
   const filteredClients = useMemo(() => {
     const term = (searchTerm || '').toLowerCase();
-    return clients.filter((c) => {
+    return (clients || []).filter((c) => {
       const fullName = `${c.firstName || ''} ${c.lastName || ''}`.toLowerCase();
       const matchSearch =
         !term ||
@@ -87,7 +87,7 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({
     const headers = ['ID', 'Nombre', 'Apellido', 'Email', 'Telefono', 'Fecha_Nacimiento', 'Categoria', 'Estado', 'Agente_Asignado', 'Pólizas_Activas', 'Valor_Deal'];
     const rows = filteredClients.map((c) => {
       const agent = users.find((u) => u.id === c.assignedAgentId);
-      const clientPolicies = policies.filter((p) => p.clientId === c.id);
+      const clientPolicies = (policies || []).filter((p) => p.clientId === c.id);
       return [
         c.id,
         `"${c.firstName}"`,
@@ -191,7 +191,7 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({
               className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-hidden focus:border-purple-500 font-semibold text-slate-700"
             >
               <option value="all">Todas las Categorías</option>
-              {catalogs.clientCategories.map((cat) => (
+              {(catalogs?.clientCategories || []).map((cat: any) => (
                 <option key={cat} value={cat}>
                   {cat}
                 </option>
@@ -231,7 +231,7 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({
               className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-hidden focus:border-purple-500 font-semibold text-slate-700"
             >
               <option value="all">Todos los Agentes</option>
-              {users
+              {(users || [])
                 .filter((u) => u.tenantId === currentTenant.id)
                 .map((u) => (
                   <option key={u.id} value={u.id}>
@@ -268,10 +268,23 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({
                   </td>
                 </tr>
               ) : (
-                paginatedClients.map((client) => {
-                  const clientPolicies = policies.filter((p) => p.clientId === client.id);
-                  const assignedAgent = users.find((u) => u.id === client.assignedAgentId);
-                  const totalMonthly = clientPolicies.reduce((acc, p) => acc + (p.monthlyPremium || 0), 0);
+                                paginatedClients.map((client) => {
+                  // ─── Guard defensivo: normalizar datos del cliente ───
+                  // Razón: la API puede devolver null/undefined en campos opcionales
+                  // (firstName, lastName, phone, category). Sin estos guards,
+                  // el render crashea con "Cannot read properties of undefined".
+                  const safeFirstName = client.firstName || '';
+                  const safeLastName = client.lastName || '';
+                  const safeFullName = `${safeFirstName} ${safeLastName}`.trim() || 'Cliente sin nombre';
+                  const safeInitial = safeFirstName.charAt(0).toUpperCase() || '?';
+                  const safePhone = client.phone || 'Sin teléfono';
+                  const safeEmail = client.email || 'Sin correo';
+                  const safeCategory = client.category || 'Sin categoría';
+                  const safeStatus = client.status || 'Sin estado';
+
+                  const clientPolicies = (policies || []).filter((p) => p.clientId === client.id);
+                  const assignedAgent = (users || []).find((u) => u.id === client.assignedAgentId);
+                  const totalMonthly = (clientPolicies || []).reduce((acc, p) => acc + (p.monthlyPremium || 0), 0);
 
                   return (
                     <tr key={client.id} className="hover:bg-purple-50/30 transition-colors">
@@ -282,11 +295,11 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({
                           className="font-bold text-slate-900 hover:text-purple-600 cursor-pointer flex items-center gap-2 group"
                         >
                           <div className="w-7 h-7 rounded-full bg-purple-100 text-purple-700 font-bold flex items-center justify-center text-xs group-hover:bg-purple-600 group-hover:text-white transition-colors">
-                            {client.firstName.charAt(0)}
+                            {safeInitial}
                           </div>
                           <div>
                             <span className="group-hover:underline">
-                              {client.firstName} {client.lastName}
+                              {safeFullName}
                             </span>
                             <div className="text-[11px] text-slate-400 font-mono">
                               {client.idNumber || 'Sin ID registrado'}
@@ -297,15 +310,15 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({
 
                       {/* Contact */}
                       <td className="py-3.5 px-4">
-                        <div className="font-semibold text-slate-800">{client.phone}</div>
-                        <div className="text-[11px] text-slate-400 truncate max-w-[160px]">{client.email || 'Sin correo'}</div>
+                        <div className="font-semibold text-slate-800">{safePhone}</div>
+                        <div className="text-[11px] text-slate-400 truncate max-w-[160px]">{safeEmail}</div>
                       </td>
 
                       {/* Category & Tags */}
                       <td className="py-3.5 px-4">
                         <div className="space-y-1">
                           <span className="inline-block px-2 py-0.5 rounded-md bg-purple-50 text-purple-700 border border-purple-100 font-semibold text-[11px]">
-                            {client.category}
+                            {safeCategory}
                           </span>
                           {client.tags && client.tags.length > 0 && (
                             <div className="flex flex-wrap gap-1">
@@ -345,16 +358,16 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({
                       <td className="py-3.5 px-4">
                         <span
                           className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                            client.status === 'Cliente Activo'
+                            safeStatus === 'Cliente Activo'
                               ? 'bg-emerald-100 text-emerald-800'
-                              : client.status === 'Cotizado'
+                              : safeStatus === 'Cotizado'
                               ? 'bg-purple-100 text-purple-800'
-                              : client.status === 'Lead'
+                              : safeStatus === 'Lead'
                               ? 'bg-blue-100 text-blue-800'
                               : 'bg-slate-100 text-slate-700'
                           }`}
                         >
-                          {client.status}
+                          {safeStatus}
                         </span>
                       </td>
 
@@ -363,7 +376,7 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({
                         <div className="flex items-center justify-end gap-1.5">
                           {/* Call Issabel Button */}
                           <button
-                            onClick={() => startCall(client.phone, `${client.firstName} ${client.lastName}`, client.id)}
+                            onClick={() => startCall(client.phone || '', safeFullName, client.id)}
                             className="p-1.5 rounded-lg bg-slate-100 hover:bg-purple-100 text-slate-600 hover:text-purple-700 transition-colors"
                             title="Llamada Click-to-Call Issabel"
                           >
@@ -373,7 +386,7 @@ export const ClientsListView: React.FC<ClientsListViewProps> = ({
                           {/* WhatsApp Button */}
                           <button
                             onClick={() => {
-                              startWhatsAppConversation(client.id, client.phone, `${client.firstName} ${client.lastName}`);
+                              startWhatsAppConversation(client.id, client.phone || '', safeFullName);
                               onNavigateToTab?.('whatsapp');
                             }}
                             className="p-1.5 rounded-lg bg-slate-100 hover:bg-emerald-100 text-slate-600 hover:text-emerald-700 transition-colors"
