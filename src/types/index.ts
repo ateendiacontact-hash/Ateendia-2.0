@@ -1,6 +1,6 @@
 // Atoms Cloud CRM - Core DDD Types & Models
 
-export type UserRole = 'admin' | 'supervisor' | 'agent' | 'readonly';
+export type UserRole = 'admin' | 'supervisor' | 'agent' | 'readonly' | 'saas_super_admin';
 
 export interface User {
   id: string;

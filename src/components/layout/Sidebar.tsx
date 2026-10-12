@@ -61,18 +61,38 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const { currentTenant, alerts, conversations, chatMessages, can, currentUser } = useTenant();
 
+  // Protección: asegurar que can sea una función
+  const checkPermission = typeof can === 'function' ? can : (() => true);
+
   const handleSelectTab = (tabId: NavigationTab) => {
     if (onTabChange) onTabChange(tabId);
     if (setActiveTab) setActiveTab(tabId);
   };
 
-  const unreadWhatsApp = conversations.reduce((acc, c) => acc + (c.unreadCount || 0), 0);
-  const totalAlertsCount = alerts.length;
+  const unreadWhatsApp = (conversations || []).reduce((acc, c) => acc + (c.unreadCount || 0), 0);
+  const totalAlertsCount = (alerts || []).length;
 
-  // Check if user is Super Admin
-  const isSuperAdmin = currentUser?.isSuperAdmin === true || 
-                       currentUser?.email === 'victoraray8@gmail.com';
+  // ═══════════════════════════════════════════════════════════════════
+  // Verificación de Super Admin SaaS — Fase B (Sesión Fix Sidebar por Rol)
+  // ═══════════════════════════════════════════════════════════════════
+  // ANTES se chequeaba el email hardcodeado (`victoraray8@gmail.com`),
+  // lo que causaba que cualquier usuario con ese email fuera tratado
+  // como Super Admin SaaS. Ahora se chequea el ROL real.
+  //
+  // Regla de negocio: solo los usuarios con rol `saas_super_admin`
+  // pueden ver el grupo "Plataforma SaaS" del sidebar.
+  // ═══════════════════════════════════════════════════════════════════
+  const isSaasSuperAdmin = currentUser?.role === 'saas_super_admin';
 
+  // ═══════════════════════════════════════════════════════════════════
+  // ESTRUCTURA DEL SIDEBAR — Reorganizada en Fase B
+  // ═══════════════════════════════════════════════════════════════════
+  // Antes: "Operaciones & SaaS" mezclaba items del tenant (banking,
+  // campaigns) con items de la plataforma SaaS (saas_central).
+  // Ahora: se separan en 2 grupos distintos:
+  //   - "Operaciones"     → banking, campaigns (del tenant)
+  //   - "Plataforma SaaS" → saas_central (solo saas_super_admin)
+  // ═══════════════════════════════════════════════════════════════════
   const navGroups = [
     {
       title: 'Principal & Clientes',
@@ -88,7 +108,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           id: 'clients' as NavigationTab,
           label: 'Clientes (DDD)',
           icon: Users,
-          allowed: can('clients', 'view')
+          allowed: checkPermission('clients', 'view')
         },
         {
           id: 'policies' as NavigationTab,
@@ -115,7 +135,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           badgeColor: 'bg-emerald-50 text-emerald-700',
           allowed: can('whatsapp', 'view')
         },
-
         {
           id: 'templates' as NavigationTab,
           label: 'Plantillas de Mensajes',
@@ -129,17 +148,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
         }
       ]
     },
-{
-        title: 'Operaciones & SaaS',
-        items: [
-          {
-            id: 'saas_central' as NavigationTab,
-            label: 'Central SaaS Multiempresa',
-            icon: Building,
-            badge: 'Super Admin',
-            badgeColor: 'bg-indigo-100 text-indigo-700 font-bold',
-            allowed: isSuperAdmin
-          },
+    {
+      // ═══════════════════════════════════════════════════════════════
+      // GRUPO RENOMBRADO: "Operaciones & SaaS" → "Operaciones"
+      // Ahora solo contiene items del tenant (banking, campaigns).
+      // ═══════════════════════════════════════════════════════════════
+      title: 'Operaciones',
+      items: [
         {
           id: 'banking' as NavigationTab,
           label: 'Métodos de Pago',
@@ -163,7 +178,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           icon: Workflow,
           badge: 'n8n • IA',
           badgeColor: 'bg-purple-100 text-purple-700 font-bold',
-          allowed: true
+          allowed: can('integrations', 'view')
         },
         {
           id: 'branding' as NavigationTab,
@@ -182,6 +197,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
           label: 'Auditoría Inmutable',
           icon: History,
           allowed: can('audit', 'view')
+        }
+      ]
+    },
+    {
+      // ═══════════════════════════════════════════════════════════════
+      // GRUPO NUEVO: "Plataforma SaaS" — SOLO saas_super_admin
+      // Aquí van TODOS los items que son de la plataforma SaaS
+      // (gestión de tenants, planes, MRR, suscripciones, etc.).
+      // Cuando la plataforma crezca, agregar más items acá.
+      // ═══════════════════════════════════════════════════════════════
+      title: 'Plataforma SaaS',
+      items: [
+        {
+          id: 'saas_central' as NavigationTab,
+          label: 'Central SaaS Multiempresa',
+          icon: Building,
+          badge: 'Super Admin',
+          badgeColor: 'bg-indigo-100 text-indigo-700 font-bold',
+          allowed: isSaasSuperAdmin
         }
       ]
     }
@@ -222,7 +256,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Navigation Groups */}
       <div className="flex-1 overflow-y-auto py-4 px-3 space-y-6">
         {navGroups.map((group, gIdx) => {
-          const visibleItems = group.items.filter((item) => item.allowed !== false);
+          const visibleItems = (group.items || []).filter((item) => item.allowed !== false);
           if (visibleItems.length === 0) return null;
 
           return (

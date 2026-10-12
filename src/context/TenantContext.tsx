@@ -378,14 +378,25 @@ const defaultTenant: TenantBranding = {
   },
 } as any; // cast: TenantBranding no declara tagline/clientCategories/policyTypes todavía
 
+/**
+ * Usuario simulado del mock (Sesión Fix Sidebar por Rol — Fase B).
+ *
+ * ⚠️ MOCK TEMPORAL: se cambiará por el usuario real del JWT cuando
+ * conectemos el backend en Fase C.
+ *
+ * Para probar el sidebar como `saas_super_admin`, el rol está fijado a
+ * `'saas_super_admin'`. Para probar como admin de tenant, cambiar a
+ * `'admin'` y reiniciar Vite.
+ */
 const defaultUser: User = {
   id: 'usr-superadmin',
   tenantId: 'tenant-demo',
   name: 'Víctor Medina',
   email: 'victoraray8@gmail.com',
-  role: 'admin',
+  role: 'saas_super_admin',
   avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
   status: 'active',
+  isSuperAdmin: true,
 };
 
 const initialClientsMock = [
@@ -927,12 +938,53 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setCurrentUserState((prev) => (prev ? { ...prev, id } : null));
   }, []);
 
-  /**
+    /**
    * Verifica si el usuario actual tiene permiso para una acción.
-   * STUB: actualmente retorna `true` siempre. En la sesión de conexión
-   * debe leer la matriz de permisos del rol del usuario actual.
+   *
+   * Lógica (Fase B — Sesión Fix Sidebar por Rol):
+   *   1. Si el usuario es `saas_super_admin` → acceso total (siempre `true`).
+   *   2. Si el rol es de tenant (`admin`/`supervisor`/`agent`/`readonly`)
+   *      → busca la matriz en `initialRolesMock` y devuelve el valor.
+   *   3. Fail-safe: si el módulo o la acción no existen → `false`.
+   *
+   * Cuando conectemos al backend real (Fase C), este método leerá los
+   * permisos desde el JWT o desde `GET /api/auth/permissions`.
+   *
+   * @param module Módulo del PermissionMatrix (ej: 'clients', 'banking')
+   * @param action Acción del módulo (ej: 'view', 'create', 'edit')
+   * @returns `true` si tiene permiso, `false` si no
    */
-  const can = (module: string, action: string): boolean => true;
+  const can = useCallback((module: string, action: string): boolean => {
+    // 1. saas_super_admin tiene acceso total a todo
+    if (currentUser?.role === 'saas_super_admin') {
+      return true;
+    }
+
+    // 2. Buscar el rol del usuario en la matriz de roles
+    const userRole = currentUser?.role;
+    if (!userRole) {
+      return false; // sin rol = sin permisos
+    }
+
+    const roleDefinition = initialRolesMock.find((r) => r.key === userRole);
+    if (!roleDefinition) {
+      return false; // rol no encontrado
+    }
+
+    // 3. Leer la matriz de permisos del rol
+    const permissions = roleDefinition.permissions as Record<string, Record<string, boolean>> | undefined;
+    if (!permissions || typeof permissions !== 'object') {
+      return false;
+    }
+
+    const modulePermissions = permissions[module];
+    if (!modulePermissions || typeof modulePermissions !== 'object') {
+      return false; // módulo no declarado para este rol
+    }
+
+    // 4. Devolver el valor booleano (con fallback a false si no existe)
+    return modulePermissions[action] === true;
+  }, [currentUser?.role]);
 
   // ─── SaaS Central setters ───
   const createTenant = (tenantData: any, adminData: any) => {
