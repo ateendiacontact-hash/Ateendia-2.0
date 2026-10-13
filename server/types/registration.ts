@@ -16,7 +16,7 @@
  * Tipo de registro: demo gratuita o pago con comprobante.
  * Coincide con la columna `type` de saas_registration_requests.
  */
-export type RegistrationType = 'demo' | 'payment';
+export type RegistrationType = 'demo' | 'payment' | 'upgrade';
 
 /**
  * Ciclo de facturación soportado.

@@ -336,25 +336,39 @@ export async function approveRegistration(
     );
   }
 
-  // 2. Generar subdominio único y password temporal (fuera de tx)
-  const subdomain = await findUniqueSubdomain(request.company_name);
-  const tempPassword = generateTempPassword();
-  const tempPasswordHash = await bcrypt.hash(tempPassword, BCRYPT_ROUNDS);
+  // ─── Detección de modo: upgrade vs registro nuevo ───────────────
+  //
+  // Una solicitud es un UPGRADE si:
+  //   - type === 'upgrade' (marcado por saasUpgradeService)
+  //   - created_tenant_id viene pre-poblado (vínculo al tenant existente)
+  //
+  // En modo upgrade NO se crean tenant ni user. Solo se actualiza el
+  // tenant existente y se hace UPSERT de la subscription. El user admin
+  // ya existe y mantiene su password (no se toca).
+  const isUpgrade = request.type === 'upgrade';
 
-  // 3-7. Transacción atómica
+  // 2. Generar subdominio y password temporal (solo en modo registro)
+  //    En modo upgrade, el tenant ya tiene subdominio y el user ya tiene
+  //    password. No generamos nada.
   const now = new Date();
-  const tenantId = randomUUID();
-  const userId = randomUUID();
+  const subdomain = isUpgrade ? null : await findUniqueSubdomain(request.company_name);
+  const tempPassword = isUpgrade ? null : generateTempPassword();
+  const tempPasswordHash = tempPassword
+    ? await bcrypt.hash(tempPassword, BCRYPT_ROUNDS)
+    : null;
+
+  // 3-7. Variables comunes
+  const tenantId = isUpgrade ? request.created_tenant_id : randomUUID();
+  const userId = isUpgrade ? null : randomUUID(); // se sobreescribe tras el tx si upgrade
   const subscriptionId = randomUUID();
 
-  // Calcular expiración del demo y/o grace period
-  const isDemo = request.type === 'demo';
-  const demoExpiresAt = isDemo
-    ? new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000)
-    : null;
-  const gracePeriodEndsAt = isDemo
-    ? new Date(now.getTime() + (14 + DEMO_GRACE_PERIOD_DAYS) * 24 * 60 * 60 * 1000)
-    : null;
+  if (isUpgrade && !tenantId) {
+    throw new RegistrationReviewError(
+      'Solicitud marcada como upgrade pero sin created_tenant_id. Dato inconsistente.',
+      'UPGRADE_MISSING_TENANT_ID',
+      500,
+    );
+  }
 
   // Calcular renewal_date según billing_cycle
   const renewalDays = request.billing_cycle === 'yearly' ? 365 : 30;
@@ -362,79 +376,191 @@ export async function approveRegistration(
     now.getTime() + renewalDays * 24 * 60 * 60 * 1000,
   );
 
+  // ─── Modo upgrade: pre-cargar tenant + user admin existentes ────
+  let upgradeTenantExists = false;
+  let upgradeAdminUserId: string | null = null;
+
+  if (isUpgrade) {
+    const tenant = await prisma.tenants.findUnique({
+      where: { id: tenantId! },
+      select: { id: true },
+    });
+    if (!tenant) {
+      throw new RegistrationReviewError(
+        `Tenant del upgrade no encontrado: ${tenantId}`,
+        'UPGRADE_TENANT_NOT_FOUND',
+        404,
+      );
+    }
+    upgradeTenantExists = true;
+
+    const adminUser = await prisma.users.findFirst({
+      where: { tenant_id: tenantId!, role: 'tenant_admin' },
+      select: { id: true },
+    });
+    if (!adminUser) {
+      throw new RegistrationReviewError(
+        `Tenant sin usuario admin: ${tenantId}. No se puede completar el upgrade.`,
+        'UPGRADE_TENANT_ADMIN_NOT_FOUND',
+        409,
+      );
+    }
+    upgradeAdminUserId = adminUser.id;
+  }
+
+  // ─── Transacción atómica ────────────────────────────────────────
   try {
     await prisma.$transaction(async (tx) => {
-      // 3. Crear tenant
-      await tx.tenants.create({
-        data: {
-          id: tenantId,
-          name: request.company_name,
-          legal_name: request.company_name,
-          tax_id: request.company_tax_id,
-          country: request.company_country,
-          city: request.company_city,
-          subdomain,
-          status: isDemo ? 'demo' : 'active',
-          is_active: true,
-          currency: request.currency,
-          demo_expires_at: demoExpiresAt,
-          grace_period_ends_at: gracePeriodEndsAt,
-          created_at: now,
-          updated_at: now,
-        },
-      });
+      if (isUpgrade) {
+        // ── MODO UPGRADE ──────────────────────────────────────────
+        // El tenant ya existe. Solo lo activamos y limpiamos los
+        // marcadores de demo.
+        await tx.tenants.update({
+          where: { id: tenantId! },
+          data: {
+            status: 'active',
+            is_active: true,
+            demo_expires_at: null,
+            grace_period_ends_at: null,
+            updated_at: now,
+          },
+        });
 
-      // 5. Crear user admin
-      await tx.users.create({
-        data: {
-          id: userId,
-          tenant_id: tenantId,
-          name: request.admin_name,
-          email: request.admin_email,
-          password_hash: tempPasswordHash,
-          must_reset_password: true,
-          role: 'tenant_admin',
-          phone: request.admin_phone,
-          status: 'active',
-          is_super_admin: false,
-          is_platform_user: false,
-          created_at: now,
-          updated_at: now,
-        },
-      });
+        // El user admin ya existe: NO se toca. Solo registramos su id
+        // en la solicitud para trazabilidad.
+        // (upgradeAdminUserId ya lo tenemos)
 
-      // 6. Crear subscription
-      await tx.tenant_subscriptions.create({
-        data: {
-          id: subscriptionId,
-          tenant_id: tenantId,
-          plan: request.plan_name,
-          plan_id: request.plan_id,
-          status: 'active',
-          monthly_price: request.price_amount,
-          renewal_date: renewalDate,
-          start_date: now,
-          billing_cycle: request.billing_cycle,
-          contact_email: request.admin_email,
-          grace_period_days: PAID_GRACE_PERIOD_DAYS,
-          created_at: now,
-          updated_at: now,
-        },
-      });
+        // Subscription: UPSERT porque el tenant demo pudo haber tenido
+        // una subscription previa (creada al aprobar el registro demo).
+        await tx.tenant_subscriptions.upsert({
+          where: { tenant_id: tenantId! },
+          create: {
+            id: subscriptionId,
+            tenant_id: tenantId!,
+            plan: request.plan_name,
+            plan_id: request.plan_id,
+            status: 'active',
+            monthly_price: request.price_amount,
+            renewal_date: renewalDate,
+            start_date: now,
+            billing_cycle: request.billing_cycle,
+            contact_email: request.admin_email,
+            grace_period_days: PAID_GRACE_PERIOD_DAYS,
+            created_at: now,
+            updated_at: now,
+          },
+          update: {
+            plan: request.plan_name,
+            plan_id: request.plan_id,
+            status: 'active',
+            monthly_price: request.price_amount,
+            renewal_date: renewalDate,
+            billing_cycle: request.billing_cycle,
+            contact_email: request.admin_email,
+            grace_period_days: PAID_GRACE_PERIOD_DAYS,
+            is_auto_suspended: false,
+            updated_at: now,
+          },
+        });
 
-      // 7. Actualizar request
-      await tx.saas_registration_requests.update({
-        where: { id: requestId },
-        data: {
-          status: 'approved',
-          created_tenant_id: tenantId,
-          created_user_id: userId,
-          reviewed_by: reviewerUserId,
-          reviewed_at: now,
-          review_notes: notes ?? null,
-          updated_at: now,
-        },
-      });
+        // Actualizar la solicitud
+        await tx.saas_registration_requests.update({
+          where: { id: requestId },
+          data: {
+            status: 'approved',
+            // created_tenant_id ya estaba seteado (vínculo del upgrade)
+            created_user_id: upgradeAdminUserId,
+            reviewed_by: reviewerUserId,
+            reviewed_at: now,
+            review_notes: notes ?? null,
+            updated_at: now,
+          },
+        });
+      } else {
+        // ── MODO REGISTRO NUEVO (comportamiento original) ─────────
+        const isDemo = request.type === 'demo';
+        const demoExpiresAt = isDemo
+          ? new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000)
+          : null;
+        const gracePeriodEndsAt = isDemo
+          ? new Date(
+              now.getTime() +
+                (14 + DEMO_GRACE_PERIOD_DAYS) * 24 * 60 * 60 * 1000,
+            )
+          : null;
+
+        // Crear tenant
+        await tx.tenants.create({
+          data: {
+            id: tenantId!,
+            name: request.company_name,
+            legal_name: request.company_name,
+            tax_id: request.company_tax_id,
+            country: request.company_country,
+            city: request.company_city,
+            subdomain: subdomain!,
+            status: isDemo ? 'demo' : 'active',
+            is_active: true,
+            currency: request.currency,
+            demo_expires_at: demoExpiresAt,
+            grace_period_ends_at: gracePeriodEndsAt,
+            created_at: now,
+            updated_at: now,
+          },
+        });
+
+        // Crear user admin
+        await tx.users.create({
+          data: {
+            id: userId!,
+            tenant_id: tenantId!,
+            name: request.admin_name,
+            email: request.admin_email,
+            password_hash: tempPasswordHash!,
+            must_reset_password: true,
+            role: 'tenant_admin',
+            phone: request.admin_phone,
+            status: 'active',
+            is_super_admin: false,
+            is_platform_user: false,
+            created_at: now,
+            updated_at: now,
+          },
+        });
+
+        // Crear subscription
+        await tx.tenant_subscriptions.create({
+          data: {
+            id: subscriptionId,
+            tenant_id: tenantId!,
+            plan: request.plan_name,
+            plan_id: request.plan_id,
+            status: 'active',
+            monthly_price: request.price_amount,
+            renewal_date: renewalDate,
+            start_date: now,
+            billing_cycle: request.billing_cycle,
+            contact_email: request.admin_email,
+            grace_period_days: PAID_GRACE_PERIOD_DAYS,
+            created_at: now,
+            updated_at: now,
+          },
+        });
+
+        // Actualizar request
+        await tx.saas_registration_requests.update({
+          where: { id: requestId },
+          data: {
+            status: 'approved',
+            created_tenant_id: tenantId!,
+            created_user_id: userId!,
+            reviewed_by: reviewerUserId,
+            reviewed_at: now,
+            review_notes: notes ?? null,
+            updated_at: now,
+          },
+        });
+      }
     });
   } catch (err) {
     throw new RegistrationReviewError(
@@ -446,11 +572,11 @@ export async function approveRegistration(
 
   return {
     requestId,
-    tenantId,
-    userId,
+    tenantId: tenantId!,
+    userId: isUpgrade ? upgradeAdminUserId! : userId!,
     subscriptionId,
-    subdomain,
-    tempPassword,
+    subdomain: subdomain ?? '(existente)',
+    tempPassword: tempPassword ?? '(mantiene su password)',
   };
 }
 

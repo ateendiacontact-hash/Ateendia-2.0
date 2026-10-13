@@ -40,11 +40,27 @@ const BCRYPT_ROUNDS = 10;
 /**
  * Error de dominio lanzado cuando el payload es inválido a nivel de negocio
  * (no a nivel de Zod, que se maneja en la ruta).
+ *
+ * `code` es un identificador estable y opcional (UPPER_SNAKE_CASE) que
+ * permite al router/frontend distinguir errores específicos sin parsear
+ * el mensaje. Si no se provee, queda `undefined`.
+ *
+ * Ejemplos de códigos usados hoy:
+ * - 'PLAN_NOT_FOUND'          (upgrade: plan destino inexistente)
+ * - 'PLAN_NOT_AVAILABLE'      (upgrade: plan inactivo o no público)
+ * - 'UPGRADE_ALREADY_PENDING' (upgrade: ya hay una solicitud pending)
+ * - 'TENANT_NOT_FOUND'        (upgrade: tenant inexistente)
+ * - 'TENANT_ADMIN_NOT_FOUND'  (upgrade: tenant sin usuario admin)
+ * - 'PAYMENT_METHOD_NOT_FOUND'(upgrade: método de pago inexistente)
+ * - 'PAYMENT_METHOD_INACTIVE' (upgrade: método de pago inactivo)
  */
 export class RegistrationValidationError extends Error {
-  constructor(message: string) {
+  public readonly code?: string;
+
+  constructor(message: string, code?: string) {
     super(message);
     this.name = 'RegistrationValidationError';
+    this.code = code;
   }
 }
 
@@ -377,7 +393,7 @@ function normalizeRegistrationStatus(raw: string): RegistrationStatus {
  * punto de vista del usuario: no promete acceso pago).
  */
 function normalizeRegistrationType(raw: string): RegistrationType {
-  if (raw === 'demo' || raw === 'payment') return raw;
+  if (raw === 'demo' || raw === 'payment' || raw === 'upgrade') return raw;
   console.warn(
     `[getRegistrationStatus] type inesperado en DB: "${raw}". Fallback a "demo".`,
   );

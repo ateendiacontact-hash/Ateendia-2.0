@@ -18,6 +18,7 @@ import { registerRouter } from './saas/register.js';
 import { registrationsRouter } from './saas/registrations.js';
 import { registrationStatusRouter } from './saas/registrationStatus.js';
 import { paymentMethodsRouter } from './saas/paymentMethods.js';
+import { upgradeRouter } from './saas/upgrade.js';
 import { z } from 'zod';
 import {
   requireAuth,
@@ -316,3 +317,4 @@ saasRouter.use('/registrations', registrationsRouter);
 // evalúa los use() en orden; si el primero no matchea, cae al segundo.
 // ─────────────────────────────────────────────────────────────────────
 saasRouter.use('/registrations', registrationStatusRouter);
+saasRouter.use('/upgrade', upgradeRouter);
