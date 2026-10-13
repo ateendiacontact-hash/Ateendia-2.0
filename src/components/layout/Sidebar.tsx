@@ -42,6 +42,7 @@ export type NavigationTab =
   | 'integrations'
   | 'users'
   | 'users_roles'
+  | 'upgrade'   // ← NUEVO: pantalla de upgrade demo → pago
   | 'audit';
 
 interface SidebarProps {
@@ -148,10 +149,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
         }
       ]
     },
-    {
+        {
       // ═══════════════════════════════════════════════════════════════
-      // GRUPO RENOMBRADO: "Operaciones & SaaS" → "Operaciones"
-      // Ahora solo contiene items del tenant (banking, campaigns).
+      // GRUPO: "Operaciones" — items del tenant
       // ═══════════════════════════════════════════════════════════════
       title: 'Operaciones',
       items: [
@@ -166,6 +166,42 @@ export const Sidebar: React.FC<SidebarProps> = ({
           label: 'Campañas & Reportes',
           icon: Megaphone,
           allowed: can('campaigns', 'view')
+        },
+        // ─── NUEVO: Upgrade a Plan Pago ───
+        // Solo visible si el tenant está en estado 'demo'.
+        // El chequeo de `subscription?.status` es defensivo: si el tenant
+        // no tiene subscription aún, no mostramos el item.
+        {
+          id: 'upgrade' as NavigationTab,
+          label: 'Upgrade a Pago',
+          icon: Sparkles,
+          badge: 'Demo',
+          badgeColor: 'bg-purple-100 text-purple-700 font-bold',
+                    // Mostrar el item si el tenant está en un estado que PUEDE
+          // hacer upgrade a pago: 'demo', 'trial' o 'expired'. El cast a
+          // `string` es necesario porque el tipo `TenantSubscription['status']`
+          // del frontend está desactualizado y NO incluye 'demo' ni 'expired'.
+          // TODO: actualizar `TenantSubscription['status']` en src/types/index.ts.
+                    // Mostrar el item si:
+          //   1. El usuario NO es saas_super_admin (ellos no hacen upgrade de tenant).
+          //   2. El tenant está en estado que PUEDE hacer upgrade: 'demo', 'trial'
+          //      o 'expired'. El backend valida la elegibilidad real.
+          allowed: (() => {
+            // Regla 1: los Super Admin SaaS no hacen upgrade de tenant.
+            if (currentUser?.role === 'saas_super_admin') {
+              return false;
+            }
+            // Regla 2: chequeo del estado del tenant.
+            const status = currentTenant?.subscription?.status as
+              | string
+              | undefined;
+            return (
+              !status ||
+              status === 'demo' ||
+              status === 'trial' ||
+              status === 'expired'
+            );
+          })()
         }
       ]
     },

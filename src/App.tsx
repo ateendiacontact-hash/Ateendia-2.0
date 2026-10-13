@@ -36,6 +36,7 @@ import { MassImportModal } from './components/import/MassImportModal';
 import { GlobalSearchModal } from './components/search/GlobalSearchModal';
 import { SaasLandingPreviewModal } from './components/saas/SaasLandingPreviewModal';
 import { SuspendedCompanyLockScreen } from './components/saas/SuspendedCompanyLockScreen';
+import { TenantUpgradeView } from './components/saas/TenantUpgradeView';
 import { TenantBranding } from './types';
 import { LoginView } from './components/auth/LoginView';
 import { RegisterView } from './components/auth/RegisterView';
@@ -291,6 +292,12 @@ const AppContent: React.FC = () => {
                 {activeTab === 'issabel' && <IssabelModule />}
 
                 {activeTab === 'campaigns' && <CampaignsModule />}
+
+                                {activeTab === 'upgrade' && (
+                  <TenantUpgradeView
+                    onBackToDashboard={() => setActiveTab('dashboard')}
+                  />
+                )}
 
                 {activeTab === 'branding' && <CompanyBrandingModule />}
 

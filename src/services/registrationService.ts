@@ -29,6 +29,13 @@ import type {
   RegistrationStatusSuccessResponse,
   RegistrationStatusErrorResponse,
   FetchStatusResult,
+  // ═══════════════════════════════════════════════════════════════
+  // NUEVOS TIPOS — Sesión 3.5.B.4.e (catálogos públicos)
+  // ═══════════════════════════════════════════════════════════════
+  SaasPlanPublic,
+  SaasPlansPublicResponse,
+  PublicPaymentMethod,
+  PublicPaymentMethodsResponse,
 } from '../types';
 
 // ────────────────────────────────────────────────────────────────────
@@ -280,6 +287,180 @@ async function fetchRegistrationStatus(
 }
 
 // ────────────────────────────────────────────────────────────────────
+// Función: fetchPlansPublic()
+// ────────────────────────────────────────────────────────────────────
+
+/**
+ * Carga el catálogo público de planes SaaS.
+ *
+ * Endpoint: GET /api/saas/plans/public (sin auth)
+ *
+ * Se usa en:
+ *   - RegisterForm (para mostrar los planes disponibles)
+ *   - TenantUpgradeView (para el selector de plan destino)
+ *
+ * @returns Resultado discriminado con el array de planes o el error.
+ *
+ * @example
+ * const result = await registrationService.fetchPlansPublic();
+ * if (result.success) {
+ *   console.log('Planes:', result.data.map(p => p.name));
+ * }
+ */
+async function fetchPlansPublic(): Promise<
+  | { success: true; data: SaasPlanPublic[] }
+  | { success: false; error: string; code: string; details?: unknown }
+> {
+  let response: Response;
+  try {
+    response = await fetch('/api/saas/plans/public', {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch (err) {
+    return {
+      success: false,
+      error:
+        'No pudimos conectar con el servidor. Verificá tu conexión e intentá de nuevo.',
+      code: 'NETWORK_ERROR',
+      details: err instanceof Error ? err.message : String(err),
+    };
+  }
+
+  let body: unknown;
+  try {
+    body = await response.json();
+  } catch {
+    return {
+      success: false,
+      error: `Respuesta inesperada del servidor (HTTP ${response.status}).`,
+      code: 'UNKNOWN_ERROR',
+      details: `No se pudo parsear el body como JSON. Status: ${response.status}`,
+    };
+  }
+
+  if (response.ok) {
+    // El backend responde SaasPlansPublicResponse: { success: true, plans: [...] }
+    // ⚠️ OJO: el backend usa `plans` (no `data`) en este endpoint.
+    const successBody = body as SaasPlansPublicResponse;
+    if (!Array.isArray(successBody?.plans)) {
+      return {
+        success: false,
+        error: 'El servidor respondió con un formato inesperado.',
+        code: 'UNKNOWN_ERROR',
+        details: body,
+      };
+    }
+    return {
+      success: true,
+      data: successBody.plans,
+    };
+  }
+
+  const errorBody = body as Partial<{
+    success: false;
+    error: string;
+    code: string;
+  }>;
+
+  return {
+    success: false,
+    error:
+      errorBody?.error ||
+      `Error del servidor (HTTP ${response.status}). Intentá de nuevo.`,
+    code: errorBody?.code || 'UNKNOWN_ERROR',
+    details: errorBody,
+  };
+}
+
+// ────────────────────────────────────────────────────────────────────
+// Función: fetchPaymentMethodsPublic()
+// ────────────────────────────────────────────────────────────────────
+
+/**
+ * Carga el catálogo público de métodos de pago.
+ *
+ * Endpoint: GET /api/saas/payment-methods/public (sin auth)
+ *
+ * Se usa en:
+ *   - RegisterForm (para mostrar métodos de pago disponibles)
+ *   - TenantUpgradeView (para el selector de método de pago)
+ *
+ * @returns Resultado discriminado con el array de métodos o el error.
+ *
+ * @example
+ * const result = await registrationService.fetchPaymentMethodsPublic();
+ * if (result.success) {
+ *   console.log('Métodos:', result.data.map(m => m.name));
+ * }
+ */
+async function fetchPaymentMethodsPublic(): Promise<
+  | { success: true; data: PublicPaymentMethod[] }
+  | { success: false; error: string; code: string; details?: unknown }
+> {
+  let response: Response;
+  try {
+    response = await fetch('/api/saas/payment-methods/public', {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch (err) {
+    return {
+      success: false,
+      error:
+        'No pudimos conectar con el servidor. Verificá tu conexión e intentá de nuevo.',
+      code: 'NETWORK_ERROR',
+      details: err instanceof Error ? err.message : String(err),
+    };
+  }
+
+  let body: unknown;
+  try {
+    body = await response.json();
+  } catch {
+    return {
+      success: false,
+      error: `Respuesta inesperada del servidor (HTTP ${response.status}).`,
+      code: 'UNKNOWN_ERROR',
+      details: `No se pudo parsear el body como JSON. Status: ${response.status}`,
+    };
+  }
+
+  if (response.ok) {
+    // El backend responde PublicPaymentMethodsResponse: { success: true, data: [...] }
+    const successBody = body as PublicPaymentMethodsResponse;
+    if (!Array.isArray(successBody?.data)) {
+      return {
+        success: false,
+        error: 'El servidor respondió con un formato inesperado.',
+        code: 'UNKNOWN_ERROR',
+        details: body,
+      };
+    }
+    return {
+      success: true,
+      data: successBody.data,
+    };
+  }
+
+  const errorBody = body as Partial<{
+    success: false;
+    error: string;
+    code: string;
+  }>;
+
+  return {
+    success: false,
+    error:
+      errorBody?.error ||
+      `Error del servidor (HTTP ${response.status}). Intentá de nuevo.`,
+    code: errorBody?.code || 'UNKNOWN_ERROR',
+    details: errorBody,
+  };
+}
+
+
+// ────────────────────────────────────────────────────────────────────
 // Export
 // ────────────────────────────────────────────────────────────────────
 
@@ -290,4 +471,6 @@ async function fetchRegistrationStatus(
 export const registrationService = {
   register,
   fetchRegistrationStatus,
+  fetchPlansPublic,
+  fetchPaymentMethodsPublic,
 };

@@ -1734,3 +1734,203 @@ export interface ChangeInitialPasswordErrorResponse {
 export type ChangeInitialPasswordResult =
   | ChangeInitialPasswordResponse
   | ChangeInitialPasswordErrorResponse;
+
+  
+// ═══════════════════════════════════════════════════════════════════
+// SaaS — Upgrade demo → pago (Sesión 3.5.B.4.e)
+// ═══════════════════════════════════════════════════════════════════
+//
+// Tipos del frontend para el flujo de upgrade.
+// Espejo del backend (server/types/upgrade.ts).
+//
+// IMPORTANTE: El backend usa camelCase en los DTOs (planId, billingCycle,
+// etc.), así que los tipos frontend son espejo DIRECTO, sin conversión.
+//
+// Reutilizamos el tipo `BillingCycle` ya existente (definido arriba,
+// en la sección de registro) para evitar duplicación.
+
+/**
+ * Estados de tenant que PUEDEN solicitar upgrade a pago.
+ * - `demo`:      cuenta de prueba vigente.
+ * - `expired`:   demo expirado pero dentro del grace period.
+ */
+export type UpgradeEligibleTenantStatus = 'demo' | 'expired';
+
+/**
+ * Payload que el frontend envía a POST /api/saas/upgrade.
+ *
+ * NO incluye datos de empresa/admin porque el backend los resuelve
+ * del tenant autenticado (vía JWT). El tenant_id NUNCA va en el body
+ * (anti-IDOR).
+ */
+export interface UpgradeRequestPayload {
+  /** ID del plan destino (debe existir en saas_plans y ser público). */
+  planId: string;
+  /** Ciclo de facturación elegido. Reutiliza BillingCycle. */
+  billingCycle: BillingCycle;
+  /** Método de pago elegido (opcional en MVP). */
+  paymentMethodId?: string;
+  /** Comprobante subido (opcional). */
+  receiptUrl?: string;
+  receiptFilename?: string;
+  receiptFileSize?: string;
+  /** Hash de transacción crypto (opcional). */
+  cryptoTxHash?: string;
+  /** Notas libres del tenant (opcional). */
+  notes?: string;
+}
+
+/**
+ * Códigos de elegibilidad devueltos por el backend.
+ * - null:                  el tenant SÍ es elegible.
+ * - TENANT_NOT_FOUND:      el tenant del JWT no existe en DB.
+ * - TENANT_NOT_IN_DEMO:    el tenant ya está en otro estado (active, etc.).
+ * - DEMO_GRACE_EXPIRED:    demo + grace period vencidos (debe registrarse de nuevo).
+ * - TENANT_ALREADY_PAID:   el tenant ya tiene plan pago.
+ */
+export type UpgradeEligibilityCode =
+  | 'TENANT_NOT_FOUND'
+  | 'TENANT_NOT_IN_DEMO'
+  | 'DEMO_GRACE_EXPIRED'
+  | 'TENANT_ALREADY_PAID'
+  | null;
+
+/**
+ * Resultado de elegibilidad para upgrade.
+ * Se calcula a partir del estado actual del tenant.
+ */
+export interface UpgradeEligibility {
+  /** true si el tenant puede hacer upgrade ahora mismo. */
+  eligible: boolean;
+  /** Razón legible si no es elegible (null si sí lo es). */
+  reason: string | null;
+  /** Código estable para el frontend (null si es elegible). */
+  code: UpgradeEligibilityCode;
+  /** Estado actual del tenant, para mostrarlo en UI. */
+  tenantStatus: string | null;
+  /** Cuándo expira el demo (ISO string) o null. */
+  demoExpiresAt: string | null;
+  /** Cuándo termina el grace period (ISO string) o null. */
+  gracePeriodEndsAt: string | null;
+}
+
+/**
+ * Resultado devuelto al crear una solicitud de upgrade.
+ * El `requestId` permite consultar el estado con el endpoint público
+ * ya existente: GET /api/saas/registrations/:requestId/status
+ */
+export interface UpgradeRequestResult {
+  requestId: string;
+  tenantId: string;
+  planId: string;
+  planKey: string;
+  planName: string;
+  billingCycle: BillingCycle;
+  priceAmount: number;
+  currency: string;
+  status: 'pending';
+  createdAt: string;
+  expiresAt: string;
+}
+
+// ─── Respuestas HTTP del backend ─────────────────────────────────────
+
+/**
+ * Respuesta exitosa de GET /api/saas/upgrade/eligibility.
+ * El backend devuelve el objeto directamente (no envuelto en data).
+ */
+export interface UpgradeEligibilitySuccessResponse {
+  success: true;
+  data: UpgradeEligibility;
+}
+
+/**
+ * Respuesta de error de GET /api/saas/upgrade/eligibility.
+ */
+export interface UpgradeEligibilityErrorResponse {
+  success: false;
+  error: string;
+  code:
+    | 'AUTH_TOKEN_MISSING'
+    | 'AUTH_TOKEN_INVALID'
+    | 'TENANT_NOT_FOUND'
+    | 'INTERNAL_ERROR';
+  details?: unknown;
+}
+
+/**
+ * Respuesta exitosa de POST /api/saas/upgrade.
+ */
+export interface UpgradeRequestSuccessResponse {
+  success: true;
+  data: UpgradeRequestResult;
+}
+
+/**
+ * Respuesta de error de POST /api/saas/upgrade.
+ *
+ * Códigos posibles (alineados con el backend):
+ * - VALIDATION_ERROR:           body inválido (Zod rechazó).
+ * - PLAN_NOT_FOUND:             planId no existe en saas_plans.
+ * - PLAN_NOT_PUBLIC:            planId existe pero no es público.
+ * - UPGRADE_ALREADY_PENDING:    ya hay una solicitud pending para el tenant.
+ * - TENANT_NOT_ELIGIBLE:        el tenant no está en estado elegible.
+ * - AUTH_TOKEN_MISSING:         no se envió JWT.
+ * - AUTH_TOKEN_INVALID:         JWT inválido o expirado.
+ */
+export interface UpgradeRequestErrorResponse {
+  success: false;
+  error: string;
+  code:
+    | 'VALIDATION_ERROR'
+    | 'PLAN_NOT_FOUND'
+    | 'PLAN_NOT_PUBLIC'
+    | 'UPGRADE_ALREADY_PENDING'
+    | 'TENANT_NOT_ELIGIBLE'
+    | 'AUTH_TOKEN_MISSING'
+    | 'AUTH_TOKEN_INVALID';
+  details?: unknown;
+}
+
+// ─── Resultados discriminados para el servicio frontend ──────────────
+
+/**
+ * Resultado discriminado de checkEligibility.
+ * Permite type-narrowing seguro:
+ *   if (result.success) { result.data.eligible } else { result.error }
+ */
+export type UpgradeEligibilityResult =
+  | { success: true; data: UpgradeEligibility }
+  | {
+      success: false;
+      error: string;
+      code:
+        | 'AUTH_TOKEN_MISSING'
+        | 'AUTH_TOKEN_INVALID'
+        | 'TENANT_NOT_FOUND'
+        | 'INTERNAL_ERROR'
+        | 'NETWORK_ERROR'
+        | 'UNKNOWN_ERROR';
+      details?: unknown;
+    };
+
+/**
+ * Resultado discriminado de createUpgradeRequest.
+ */
+export type UpgradeRequestOperationResult =
+  | { success: true; data: UpgradeRequestResult }
+  | {
+      success: false;
+      error: string;
+      code:
+        | 'VALIDATION_ERROR'
+        | 'PLAN_NOT_FOUND'
+        | 'PLAN_NOT_PUBLIC'
+        | 'UPGRADE_ALREADY_PENDING'
+        | 'TENANT_NOT_ELIGIBLE'
+        | 'AUTH_TOKEN_MISSING'
+        | 'AUTH_TOKEN_INVALID'
+        | 'NETWORK_ERROR'
+        | 'UNKNOWN_ERROR';
+      details?: unknown;
+    };
