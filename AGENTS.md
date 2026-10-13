@@ -1629,11 +1629,11 @@ Sesión dedicada fuera del scope del CRM.
 Fecha: 2026-10-12
 
 ### Commit
-- Hash: <hash_completo>
+- Hash: <67118c3>
 - Padre: e3e7de9
 - Mensaje: "feat(saas): Sesion 3.5.B.4.d - Endpoint upgrade demo a pago"
 - 7 archivos cambiados: 4 modificados + 3 nuevos
-- Push: e3e7de9..<hash_corto> main -> main
+- Push: e3e7de9..67118c3 main -> main
 
 ### Objetivo cumplido
 Permitir que un tenant en estado `demo` (o `expired` dentro del grace
@@ -1791,7 +1791,7 @@ Total endpoints del proyecto: 53 (era 51).
 
 ════════════════════════════════════════════════════════════════════
 ÚLTIMA ACTUALIZACIÓN: 2026-10-12 (Sesión #23)
-Último commit: <hash_corto>
+Último commit: 67118c3
 Push: origin/main
 Progreso global: ~60%
 ════════════════════════════════════════════════════════════════════
