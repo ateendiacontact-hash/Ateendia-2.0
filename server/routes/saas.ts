@@ -19,6 +19,7 @@ import { registrationsRouter } from './saas/registrations.js';
 import { registrationStatusRouter } from './saas/registrationStatus.js';
 import { paymentMethodsRouter } from './saas/paymentMethods.js';
 import { upgradeRouter } from './saas/upgrade.js';
+import { saasTenantsRouter } from './saas/tenants.js';
 import { z } from 'zod';
 import {
   requireAuth,
@@ -32,7 +33,8 @@ import {
   createPlan,
   updatePlan,
   archivePlan,
-} from '../services/saasPlansService.js';
+}
+from '../services/saasPlansService.js';
 
 export const saasRouter = Router();
 
@@ -318,3 +320,4 @@ saasRouter.use('/registrations', registrationsRouter);
 // ─────────────────────────────────────────────────────────────────────
 saasRouter.use('/registrations', registrationStatusRouter);
 saasRouter.use('/upgrade', upgradeRouter);
+saasRouter.use('/tenants', saasTenantsRouter);

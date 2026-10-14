@@ -1,8 +1,8 @@
 ﻿# AGENTS.md — Memory Bank de Ateendia CRM 2.0
 
-> **Última actualización:** 2026-10-13 (Sesión #25)
-> **Progreso global:** ~62%
-> **Sesiones completadas:** 25
+> **Última actualización:** 2026-10-14 (Sesión #26)
+> **Progreso global:** ~63%
+> **Sesiones completadas:** 26
 
 ---
 
@@ -48,23 +48,23 @@ Sistema CRM (Customer Relationship Management) multi-tenant para la gestión int
 ⚠️ **Los puertos 3306, 3000, 8080 están ocupados por otros proyectos.** Por eso Ateendia usa 3307, 3100, 4000.
 
 ### Estructura del Backend (`server/`)
-```
 server/
-├── index.ts              # Punto de entrada Express
-├── env.ts                # Validación Zod de variables de entorno
-├── db.ts                 # Cliente Prisma singleton
-├── tsconfig.json         # Config TS para backend (ESM, strict)
-├── types/                # Tipos backend (landing, registration, upgrade, etc.)
-├── services/             # Servicios de dominio
+├── index.ts # Punto de entrada Express
+├── env.ts # Validación Zod de variables de entorno
+├── db.ts # Cliente Prisma singleton
+├── tsconfig.json # Config TS para backend (ESM, strict)
+├── types/ # Tipos backend (landing, registration, upgrade, etc.)
+├── services/ # Servicios de dominio
 ├── prisma/
-│   ├── schema.prisma     # 24 modelos
-│   └── seed.ts           # Tenant demo + admin + plan DEMO
-├── routes/               # Rutas REST organizadas por dominio
-├── middleware/           # requireAuth, requireTenant, rbac, rateLimiters
-├── .env                  # Variables reales (no commitear)
-├── .env.example          # Template
-└── .env.local            # Override local (gitignored)
-```
+│ ├── schema.prisma # 24 modelos
+│ └── seed.ts # Tenant demo + admin + plan DEMO
+├── routes/ # Rutas REST organizadas por dominio
+├── middleware/ # requireAuth, requireTenant, rbac, rateLimiters
+├── .env # Variables reales (no commitear)
+├── .env.example # Template
+└── .env.local # Override local (gitignored)
+
+text
 
 ### Variables de Entorno — Reglas Críticas
 
@@ -122,699 +122,933 @@ server/
   docker compose ps
   npx tsc --noEmit -p server/tsconfig.json
   curl.exe -i http://localhost:4000/api/health
-  ```
+7. CONFIANZA EN HERRAMIENTAS
 
-**7. CONFIANZA EN HERRAMIENTAS**
-- Confiar en `npx tsc --noEmit -p server/tsconfig.json` (NO en cSpell de VS Code).
-- Confiar en `information_schema` para conteo de tablas/columnas.
-- Confiar en `docker compose ps` para estado de contenedores.
+Confiar en npx tsc --noEmit -p server/tsconfig.json (NO en cSpell de VS Code).
 
-### Sección 3 — Git y Versionado
+Confiar en information_schema para conteo de tablas/columnas.
 
-**8. GIT AL FINAL DE CADA (SUB)FASE**
-- Solo cuando una sub-fase está completa y verificada.
-- Proporcionar:
-  ```powershell
-  git add <archivos selectivos>
-  git commit -m "<mensaje descriptivo>"
-  git push
-  ```
-- **NUNCA** hacer `git add .` o `git add -A` si hay deuda técnica.
+Confiar en docker compose ps para estado de contenedores.
 
-**9. GRÁFICO ASCII DE PROGRESO**
-- Después de cada commit, mostrar el bloque ASCII con barras de progreso del proyecto por fase y sub-fase.
+Sección 3 — Git y Versionado
+8. GIT AL FINAL DE CADA (SUB)FASE
 
-**10. PROMPT PARA KILO CODE (MEMORY BANK)**
-- Al cerrar cada (sub)fase, entregar un prompt completo listo para pegar en Kilo Code.
-- El prompt debe estar en **MODO SOLO-EDICIÓN del `AGENTS.md`** (NO toca código, NO ejecuta git).
+Solo cuando una sub-fase está completa y verificada.
 
-**11. COMMITS SIN DEUDA TÉCNICA**
-- Antes del commit, revisar `git diff --stat` de los archivos afectados.
-- Hacer `git add` selectivo (lista explícita de archivos).
-- Verificar con `git status --short` que solo los archivos correctos estén staged.
+Proporcionar:
 
-### Sección 4 — Gestión de Contexto
+powershell
+git add <archivos selectivos>
+git commit -m "<mensaje descriptivo>"
+git push
+NUNCA hacer git add . o git add -A si hay deuda técnica.
 
-**12. AVISO DE LÍMITE DE CONTEXTO**
-- Cuando el chat se alargue (~25-30 intercambios con archivos largos), avisar proactivamente.
-- Generar prompt de traspaso completo + lista de archivos a adjuntar en el nuevo chat + resumen ejecutivo del estado.
+9. GRÁFICO ASCII DE PROGRESO
 
-**13. PROMPT DE TRASPASO ESTRUCTURADO**
-- Contexto del proyecto.
-- Reglas personales.
-- Estado de infraestructura verificado.
-- Lo que se hizo en la sesión anterior.
-- Decisiones tomadas para la siguiente sesión.
-- Middlewares/tablas críticas.
-- Deuda técnica registrada.
-- Siguiente paso.
-- Primera tarea concreta para el asistente nuevo.
+Después de cada commit, mostrar el bloque ASCII con barras de progreso del proyecto por fase y sub-fase.
 
-### Sección 5 — Reglas Técnicas Críticas
+10. PROMPT PARA KILO CODE (MEMORY BANK)
 
-**14. ⚠️ EPERM EN WINDOWS**
-- Antes de `npm run db:generate` o `prisma generate`, SIEMPRE detener Express (Ctrl + C).
-- Si falla con `EPERM: operation not permitted, rename` → es eso.
+Al cerrar cada (sub)fase, entregar un prompt completo listo para pegar en Kilo Code.
 
-**15. ⚠️ POWERSHELL + CURL CON JSON**
-- El escape con `\"` rompe en PowerShell.
-- Usar `Invoke-RestMethod` con hashtables + `ConvertTo-Json -Depth 5`.
-- Para strings con ACENTOS:
-  ```powershell
-  $json = $body | ConvertTo-Json -Depth 5
-  $bytes = [System.Text.Encoding]::UTF8.GetBytes($json)
-  Invoke-RestMethod -Uri "..." -Body $bytes -ContentType "application/json; charset=utf-8"
-  ```
-- PowerShell **NO soporta** `<` para redirección stdin:
-  - Opción A: `Get-Content archivo.sql -Raw | docker compose exec -T ...`
-  - Opción B: `cmd /c "docker compose exec -T ... < archivo.sql"`
+El prompt debe estar en MODO SOLO-EDICIÓN del AGENTS.md (NO toca código, NO ejecuta git).
 
-**16. ⚠️ CSPELL EN VS CODE**
-- Los "Unknown word cSpell" NO son errores reales.
-- Solo confiar en `npx tsc --noEmit -p server/tsconfig.json`.
+11. COMMITS SIN DEUDA TÉCNICA
 
-**17. ⚠️ NAMING PRISMA**
-- Modelos: **plural + snake_case** (`prisma.users`, `prisma.clients`).
-- Nunca singular ni camelCase.
-- Campos también en snake_case (`tenant_id`, `created_at`).
+Antes del commit, revisar git diff --stat de los archivos afectados.
 
-**18. ⚠️ JSON EN MARIADB**
-- Prisma lo expone como `String?`.
-- Serializar con `JSON.stringify()` al guardar.
-- Parsear con `JSON.parse()` al leer.
+Hacer git add selectivo (lista explícita de archivos).
 
-**19. ⚠️ IMPORTS CON EXTENSIÓN .JS**
-- Con `module: ESNext`, imports entre `.ts` con `.js`:
-  - `import { x } from './y.js'` ✅
-  - `import { x } from './y'` ❌
+Verificar con git status --short que solo los archivos correctos estén staged.
 
-**20. ⚠️ DOTENV EN SCRIPTS**
-- Todo script ejecutado con `tsx`/`node` (no vía Prisma CLI) debe cargar dotenv manualmente apuntando al `.env` correcto.
+Sección 4 — Gestión de Contexto
+12. AVISO DE LÍMITE DE CONTEXTO
 
-**21. ⚠️ ROUTER.USE() DESPUÉS DE DECLARACIÓN**
-- Los `router.use()` van DESPUÉS de `export const xRouter = Router()`.
-- Los imports sí pueden ir arriba (hoisted).
+Cuando el chat se alargue (~25-30 intercambios con archivos largos), avisar proactivamente.
 
-**22. ⚠️ TENANTID === 'PLATFORM'**
-- Todo middleware de tenant DEBE tener excepción para `tenantId === 'platform'`.
-- Los Super Admins SaaS (`is_platform_user = 1`) NO están sujetos a verificaciones de tenant.
+Generar prompt de traspaso completo + lista de archivos a adjuntar en el nuevo chat + resumen ejecutivo del estado.
 
-**23. ⚠️ MARIADB POST-CRASH**
-- Si `docker exec` funciona pero desde el host Windows todo falla con P1017 / "Server has closed the connection":
-  ```powershell
-  docker compose restart mariadb
-  ```
-- NO borra datos, solo reinicia el proceso.
+13. PROMPT DE TRASPASO ESTRUCTURADO
 
-**24. ⚠️ FOREIGN KEYS EN PRISMA**
-- Verificar las FKs reales en la DB antes de escribir servicios que crean registros relacionados.
-- Los nombres pueden diferir de lo asumido.
+Contexto del proyecto.
 
-### Sección 6 — Documentación
+Reglas personales.
 
-**25. MEMORY BANK AL FINAL DE CADA FASE**
-- Actualizar `AGENTS.md` con cada fase completada.
-- Registrar decisiones tomadas, lecciones aprendidas, deuda técnica.
-- **IMPORTANTE:** Siempre entregar un **prompt para Kilo Code** (no texto para copiar/pegar) para mantener el orden.
+Estado de infraestructura verificado.
 
-**26. DEUDA TÉCNICA EXPLÍCITA**
-- Cuando se detecta deuda técnica, registrarla en una sección dedicada del `AGENTS.md` con:
-  - Descripción del problema.
-  - Causa raíz.
-  - Solución propuesta.
-  - Prioridad (bloqueante / no bloqueante).
+Lo que se hizo en la sesión anterior.
 
-**27. JSDOC EN FUNCIONES COMPLEJAS**
-- Documentar funciones complejas, servicios y APIs con JSDoc/TSDoc.
-- Los componentes no requieren comentarios extensos si son autoexplicativos.
+Decisiones tomadas para la siguiente sesión.
 
-### Sección 7 — Reglas de Producción (CRÍTICA)
+Middlewares/tablas críticas.
 
-**28. ⚠️ SISTEMA PARA PRODUCCIÓN, NO PARA SIMULACIÓN**
+Deuda técnica registrada.
 
-**Regla estricta:** Todo el sistema debe funcionar para **producción real**.
-Los datos mock, hardcodeados, de ejemplo o simulados en **componentes de gestión (paneles, listados, dashboards, tablas)** están **PROHIBIDOS**.
+Siguiente paso.
 
-**Qué está permitido:**
-- ✅ Datos de seed (`server/prisma/seed.ts`) como punto de partida inicial.
-- ✅ Estados de carga / loading skeletons mientras se traen datos reales.
-- ✅ Fallbacks visuales vacíos ("No hay datos todavía") cuando la DB está vacía.
+Primera tarea concreta para el asistente nuevo.
 
-**Qué está PROHIBIDO:**
-- ❌ Hardcodear arrays mock en el frontend.
-- ❌ Usar datos de ejemplo para rellenar tablas de gestión.
-- ❌ Fallbacks silenciosos a mocks cuando un fetch falla.
-- ❌ Componentes que "se ven llenos" pero no reflejan el estado real de la DB.
+Sección 5 — Reglas Técnicas Críticas
+14. ⚠️ EPERM EN WINDOWS
 
-**Excepción única:**
-- Los archivos `src/domain/saasDefaults.ts` (y similares) pueden tener configuraciones por defecto (colores, textos, planes sugeridos). NO es mock de datos de gestión, es default de configuración.
+Antes de npm run db:generate o prisma generate, SIEMPRE detener Express (Ctrl + C).
 
-**Cómo verificar que se cumple:**
-1. Abrí cualquier panel de gestión (Empresas, Comprobantes, Usuarios, Pólizas, etc.).
-2. Si los datos que ves NO coinciden con lo que hay en la DB (`SELECT * FROM ...`), hay un mock escondido. **Debe arreglarse.**
-3. Si vaciás la DB (o filtrás por un criterio que no matchea nada) y el panel sigue mostrando datos, hay un mock escondido. **Debe arreglarse.**
+Si falla con EPERM: operation not permitted, rename → es eso.
 
-**Impacto:** Cada componente que se agregue debe consumir datos REALES desde endpoints backend. Si un endpoint no existe, se crea. NO se mockea en frontend.
+15. ⚠️ POWERSHELL + CURL CON JSON
 
----
+El escape con \" rompe en PowerShell.
 
-## 3. ESTADO ACTUAL DEL PROYECTO
+Usar Invoke-RestMethod con hashtables + ConvertTo-Json -Depth 5.
 
-### Progreso Global
-- **Total estimado:** ~40 sesiones
-- **Completadas:** 25 sesiones
-- **Restantes:** ~15 sesiones
-- **Progreso global:** **~62%**
+Para strings con ACENTOS:
 
-### Progreso por Fase
-| Fase | Descripción | Progreso |
-|------|-------------|----------|
-| Fase 0 | Infraestructura | 100% ✅ |
-| Fase 1 | Backend Base | 100% ✅ |
-| Fase 2 | Clients | 100% ✅ |
-| Fase 3.1 | Banking | 100% ✅ |
-| Fase 3.5.A | SaaS Plans Base | 100% ✅ |
-| Fase 3.5.B | Landing + Registro + Demo | 98% ⏳ |
-| Fase 3.5.C-E | Pagos, Frontend SaaS, Límites | 0% ⏳ |
-| Fase 4 | Multibandeja Unificada | 0% ⏳ |
-| Fase 5 | IA + Automatizaciones | 0% ⏳ |
-| Fase 6 | Analytics + Reportes | 0% ⏳ |
-| Fase 7 | Producción | 0% ⏳ |
-| Fase 3.6 | Telefonía Avanzada | 0% ⏳ |
+powershell
+$json = $body | ConvertTo-Json -Depth 5
+$bytes = [System.Text.Encoding]::UTF8.GetBytes($json)
+Invoke-RestMethod -Uri "..." -Body $bytes -ContentType "application/json; charset=utf-8"
+PowerShell NO soporta < para redirección stdin:
 
-### Endpoints Funcionales (53 endpoints)
-| Método | Endpoint | Descripción |
-|--------|----------|-------------|
-| GET | `/api/health` | Health check |
-| POST | `/api/auth/login` | Login + JWT |
-| GET | `/api/auth/me` | Usuario actual + permisos |
-| POST | `/api/auth/logout` | Logout |
-| GET | `/api/auth/permissions` | Permisos del usuario |
-| POST | `/api/auth/change-initial-password` | Cambio obligatorio de contraseña |
-| GET | `/api/clients` | Listar clientes |
-| GET | `/api/clients/:id` | Obtener cliente |
-| POST | `/api/clients` | Crear cliente |
-| PATCH | `/api/clients/:id` | Actualizar cliente |
-| DELETE | `/api/clients/:id` | Soft delete cliente |
-| GET | `/api/banking/accounts` | Listar cuentas |
-| GET | `/api/banking/accounts/:id` | Obtener cuenta |
-| POST | `/api/banking/accounts` | Crear cuenta |
-| PATCH | `/api/banking/accounts/:id` | Actualizar cuenta |
-| DELETE | `/api/banking/accounts/:id` | Eliminar cuenta |
-| POST | `/api/banking/accounts/:id/set-default` | Marcar como default |
-| POST | `/api/banking/accounts/:id/reveal` | Revelar datos sensibles |
-| GET | `/api/saas/plans` | Lista admin |
-| GET | `/api/saas/plans/public` | Lista pública |
-| GET | `/api/saas/plans/:id` | Detalle de plan |
-| POST | `/api/saas/plans` | Crear plan |
-| PATCH | `/api/saas/plans/:id` | Editar plan |
-| DELETE | `/api/saas/plans/:id` | Archivar plan |
-| GET | `/api/saas/landing` | Obtener config landing |
-| PUT | `/api/saas/landing` | Actualizar config landing |
-| POST | `/api/saas/register` | Registro público demo/pago |
-| GET | `/api/saas/payment-methods/public` | Métodos de pago públicos |
-| GET | `/api/saas/registrations` | Listar solicitudes |
-| POST | `/api/saas/registrations/:id/approve` | Aprobar solicitud |
-| POST | `/api/saas/registrations/:id/reject` | Rechazar solicitud |
-| GET | `/api/saas/registrations/:requestId/status` | Consulta pública estado |
-| GET | `/api/saas/upgrade/eligibility` | Consulta elegibilidad upgrade |
-| POST | `/api/saas/upgrade` | Crear solicitud upgrade |
+Opción A: Get-Content archivo.sql -Raw | docker compose exec -T ...
 
-### Base de Datos
-- **24 modelos Prisma / tablas MariaDB.**
-- Modelos principales: `tenants`, `users`, `clients`, `policies`, `bank_accounts`, `audit_logs`, `saas_plans`, `saas_payment_methods`, `saas_registration_requests`, `tenant_subscriptions`, `saas_platform_settings`, `whatsapp_conversations`, `whatsapp_messages`, `pipelines`, `pipeline_stages`, `call_records`, `smtp_configs`, etc.
+Opción B: cmd /c "docker compose exec -T ... < archivo.sql"
 
-### Usuarios y Roles Configurados
-- **saas_super_admin:** `saas@ateendia.cloud` / `SuperAdmin123!`
-- **tenant_admin demo:** `admin@ateendia.cloud` / `Admin123!`
+16. ⚠️ CSPELL EN VS CODE
 
-### Bug Conocido
-- `users.name = 'María Test'` está guardado como `Mar�a Test` (U+FFFD). No bloqueante.
+Los "Unknown word cSpell" NO son errores reales.
 
----
+Solo confiar en npx tsc --noEmit -p server/tsconfig.json.
 
-## 4. ROADMAP Y FASES
+17. ⚠️ NAMING PRISMA
 
-### Fase 0 — Infraestructura [✅ 100%]
+Modelos: plural + snake_case (prisma.users, prisma.clients).
+
+Nunca singular ni camelCase.
+
+Campos también en snake_case (tenant_id, created_at).
+
+18. ⚠️ JSON EN MARIADB
+
+Prisma lo expone como String?.
+
+Serializar con JSON.stringify() al guardar.
+
+Parsear con JSON.parse() al leer.
+
+19. ⚠️ IMPORTS CON EXTENSIÓN .JS
+
+Con module: ESNext, imports entre .ts con .js:
+
+import { x } from './y.js' ✅
+
+import { x } from './y' ❌
+
+20. ⚠️ DOTENV EN SCRIPTS
+
+Todo script ejecutado con tsx/node (no vía Prisma CLI) debe cargar dotenv manualmente apuntando al .env correcto.
+
+21. ⚠️ ROUTER.USE() DESPUÉS DE DECLARACIÓN
+
+Los router.use() van DESPUÉS de export const xRouter = Router().
+
+Los imports sí pueden ir arriba (hoisted).
+
+22. ⚠️ TENANTID === 'PLATFORM'
+
+Todo middleware de tenant DEBE tener excepción para tenantId === 'platform'.
+
+Los Super Admins SaaS (is_platform_user = 1) NO están sujetos a verificaciones de tenant.
+
+23. ⚠️ MARIADB POST-CRASH
+
+Si docker exec funciona pero desde el host Windows todo falla con P1017 / "Server has closed the connection":
+
+powershell
+docker compose restart mariadb
+NO borra datos, solo reinicia el proceso.
+
+24. ⚠️ FOREIGN KEYS EN PRISMA
+
+Verificar las FKs reales en la DB antes de escribir servicios que crean registros relacionados.
+
+Los nombres pueden diferir de lo asumido.
+
+29. ⚠️ TYPE GUARD PARA response.json() (unknown)
+
+Con TypeScript estricto, response.json() devuelve unknown.
+
+NUNCA acceder a .success o .data directamente.
+
+Patrón correcto:
+
+ts
+const body: unknown = await res.json();
+if (
+  typeof body === 'object' &&
+  body !== null &&
+  'success' in body &&
+  (body as { success: unknown }).success === true &&
+  'data' in body &&
+  Array.isArray((body as { data: unknown }).data)
+) {
+  const data = (body as { data: MyType[] }).data;
+  // usar data
+}
+Sección 6 — Documentación
+25. MEMORY BANK AL FINAL DE CADA FASE
+
+Actualizar AGENTS.md con cada fase completada.
+
+Registrar decisiones tomadas, lecciones aprendidas, deuda técnica.
+
+IMPORTANTE: Siempre entregar un prompt para Kilo Code (no texto para copiar/pegar) para mantener el orden.
+
+26. DEUDA TÉCNICA EXPLÍCITA
+
+Cuando se detecta deuda técnica, registrarla en una sección dedicada del AGENTS.md con:
+
+Descripción del problema.
+
+Causa raíz.
+
+Solución propuesta.
+
+Prioridad (bloqueante / no bloqueante).
+
+27. JSDOC EN FUNCIONES COMPLEJAS
+
+Documentar funciones complejas, servicios y APIs con JSDoc/TSDoc.
+
+Los componentes no requieren comentarios extensos si son autoexplicativos.
+
+Sección 7 — Reglas de Producción (CRÍTICA)
+28. ⚠️ SISTEMA PARA PRODUCCIÓN, NO PARA SIMULACIÓN
+
+Regla estricta: Todo el sistema debe funcionar para producción real.
+Los datos mock, hardcodeados, de ejemplo o simulados en componentes de gestión (paneles, listados, dashboards, tablas) están PROHIBIDOS.
+
+Qué está permitido:
+
+✅ Datos de seed (server/prisma/seed.ts) como punto de partida inicial.
+
+✅ Estados de carga / loading skeletons mientras se traen datos reales.
+
+✅ Fallbacks visuales vacíos ("No hay datos todavía") cuando la DB está vacía.
+
+Qué está PROHIBIDO:
+
+❌ Hardcodear arrays mock en el frontend.
+
+❌ Usar datos de ejemplo para rellenar tablas de gestión.
+
+❌ Fallbacks silenciosos a mocks cuando un fetch falla.
+
+❌ Componentes que "se ven llenos" pero no reflejan el estado real de la DB.
+
+Excepción única:
+
+Los archivos src/domain/saasDefaults.ts (y similares) pueden tener configuraciones por defecto (colores, textos, planes sugeridos). NO es mock de datos de gestión, es default de configuración.
+
+Cómo verificar que se cumple:
+
+Abrí cualquier panel de gestión (Empresas, Comprobantes, Usuarios, Pólizas, etc.).
+
+Si los datos que ves NO coinciden con lo que hay en la DB (SELECT * FROM ...), hay un mock escondido. Debe arreglarse.
+
+Si vaciás la DB (o filtrás por un criterio que no matchea nada) y el panel sigue mostrando datos, hay un mock escondido. Debe arreglarse.
+
+Impacto: Cada componente que se agregue debe consumir datos REALES desde endpoints backend. Si un endpoint no existe, se crea. NO se mockea en frontend.
+
+3. ESTADO ACTUAL DEL PROYECTO
+Progreso Global
+Total estimado: ~40 sesiones
+
+Completadas: 26 sesiones
+
+Restantes: ~14 sesiones
+
+Progreso global: ~63%
+
+Progreso por Fase
+Fase	Descripción	Progreso
+Fase 0	Infraestructura	100% ✅
+Fase 1	Backend Base	100% ✅
+Fase 2	Clients	100% ✅
+Fase 3.1	Banking	100% ✅
+Fase 3.5.A	SaaS Plans Base	100% ✅
+Fase 3.5.B	Landing + Registro + Demo	99% ⏳
+Fase 3.5.C-E	Pagos, Frontend SaaS, Límites	0% ⏳
+Fase 4	Multibandeja Unificada	0% ⏳
+Fase 5	IA + Automatizaciones	0% ⏳
+Fase 6	Analytics + Reportes	0% ⏳
+Fase 7	Producción	0% ⏳
+Fase 3.6	Telefonía Avanzada	0% ⏳
+Endpoints Funcionales (54 endpoints)
+Método	Endpoint	Descripción
+GET	/api/health	Health check
+POST	/api/auth/login	Login + JWT
+GET	/api/auth/me	Usuario actual + permisos
+POST	/api/auth/logout	Logout
+GET	/api/auth/permissions	Permisos del usuario
+POST	/api/auth/change-initial-password	Cambio obligatorio de contraseña
+GET	/api/clients	Listar clientes
+GET	/api/clients/:id	Obtener cliente
+POST	/api/clients	Crear cliente
+PATCH	/api/clients/:id	Actualizar cliente
+DELETE	/api/clients/:id	Soft delete cliente
+GET	/api/banking/accounts	Listar cuentas
+GET	/api/banking/accounts/:id	Obtener cuenta
+POST	/api/banking/accounts	Crear cuenta
+PATCH	/api/banking/accounts/:id	Actualizar cuenta
+DELETE	/api/banking/accounts/:id	Eliminar cuenta
+POST	/api/banking/accounts/:id/set-default	Marcar como default
+POST	/api/banking/accounts/:id/reveal	Revelar datos sensibles
+GET	/api/saas/plans	Lista admin
+GET	/api/saas/plans/public	Lista pública
+GET	/api/saas/plans/:id	Detalle de plan
+POST	/api/saas/plans	Crear plan
+PATCH	/api/saas/plans/:id	Editar plan
+DELETE	/api/saas/plans/:id	Archivar plan
+GET	/api/saas/landing	Obtener config landing
+PUT	/api/saas/landing	Actualizar config landing
+POST	/api/saas/register	Registro público demo/pago
+GET	/api/saas/payment-methods/public	Métodos de pago públicos
+GET	/api/saas/registrations	Listar solicitudes
+POST	/api/saas/registrations/:id/approve	Aprobar solicitud
+POST	/api/saas/registrations/:id/reject	Rechazar solicitud
+GET	/api/saas/registrations/:requestId/status	Consulta pública estado
+GET	/api/saas/upgrade/eligibility	Consulta elegibilidad upgrade
+POST	/api/saas/upgrade	Crear solicitud upgrade
+GET	/api/saas/tenants	Lista tenants reales (Super Admin) — Sesión #26
+Base de Datos
+24 modelos Prisma / tablas MariaDB.
+
+Modelos principales: tenants, users, clients, policies, bank_accounts, audit_logs, saas_plans, saas_payment_methods, saas_registration_requests, tenant_subscriptions, saas_platform_settings, whatsapp_conversations, whatsapp_messages, pipelines, pipeline_stages, call_records, smtp_configs, etc.
+
+Usuarios y Roles Configurados
+saas_super_admin: saas@ateendia.cloud / SuperAdmin123!
+
+tenant_admin demo: admin@ateendia.cloud / Admin123!
+
+Bug Conocido
+users.name = 'María Test' está guardado como Mar�a Test (U+FFFD). No bloqueante.
+
+4. ROADMAP Y FASES
+Fase 0 — Infraestructura [✅ 100%]
 Docker Compose con MariaDB 11.4 + phpMyAdmin. Variables separadas. Vite proxy.
 
-### Fase 1 — Backend Base [✅ 100%]
+Fase 1 — Backend Base [✅ 100%]
 Express 4 + TypeScript + Prisma. Middleware auth/tenant/rbac/audit. Auth endpoints.
 
-### Fase 2 — Clients [✅ 100%]
+Fase 2 — Clients [✅ 100%]
 CRUD completo con paginación, filtros, soft delete, audit logs.
 
-### Fase 3.1 — Banking [✅ 100%]
+Fase 3.1 — Banking [✅ 100%]
 CRUD de cuentas ACH y tarjetas con enmascaramiento y RBAC.
 
-### Fase 3.2-3.4 — Core CRM (Policies, Users, SMTP) [⏳]
+Fase 3.2-3.4 — Core CRM (Policies, Users, SMTP) [⏳]
 Pendientes. Estimado: 8 sesiones.
 
-### Fase 3.5.A — SaaS Plans Base [✅ 100%]
-Tablas `saas_plans`, `saas_payment_methods`. Rol `saas_super_admin`. CRUD de planes.
+Fase 3.5.A — SaaS Plans Base [✅ 100%]
+Tablas saas_plans, saas_payment_methods. Rol saas_super_admin. CRUD de planes.
 
-### Fase 3.5.B — Landing + Registro + Demo [~98%]
-- 3.5.B.1 — Base DEMO + Registro ✅
-- 3.5.B.2 — Landing configurable ✅
-- 3.5.B.3.a — Endpoint público POST /api/saas/register ✅
-- 3.5.B.3.b — Panel Super Admin aprobar/rechazar ✅
-- 3.5.B.4.a.1 — Backend endpoint /payment-methods/public ✅
-- 3.5.B.4.a.2 — Frontend RegisterForm ✅
-- 3.5.B.4.b — Página pública de estado ✅
-- 3.5.B.4.c — Primer login con must_reset_password ✅
-- 3.5.B.4.d — Endpoint upgrade demo → pago ✅
-- 3.5.B.4.e — Frontend pantalla de upgrade ✅
-- 3.5.B.4.e.1 — Uploader de comprobante + auto-aprobación DEMO ✅
-- **3.5.B.4.e.2 — Panel SaaS con datos reales ⏳ SIGUIENTE**
-- 3.5.B.4.f — Middleware verificación de límites ⏳
-- 3.5.B.4.g — SMTP transaccional SaaS ⏳
+Fase 3.5.B — Landing + Registro + Demo [~99%]
+3.5.B.1 — Base DEMO + Registro ✅
 
-### Fase 3.5.C — Pagos, Verificación, Suspensión [⏳ ~10 sesiones]
-### Fase 3.5.D — Frontend SaaS Central [⏳ 4 sesiones]
-### Fase 3.5.E — Verificación de límites [⏳ 1 sesión]
-### Fase 3.5.F — Cleanup y Estabilización [⏳ agendada]
+3.5.B.2 — Landing configurable ✅
 
-### Fase 3.6 — Telefonía Avanzada [⏳ ~9 sesiones]
+3.5.B.3.a — Endpoint público POST /api/saas/register ✅
+
+3.5.B.3.b — Panel Super Admin aprobar/rechazar ✅
+
+3.5.B.4.a.1 — Backend endpoint /payment-methods/public ✅
+
+3.5.B.4.a.2 — Frontend RegisterForm ✅
+
+3.5.B.4.b — Página pública de estado ✅
+
+3.5.B.4.c — Primer login con must_reset_password ✅
+
+3.5.B.4.d — Endpoint upgrade demo → pago ✅
+
+3.5.B.4.e — Frontend pantalla de upgrade ✅
+
+3.5.B.4.e.1 — Uploader de comprobante + auto-aprobación DEMO ✅
+
+3.5.B.4.e.2 — Panel SaaS con datos reales ✅
+
+3.5.B.4.e.3 — Super Admin ve datos reales de cada tenant ⏳ SIGUIENTE
+
+3.5.B.4.f — Middleware verificación de límites ⏳
+
+3.5.B.4.g — SMTP transaccional SaaS ⏳
+
+Fase 3.5.C — Pagos, Verificación, Suspensión [⏳ ~10 sesiones]
+Fase 3.5.D — Frontend SaaS Central [⏳ 4 sesiones]
+Fase 3.5.E — Verificación de límites [⏳ 1 sesión]
+Fase 3.5.F — Cleanup y Estabilización [⏳ agendada]
+Fase 3.6 — Telefonía Avanzada [⏳ ~9 sesiones]
 Módulo de gestión de extensiones Issabel + 3 proveedores VoIP (Twilio, RingCentral, RedVozTelecom, CloudTalk).
 
-### Fase 4 — Multibandeja Unificada [⏳ 10 sesiones]
-### Fase 5 — IA + Automatizaciones [⏳ 9 sesiones]
-### Fase 6 — Analytics + Reportes [⏳ 5 sesiones]
-### Fase 7 — Producción [⏳ 6 sesiones]
+Fase 4 — Multibandeja Unificada [⏳ 10 sesiones]
+Fase 5 — IA + Automatizaciones [⏳ 9 sesiones]
+Fase 6 — Analytics + Reportes [⏳ 5 sesiones]
+Fase 7 — Producción [⏳ 6 sesiones]
+5. SISTEMA DEMO + REGISTRO + UPGRADE
+Plan DEMO
+id: 'plan-demo', key: 'demo', price_monthly: 0
 
----
+Límites: 2 usuarios, 20 clientes, 30 pólizas, 1 WhatsApp, 100 msgs/día, 1 GB storage.
 
-## 5. SISTEMA DEMO + REGISTRO + UPGRADE
+Duración: configurable (default 14 días).
 
-### Plan DEMO
-- `id: 'plan-demo'`, `key: 'demo'`, `price_monthly: 0`
-- Límites: 2 usuarios, 20 clientes, 30 pólizas, 1 WhatsApp, 100 msgs/día, 1 GB storage.
-- Duración: configurable (default 14 días).
-- Grace period: 30 días.
+Grace period: 30 días.
 
-### Estados de Tenant
-- `demo` — Cuenta de prueba gratuita
-- `pending_payment` — Registro pago, esperando aprobación
-- `active` — Cuenta activa con plan pago
-- `suspended` — Suspendido por falta de pago
-- `cancelled` — Cancelado voluntariamente
-- `expired` — Demo expirado sin conversión
+Estados de Tenant
+demo — Cuenta de prueba gratuita
 
-### Configuración Global (saas_platform_settings)
-Fila única (`id = 'global'`) con: `demo_enabled`, `demo_duration_days`, `demo_grace_period_days`, `demo_watermark_enabled`, `demo_plan_id`, `default_currency`, `grace_period_days`, `auto_suspend_on_expire`, `support_email`, `support_whatsapp`, `platform_name`.
+pending_payment — Registro pago, esperando aprobación
 
-### Flujo de Registro
-1. **Demo:** usuario completa formulario → solicitud creada → **AUTO-APROBADA** → tenant + user + subscription creados → usuario puede loguearse inmediatamente.
-2. **Pago:** usuario completa formulario + sube comprobante → solicitud queda `pending` → Super Admin revisa y aprueba/rechaza manualmente → usuario recibe password temporal.
+active — Cuenta activa con plan pago
 
-### Flujo de Upgrade (demo → pago)
-1. Tenant en estado `demo` navega a "Upgrade a Pago".
-2. Ve catálogo de planes + métodos de pago.
-3. Selecciona plan, billing cycle, método de pago.
-4. Si método es `manual` o `crypto_semi_auto` → sube comprobante obligatorio.
-5. Submit → solicitud creada con `type='upgrade'` y `created_tenant_id` pre-poblado.
-6. Super Admin aprueba → UPSERT de subscription → tenant pasa a `active`.
+suspended — Suspendido por falta de pago
 
-### Flujo de Auto-aprobación de DEMO (NUEVO Sesión #25)
-- En `createRegistrationRequest`, si `type === 'demo'`, se llama a `autoApproveDemoRegistration(requestId)`.
-- Esta función reutiliza `approveRegistration` con `reviewerUserId = null` y nota automática.
-- Si falla, la solicitud queda `pending` como fallback (el Super Admin puede aprobarla manualmente).
+cancelled — Cancelado voluntariamente
 
----
+expired — Demo expirado sin conversión
 
-## 6. CANALES DE MENSAJERÍA
+Configuración Global (saas_platform_settings)
+Fila única (id = 'global') con: demo_enabled, demo_duration_days, demo_grace_period_days, demo_watermark_enabled, demo_plan_id, default_currency, grace_period_days, auto_suspend_on_expire, support_email, support_whatsapp, platform_name.
 
-| Canal | Key interno | Configuración | Permisos |
-|-------|-------------|---------------|----------|
-| WhatsApp Vendedores | `whatsapp_sales` | `integrations/` | `whatsapp.view`, `whatsapp.send` |
-| WhatsApp Seguimiento | `whatsapp_support` | `integrations/` | `whatsapp.view`, `whatsapp.send` |
-| Telegram Empresa | `telegram` | `integrations/` | `telegram.view`, `telegram.send` |
-| Telegram SaaS | `telegram_saas` | `saas/` | roles SaaS |
-| Web/Microlanding | `web` | `integrations/` | `web.view` |
-| Instagram | `instagram` | `integrations/` | `instagram.view`, `instagram.send` |
-| Facebook | `facebook` | `integrations/` | `facebook.view`, `facebook.send` |
+Flujo de Registro
+Demo: usuario completa formulario → solicitud creada → AUTO-APROBADA → tenant + user + subscription creados → usuario puede loguearse inmediatamente.
 
-### Arquitectura Unificada
-- Tabla ÚNICA `conversations` con columna `channel` (no una tabla por canal).
-- Tabla ÚNICA `messages` con `direction` y `sender_type`.
-- Migración: `whatsapp_conversations` → `conversations` (en Fase 4.1).
+Pago: usuario completa formulario + sube comprobante → solicitud queda pending → Super Admin revisa y aprueba/rechaza manualmente → usuario recibe password temporal.
 
-```sql
+Flujo de Upgrade (demo → pago)
+Tenant en estado demo navega a "Upgrade a Pago".
+
+Ve catálogo de planes + métodos de pago.
+
+Selecciona plan, billing cycle, método de pago.
+
+Si método es manual o crypto_semi_auto → sube comprobante obligatorio.
+
+Submit → solicitud creada con type='upgrade' y created_tenant_id pre-poblado.
+
+Super Admin aprueba → UPSERT de subscription → tenant pasa a active.
+
+Flujo de Auto-aprobación de DEMO (Sesión #25)
+En createRegistrationRequest, si type === 'demo', se llama a autoApproveDemoRegistration(requestId).
+
+Esta función reutiliza approveRegistration con reviewerUserId = null y nota automática.
+
+Si falla, la solicitud queda pending como fallback (el Super Admin puede aprobarla manualmente).
+
+6. CANALES DE MENSAJERÍA
+Canal	Key interno	Configuración	Permisos
+WhatsApp Vendedores	whatsapp_sales	integrations/	whatsapp.view, whatsapp.send
+WhatsApp Seguimiento	whatsapp_support	integrations/	whatsapp.view, whatsapp.send
+Telegram Empresa	telegram	integrations/	telegram.view, telegram.send
+Telegram SaaS	telegram_saas	saas/	roles SaaS
+Web/Microlanding	web	integrations/	web.view
+Instagram	instagram	integrations/	instagram.view, instagram.send
+Facebook	facebook	integrations/	facebook.view, facebook.send
+Arquitectura Unificada
+Tabla ÚNICA conversations con columna channel (no una tabla por canal).
+
+Tabla ÚNICA messages con direction y sender_type.
+
+Migración: whatsapp_conversations → conversations (en Fase 4.1).
+
+sql
 conversations (id, tenant_id, channel, channel_account, client_id, contact_name, contact_handle, last_message, last_message_at, unread_count, assigned_agent_id, status, metadata_json)
 messages (id, conversation_id, direction, sender_type, sender_id, sender_name, content, media_type, media_url, status, timestamp, metadata_json)
-```
+7. DECISIONES ESTRATÉGICAS
+Telegram
+Bot global de Ateendia (no por tenant).
 
----
+Vinculación con token PERMANENTE.
 
-## 7. DECISIONES ESTRATÉGICAS
+Anti-spam: rate limit por tenant configurable por plan.
 
-### Telegram
-- Bot global de Ateendia (no por tenant).
-- Vinculación con token PERMANENTE.
-- Anti-spam: rate limit por tenant configurable por plan.
-- IA premium (planes Pro+).
+IA premium (planes Pro+).
 
-### IA
-- Proveedor: OpenRouter (multi-modelo).
-- Diseño: 1 resumen por conversación (no por mensaje — control de costos).
-- Feature premium (planes Pro+).
+IA
+Proveedor: OpenRouter (multi-modelo).
 
-### Planes SaaS
-- Tabla `saas_plans` editable por Super Admin.
-- Feature flags por plan (Telegram, IA, WhatsApp, etc.).
-- Límites por plan (users, clients, msgs/día, IA tokens/mes).
-- Tenants heredan límites de su plan.
+Diseño: 1 resumen por conversación (no por mensaje — control de costos).
 
-### Policies
-- 13 tipos GLOBALES: Salud/ACA, Salud Privada, Vida, Dental/Visión, Auto, Hogar/Propiedad, Accidentes Personales, Gastos Médicos Mayores, Viaje, Responsabilidad Civil, Mascotas, Funerario, Indemnización.
-- Formularios dinámicos: campos comunes en columnas + específicos en JSON.
-- Historial: tabla `policy_versions`.
-- Estados (8): Activa, En Proceso, Pendiente de Pago, Vencida, Cancelada, Renovada, Suspendida, En Revisión.
+Feature premium (planes Pro+).
 
-### Retención
-- Por plan: Starter 30d, Pro 1a, Enterprise ilimitado.
-- Media externa: Cloudflare R2 o S3.
+Planes SaaS
+Tabla saas_plans editable por Super Admin.
 
----
+Feature flags por plan (Telegram, IA, WhatsApp, etc.).
 
-## 8. DEUDA TÉCNICA REGISTRADA
+Límites por plan (users, clients, msgs/día, IA tokens/mes).
 
-### Prioridad ALTA
+Tenants heredan límites de su plan.
 
-**3.5.B.4.e.2 — Panel SaaS con datos reales** (SIGUIENTE)
-- **Problema:** `SaasCentralDashboard.tsx` consume `tenantContext.tenants` que viene del mock del `TenantContext`, no de la DB real. Solo muestra el tenant del seed.
-- **Causa raíz:** El panel fue construido antes de tener endpoints de tenants. Consume contexto que no carga tenants reales.
-- **Solución propuesta:** Crear `GET /api/saas/tenants` en backend + modificar `TenantContext` para que cargue tenants reales cuando el usuario es `saas_super_admin`.
-- **Prioridad:** ALTA (bloquea gestión real de tenants).
-- **Duración estimada:** 1 sesión.
+Policies
+13 tipos GLOBALES: Salud/ACA, Salud Privada, Vida, Dental/Visión, Auto, Hogar/Propiedad, Accidentes Personales, Gastos Médicos Mayores, Viaje, Responsabilidad Civil, Mascotas, Funerario, Indemnización.
 
-**3.5.B.4.g — SMTP transaccional SaaS**
-- **Problema:** El `tempPassword` se devuelve UNA VEZ en el response del endpoint `/approve`. En producción debe enviarse por email.
-- **Causa raíz:** SMTP no configurado para envío transaccional del SaaS.
-- **Solución propuesta:** Implementar SMTP transaccional + templates de email (payment pending, account approved, plan expiring, etc.).
-- **Prioridad:** ALTA.
+Formularios dinámicos: campos comunes en columnas + específicos en JSON.
 
-**Fase B.5 — Protección de `saas_super_admin`**
-- **Problema:** Reglas de visibilidad/gestión de super admins no implementadas.
-- **Reglas a implementar:** Solo `saas_super_admin` puede ver/crear/editar/eliminar otros super admins. Un `tenant_admin` ve SOLO usuarios de su tenant. No se puede degradar `saas_super_admin` ↔ rol tenant sin autorización.
-- **Prioridad:** ALTA (seguridad multi-tenant).
+Historial: tabla policy_versions.
 
-### Prioridad MEDIA
+Estados (8): Activa, En Proceso, Pendiente de Pago, Vencida, Cancelada, Renovada, Suspendida, En Revisión.
 
-**TenantSubscription['status'] desactualizado**
-- **Problema:** El tipo frontend no incluye `'demo'` ni `'expired'` que sí usa el backend.
-- **Afecta:** `Sidebar.tsx` (condición de visibilidad del item Upgrade).
-- **Solución propuesta:** Sincronizar tipo frontend con enum real del backend.
+Retención
+Por plan: Starter 30d, Pro 1a, Enterprise ilimitado.
 
-**Fase B.6 — Roles Custom**
-- **Objetivo:** Permitir que cada tenant cree roles personalizados.
-- **Archivos a modificar:** `server/routes/roles.ts` (nuevo), `server/services/roleService.ts` (nuevo), `UsersRolesModule.tsx`, `TenantContext.tsx`.
-- **Prioridad:** MEDIA (~2-3 horas).
+Media externa: Cloudflare R2 o S3.
 
-**Evolution API crash de nginx**
-- **Problema:** El contenedor Evolution API crashea con `nginx: [emerg] invalid value "must-revalidate"`.
-- **Impacto:** Endpoint `/socket.io/` y `/instance/fetchInstances` responden 401.
-- **Prioridad:** MEDIA (bloquea reconectar WhatsApp real).
+8. DEUDA TÉCNICA REGISTRADA
+Prioridad ALTA
+3.5.B.4.e.3 — Super Admin ve datos reales de cada tenant (SIGUIENTE)
 
-### Prioridad BAJA
+Problema: Al hacer clic en "Entrar a Instancia" en el panel SaaS, el branding se actualiza pero los datos (clientes, pólizas, pipeline, etc.) NO se recargan desde el backend del tenant seleccionado.
 
-**RegisterForm.tsx duplica lógica de fetch**
-- **Problema:** `RegisterForm` duplica la lógica de fetch de planes/métodos.
-- **Solución:** Consumir `registrationService.fetchPlansPublic()` y `fetchPaymentMethodsPublic()`.
-- **Prioridad:** BAJA.
+Causa raíz: Los endpoints existentes (/api/clients, /api/policies, etc.) usan el tenantId del JWT, no del query string. No hay forma de pedir "los datos del tenant X" desde el Super Admin.
 
-**Indentación cosmética en TenantContext.tsx**
-- **Problema:** Diff de git muestra cambio de indentación de 2 espacios, no de lógica.
-- **Solución:** Limpiar en sesión de cleanup.
-- **Prioridad:** BAJA.
+Solución propuesta:
 
-**Bug encoding `María Test`**
-- **Problema:** El usuario `María Test` está guardado como `Mar�a Test` (U+FFFD).
-- **Causa:** `Invoke-RestMethod` sin UTF-8 en sesión anterior. NO es bug de producción.
-- **Solución:** `UPDATE users SET name='María Test' WHERE ...`
-- **Prioridad:** BAJA (cosmético).
+Backend: modificar los servicios (clientsService, policiesService, etc.) para que, si el usuario es saas_super_admin y viene ?tenantId=X, consulten los datos de ese tenant.
+Frontend: modificar TenantContext para que al cambiar currentTenantId, haga fetch con el nuevo tenantId.
+Frontend: recargar toda la UI cuando cambie el tenant (forzar re-render).
+Prioridad: ALTA (bloquea el flujo de Super Admin gestionando tenants).
 
-**Fase C.0 — Migración tipada de WhatsApp/Evolution**
-- **Problema:** `WhatsAppAccountsConfigSection.tsx` tiene 29 errores TS porque `response.json()` devuelve `unknown`.
-- **Solución:** Tipar cada `response.json() as EvolutionApiResponse`.
-- **Prioridad:** BAJA (no bloqueante).
+Duración estimada: 1-2 sesiones.
 
-### Deuda Técnica Preexistente (varias sesiones)
-- **~28 archivos M sin commitear** en `src/components/*`, `src/services/*`, `src/context/*`.
-- **9 archivos legacy sin trackear:** `functions/`, `prisma.old/`, `src/index.ts`, `src/lib/`, `src/services/databaseService.ts`, `MIGRATION_GUIDE.md`, `schema.sql.old`, `seed.sql`, `.vscode/`.
-- **~228 errores TS frontend** (preexistentes, no bloqueantes).
-- **Placeholders `<67118c3>` y `<hash_corto>`** en `AGENTS.md`.
+3.5.B.4.g — SMTP transaccional SaaS
 
----
+Problema: El tempPassword se devuelve UNA VEZ en el response del endpoint /approve. En producción debe enviarse por email.
 
-## 9. HISTORIAL DE SESIONES
+Causa raíz: SMTP no configurado para envío transaccional del SaaS.
 
-### Sesión #25 — Fix auto-aprobación DEMO + Uploader comprobante (3.5.B.4.e.1)
+Solución propuesta: Implementar SMTP transaccional + templates de email (payment pending, account approved, plan expiring, etc.).
+
+Prioridad: ALTA.
+
+Fase B.5 — Protección de saas_super_admin
+
+Problema: Reglas de visibilidad/gestión de super admins no implementadas.
+
+Reglas a implementar: Solo saas_super_admin puede ver/crear/editar/eliminar otros super admins. Un tenant_admin ve SOLO usuarios de su tenant. No se puede degradar saas_super_admin ↔ rol tenant sin autorización.
+
+Prioridad: ALTA (seguridad multi-tenant).
+
+Prioridad MEDIA
+TenantSubscription['status'] desactualizado
+
+Problema: El tipo frontend no incluye 'demo' ni 'expired' que sí usa el backend.
+
+Afecta: Sidebar.tsx (condición de visibilidad del item Upgrade).
+
+Solución propuesta: Sincronizar tipo frontend con enum real del backend.
+
+Fase B.6 — Roles Custom
+
+Objetivo: Permitir que cada tenant cree roles personalizados.
+
+Archivos a modificar: server/routes/roles.ts (nuevo), server/services/roleService.ts (nuevo), UsersRolesModule.tsx, TenantContext.tsx.
+
+Prioridad: MEDIA (~2-3 horas).
+
+Evolution API crash de nginx
+
+Problema: El contenedor Evolution API crashea con nginx: [emerg] invalid value "must-revalidate".
+
+Impacto: Endpoint /socket.io/ y /instance/fetchInstances responden 401.
+
+Prioridad: MEDIA (bloquea reconectar WhatsApp real).
+
+Prioridad BAJA
+RegisterForm.tsx duplica lógica de fetch
+
+Problema: RegisterForm duplica la lógica de fetch de planes/métodos.
+
+Solución: Consumir registrationService.fetchPlansPublic() y fetchPaymentMethodsPublic().
+
+Prioridad: BAJA.
+
+Indentación cosmética en TenantContext.tsx
+
+Problema: Diff de git muestra cambio de indentación de 2 espacios, no de lógica.
+
+Solución: Limpiar en sesión de cleanup.
+
+Prioridad: BAJA.
+
+Bug encoding María Test
+
+Problema: El usuario María Test está guardado como Mar�a Test (U+FFFD).
+
+Causa: Invoke-RestMethod sin UTF-8 en sesión anterior. NO es bug de producción.
+
+Solución: UPDATE users SET name='María Test' WHERE ...
+
+Prioridad: BAJA (cosmético).
+
+Fase C.0 — Migración tipada de WhatsApp/Evolution
+
+Problema: WhatsAppAccountsConfigSection.tsx tiene 29 errores TS porque response.json() devuelve unknown.
+
+Solución: Tipar cada response.json() as EvolutionApiResponse.
+
+Prioridad: BAJA (no bloqueante).
+
+4 errores TS preexistentes en SaasCentralDashboard.tsx
+
+Problema: Los errores Type 'X' is not assignable to type 'IntrinsicAttributes' en las líneas 1305, 1317, 1330 y 2698 son preexistentes (props no declaradas en los tipos de los sub-componentes).
+
+Solución: Declarar las props faltantes en las interfaces de SaasPlansManagementSection, SaasSmtpConfigSection, SaasWhatsAppCentralSection y ajustar SaasLandingPreviewModal.
+
+Prioridad: BAJA (no bloqueante).
+
+Deuda Técnica Preexistente (varias sesiones)
+~28 archivos M sin commitear en src/components/*, src/services/*, src/context/*.
+
+9 archivos legacy sin trackear: functions/, prisma.old/, src/index.ts, src/lib/, src/services/databaseService.ts, MIGRATION_GUIDE.md, schema.sql.old, seed.sql, .vscode/.
+
+~228 errores TS frontend (preexistentes, no bloqueantes).
+
+Placeholders <67118c3> y <hash_corto> en AGENTS.md.
+
+9. HISTORIAL DE SESIONES
+Sesión #26 — Panel SaaS con datos reales (3.5.B.4.e.2)
+Fecha: 2026-10-14
+
+Objetivo cumplido: El panel SaaS ahora muestra todos los tenants reales de la DB, no solo el mock del contexto.
+
+Archivos NUEVOS (2):
+
+server/services/saasTenantsService.ts — Servicio con listAllTenants() que lee tenants de la DB con stats agregadas (users, clients, policies) + subscription.
+
+server/routes/saas/tenants.ts — Router con GET /api/saas/tenants (protegido por requireAuth + requirePlatformUser).
+
+Archivos MODIFICADOS (4):
+
+server/routes/saas.ts — Import + mount del saasTenantsRouter.
+
+src/types/index.ts — Tipo SaasTenantDTO espejo del backend.
+
+src/context/TenantContext.tsx — Estado saasTenants + saasTenantsLoading + función refreshSaasTenants() que hace fetch a /api/saas/tenants cuando el usuario es saas_super_admin.
+
+src/components/saas/SaasCentralDashboard.tsx — Consume saasTenants (real) en lugar de tenants (mock). Nuevo filtro por estado. Nuevo botón "Refrescar". Loading state. Métricas calculadas en base a tenants reales. Se llama refreshSaasTenants() tras aprobar/rechazar comprobantes.
+
+Endpoints nuevos (1): GET /api/saas/tenants.
+
+Pruebas end-to-end exitosas:
+
+El panel muestra los 3 tenants reales de la DB (415c939d... demo, platform cancelled, tenant-demo active).
+
+Indicador "● Datos reales" en verde.
+
+Contador correcto: "3 de 3 empresas".
+
+Filtro por estado funciona (demo/active/suspended).
+
+Botón "Refrescar" recarga la lista.
+
+Métricas globales calculadas correctamente (MRR=$0 porque todas están en plan DEMO/sin plan).
+
+Bug detectado y corregido durante la sesión: TypeScript no hacía narrowing sobre response.json() (unknown). Solución: type guard explícito con 'success' in body && ... (Regla 29 agregada).
+
+Deuda técnica nueva registrada:
+
+3.5.B.4.e.3 — Super Admin ve datos reales de cada tenant (ALTA). Al hacer clic en "Entrar a Instancia", el branding se actualiza pero los datos no se recargan.
+
+Próximo paso: Fase 3.5.B.4.e.3 — Super Admin ve datos reales de cada tenant.
+
+Sesión #25 — Fix auto-aprobación DEMO + Uploader comprobante (3.5.B.4.e.1)
 Fecha: 2026-10-13
 
-**Contexto:** Se detectaron 2 bugs críticos durante las pruebas de la Sesión #24:
-1. Los registros DEMO quedaban en `pending` esperando aprobación humana.
-2. El panel SaaS no mostraba tenants nuevos (solo el del seed).
+Contexto: Se detectaron 2 bugs críticos durante las pruebas de la Sesión #24:
 
-**Archivos MODIFICADOS (Backend):**
-1. `server/services/saasRegistrationReviewService.ts`:
-   - Firma de `approveRegistration` cambiada: `reviewerUserId: string | null`.
-   - Nueva función `autoApproveDemoRegistration(requestId)`.
-2. `server/services/saasRegistrationService.ts`:
-   - `createRegistrationRequest` ahora auto-aprueba registros `type='demo'`.
+Los registros DEMO quedaban en pending esperando aprobación humana.
 
-**Archivos MODIFICADOS (Frontend):**
-1. `src/components/saas/TenantUpgradeView.tsx`:
-   - Estado interno para comprobante (`receiptFile`, `receiptBase64`, etc.).
-   - Handlers `handleReceiptChange`, `handleReceiptClear`, helper `formatFileSize`.
-   - Nueva sección "4. Comprobante de pago" con badge OBLIGATORIO/OPCIONAL.
-   - Validación en submit + botón deshabilitado.
-   - Payload incluye `receiptUrl`, `receiptFilename`, `receiptFileSize`.
-   - Nuevo estado `already_pending` + componente `AlreadyPendingCard`.
+El panel SaaS no mostraba tenants nuevos (solo el del seed).
 
-**Regla nueva:** Sección 7 — Regla 28: "Sistema para producción, no para simulación".
+Archivos MODIFICADOS (Backend):
 
-**Deuda técnica registrada:** 3.5.B.4.e.2 (Panel SaaS con datos reales) — ALTA.
+server/services/saasRegistrationReviewService.ts:
 
-**Próximo paso:** Fase 3.5.B.4.e.2 — Panel SaaS con datos reales.
+Firma de approveRegistration cambiada: reviewerUserId: string | null.
 
----
+Nueva función autoApproveDemoRegistration(requestId).
 
-### Sesión #24 — Fase 3.5.B.4.e: Frontend pantalla de upgrade
+server/services/saasRegistrationService.ts:
+
+createRegistrationRequest ahora auto-aprueba registros type='demo'.
+
+Archivos MODIFICADOS (Frontend):
+
+src/components/saas/TenantUpgradeView.tsx:
+
+Estado interno para comprobante (receiptFile, receiptBase64, etc.).
+
+Handlers handleReceiptChange, handleReceiptClear, helper formatFileSize.
+
+Nueva sección "4. Comprobante de pago" con badge OBLIGATORIO/OPCIONAL.
+
+Validación en submit + botón deshabilitado.
+
+Payload incluye receiptUrl, receiptFilename, receiptFileSize.
+
+Nuevo estado already_pending + componente AlreadyPendingCard.
+
+Regla nueva: Sección 7 — Regla 28: "Sistema para producción, no para simulación".
+
+Deuda técnica registrada: 3.5.B.4.e.2 (Panel SaaS con datos reales) — ALTA.
+
+Próximo paso: Fase 3.5.B.4.e.2 — Panel SaaS con datos reales.
+
+Sesión #24 — Fase 3.5.B.4.e: Frontend pantalla de upgrade
 Fecha: 2026-10-13
 
-**Commit:** `a1ec881` (padre: `517d0da`).
+Commit: a1ec881 (padre: 517d0da).
 
-**Objetivo:** Pantalla frontend de upgrade demo → pago.
+Objetivo: Pantalla frontend de upgrade demo → pago.
 
-**Archivos NUEVOS (2):** `src/services/upgradeService.ts`, `src/components/saas/TenantUpgradeView.tsx`.
-**Archivos MODIFICADOS (4):** `src/types/index.ts`, `src/services/registrationService.ts`, `src/components/layout/Sidebar.tsx`, `src/App.tsx`.
+Archivos NUEVOS (2): src/services/upgradeService.ts, src/components/saas/TenantUpgradeView.tsx.
+Archivos MODIFICADOS (4): src/types/index.ts, src/services/registrationService.ts, src/components/layout/Sidebar.tsx, src/App.tsx.
 
-**Pruebas end-to-end (4/4 exitosas):** item en sidebar, carga de planes/métodos, submit, verificación en DB.
+Pruebas end-to-end (4/4 exitosas): item en sidebar, carga de planes/métodos, submit, verificación en DB.
 
-**Bug resuelto:** El item "Upgrade a Pago" aparecía para `saas_super_admin`. Fix: exclusión explícita en Sidebar.
+Bug resuelto: El item "Upgrade a Pago" aparecía para saas_super_admin. Fix: exclusión explícita en Sidebar.
 
-**Deuda técnica registrada:** 3.5.B.4.e.1 (uploader de comprobante).
+Deuda técnica registrada: 3.5.B.4.e.1 (uploader de comprobante).
 
----
-
-### Sesión #23 — Fase 3.5.B.4.d: Endpoint upgrade demo → pago
+Sesión #23 — Fase 3.5.B.4.d: Endpoint upgrade demo → pago
 Fecha: 2026-10-12
 
-**Commit:** `67118c3` (padre: `e3e7de9`).
+Commit: 67118c3 (padre: e3e7de9).
 
-**Objetivo:** Endpoint backend para upgrade demo → pago sin perder cuenta/datos.
+Objetivo: Endpoint backend para upgrade demo → pago sin perder cuenta/datos.
 
-**Archivos NUEVOS (3):** `server/types/upgrade.ts`, `server/services/saasUpgradeService.ts`, `server/routes/saas/upgrade.ts`.
-**Archivos MODIFICADOS (4):** `saasRegistrationReviewService.ts` (detección `type='upgrade'`), `saasRegistrationService.ts` (`normalizeRegistrationType` reconoce 'upgrade'), `types/registration.ts`, `routes/saas.ts`.
+Archivos NUEVOS (3): server/types/upgrade.ts, server/services/saasUpgradeService.ts, server/routes/saas/upgrade.ts.
+Archivos MODIFICADOS (4): saasRegistrationReviewService.ts (detección type='upgrade'), saasRegistrationService.ts (normalizeRegistrationType reconoce 'upgrade'), types/registration.ts, routes/saas.ts.
 
-**Endpoints nuevos (2):** `GET /api/saas/upgrade/eligibility`, `POST /api/saas/upgrade`.
+Endpoints nuevos (2): GET /api/saas/upgrade/eligibility, POST /api/saas/upgrade.
 
-**Pruebas end-to-end (7/7 exitosas):** incluye la "PRUEBA DE ORO" (aprobar upgrade sin duplicar tenant/user).
+Pruebas end-to-end (7/7 exitosas): incluye la "PRUEBA DE ORO" (aprobar upgrade sin duplicar tenant/user).
 
-**Decisiones arquitectónicas:**
-1. Reutilizar `created_tenant_id` como vínculo al tenant existente.
-2. `type='upgrade'` sin migración (VARCHAR(16) sin CHECK).
-3. `tenant_id` del JWT, no del body (anti-IDOR).
+Decisiones arquitectónicas:
 
----
+Reutilizar created_tenant_id como vínculo al tenant existente.
 
-### Sesión #22 — Kill Switch WhatsApp + Fix Sidebar por Rol
+type='upgrade' sin migración (VARCHAR(16) sin CHECK).
+
+tenant_id del JWT, no del body (anti-IDOR).
+
+Sesión #22 — Kill Switch WhatsApp + Fix Sidebar por Rol
 Fecha: 2026-10-12
 
-**Commits:** `07ffaad` (Kill Switch WhatsApp), `e3e7de9` (Fix Sidebar por Rol).
+Commits: 07ffaad (Kill Switch WhatsApp), e3e7de9 (Fix Sidebar por Rol).
 
-**Logros Fase A — Kill Switch WhatsApp:**
-- Problema: bucle infinito de errores WebSocket (49,000+ errores) al abrir Integraciones.
-- Causa: Evolution API crashea por bug de nginx + frontend reintenta cada 5s.
-- Solución: `SOCKET_IO_ENABLED = false` en `whatsappSocketService.ts` + silenciar polling.
+Logros Fase A — Kill Switch WhatsApp:
 
-**Logros Fase B — Fix Sidebar por Rol:**
-- Problema: sidebar mostraba "Operaciones & SaaS" a usuarios tenant.
-- Causa: `can()` era un stub que devolvía `true` siempre + `isSuperAdmin` chequeaba email hardcodeado.
-- Solución: implementación real de `can()` + `isSaasSuperAdmin` chequea `currentUser.role === 'saas_super_admin'`.
+Problema: bucle infinito de errores WebSocket (49,000+ errores) al abrir Integraciones.
 
-**Deuda técnica registrada:** B.5 (protección saas_super_admin), B.6 (roles custom), C.0 (migración tipada Evolution).
+Causa: Evolution API crashea por bug de nginx + frontend reintenta cada 5s.
 
----
+Solución: SOCKET_IO_ENABLED = false en whatsappSocketService.ts + silenciar polling.
 
-### Sesión #20 — Fix Pantallas en Blanco (Bloque Base)
+Logros Fase B — Fix Sidebar por Rol:
+
+Problema: sidebar mostraba "Operaciones & SaaS" a usuarios tenant.
+
+Causa: can() era un stub que devolvía true siempre + isSuperAdmin chequeaba email hardcodeado.
+
+Solución: implementación real de can() + isSaasSuperAdmin chequea currentUser.role === 'saas_super_admin'.
+
+Deuda técnica registrada: B.5 (protección saas_super_admin), B.6 (roles custom), C.0 (migración tipada Evolution).
+
+Sesión #20 — Fix Pantallas en Blanco (Bloque Base)
 Fecha: 2026-10-11
 
-**Commit:** `a4e9ebe`.
+Commit: a4e9ebe.
 
-**Logros:** 16 stubs agregados en TenantContext. 5/6 pantallas desbloqueadas. Fix bug `charAt` en `ClientsListView`.
+Logros: 16 stubs agregados en TenantContext. 5/6 pantallas desbloqueadas. Fix bug charAt en ClientsListView.
 
-**Deuda técnica:** ~40 stubs restantes. Cast `as unknown as TenantBranding`. 30 archivos M sin commitear. 9 archivos legacy sin trackear.
+Deuda técnica: ~40 stubs restantes. Cast as unknown as TenantBranding. 30 archivos M sin commitear. 9 archivos legacy sin trackear.
 
----
-
-### Sesión 3.5.B.4.c — Primer login con must_reset_password
+Sesión 3.5.B.4.c — Primer login con must_reset_password
 Fecha: 2026-10-11
 
-**Commit:** `7d370f0` (padre: `14017af`).
+Commit: 7d370f0 (padre: 14017af).
 
-**Logros:** Endpoint `POST /api/auth/change-initial-password` + frontend `FirstLoginPasswordChangeView.tsx`. Fix bucle infinito en TenantContext.
+Logros: Endpoint POST /api/auth/change-initial-password + frontend FirstLoginPasswordChangeView.tsx. Fix bucle infinito en TenantContext.
 
-**Reglas password:** min 6, 1 mayúscula, 1 minúscula, 1 número, 1 especial.
+Reglas password: min 6, 1 mayúscula, 1 minúscula, 1 número, 1 especial.
 
-**Deuda técnica:** SMTP transaccional pendiente (3.5.B.4.g). 2FA + forgot/reset pendientes.
+Deuda técnica: SMTP transaccional pendiente (3.5.B.4.g). 2FA + forgot/reset pendientes.
 
----
-
-### Sesión 3.5.B.4.b — Página pública de consulta de estado
+Sesión 3.5.B.4.b — Página pública de consulta de estado
 Fecha: 2026-10-06
 
-**Commit:** `92ee6f0` (padre: `9fa1aba`).
+Commit: 92ee6f0 (padre: 9fa1aba).
 
-**Logros:** Endpoint público `GET /api/saas/registrations/:requestId/status` con rate limit 10/15min. `CheckStatusModal.tsx` reutilizable.
+Logros: Endpoint público GET /api/saas/registrations/:requestId/status con rate limit 10/15min. CheckStatusModal.tsx reutilizable.
 
-**Deuda técnica:** Email de soporte hardcodeado (`support@ateendia.cloud`).
+Deuda técnica: Email de soporte hardcodeado (support@ateendia.cloud).
 
----
-
-### Sesión 3.5.B.4.a.2 — Frontend RegisterForm + integración
+Sesión 3.5.B.4.a.2 — Frontend RegisterForm + integración
 Fecha: 2026-10-05
 
-**Commit:** `9fa1aba` (padre: `b211673`).
+Commit: 9fa1aba (padre: b211673).
 
-**Logros:** `RegisterForm.tsx` (~690 líneas) con toggle demo/pago. `RegisterSuccessView.tsx` genérico. Integración en App.tsx.
+Logros: RegisterForm.tsx (~690 líneas) con toggle demo/pago. RegisterSuccessView.tsx genérico. Integración en App.tsx.
 
----
-
-### Sesión 3.5.B.4.a.1 — Endpoint público de métodos de pago
+Sesión 3.5.B.4.a.1 — Endpoint público de métodos de pago
 Fecha: 2026-10-05
 
-**Commit:** `b211673` (padre: `161f381`).
+Commit: b211673 (padre: 161f381).
 
-**Logros:** Endpoint `GET /api/saas/payment-methods/public`. Seed de 3 métodos (Zelle, USDT, Stripe). DTO público sin datos sensibles.
+Logros: Endpoint GET /api/saas/payment-methods/public. Seed de 3 métodos (Zelle, USDT, Stripe). DTO público sin datos sensibles.
 
----
-
-### Sesión 3.5.B.3.b — Panel Super Admin aprobar/rechazar
+Sesión 3.5.B.3.b — Panel Super Admin aprobar/rechazar
 Fecha: 2026-10-02
 
-**Commit:** `161f381` (padre: `4774e46`).
+Commit: 161f381 (padre: 4774e46).
 
-**Logros:** `approveRegistration()` con transacción atómica (tenant + user + subscription). `requirePlatformUser`. Campo `must_reset_password`.
+Logros: approveRegistration() con transacción atómica (tenant + user + subscription). requirePlatformUser. Campo must_reset_password.
 
-**Pruebas end-to-end (7/7 exitosas).**
+Pruebas end-to-end (7/7 exitosas).
 
----
-
-### Sesión 3.5.B.3.a — Endpoint público POST /api/saas/register
+Sesión 3.5.B.3.a — Endpoint público POST /api/saas/register
 Fecha: 2026-10-01
 
-**Commit:** `4774e46` (padre: `2bf6f13`).
+Commit: 4774e46 (padre: 2bf6f13).
 
-**Logros:** Rate limiting 5/15min. Validación Zod. Anti-enumeración (requestId fake `dup_*` si duplicado).
+Logros: Rate limiting 5/15min. Validación Zod. Anti-enumeración (requestId fake dup_* si duplicado).
 
----
-
-### Sesión 3.5.B.2 — Landing Configurable
+Sesión 3.5.B.2 — Landing Configurable
 Fecha: 2026-10-01
 
-**Commit:** `2bf6f13` (padre: `6916c0d`).
+Commit: 2bf6f13 (padre: 6916c0d).
 
-**Logros:** Columna `landing_config_json`. Endpoints `GET`/`PUT /api/saas/landing`. Servicio `saasLandingService`.
+Logros: Columna landing_config_json. Endpoints GET/PUT /api/saas/landing. Servicio saasLandingService.
 
----
+10. LECCIONES APRENDIDAS ACUMULADAS
+PowerShell + Windows
+Para JSON con acentos: usar [System.Text.Encoding]::UTF8.GetBytes($json) + -Body $bytes -ContentType "application/json; charset=utf-8".
 
-## 10. LECCIONES APRENDIDAS ACUMULADAS
+Redirección stdin: PowerShell NO soporta <. Usar pipeline (|) o cmd /c.
 
-### PowerShell + Windows
-1. **Para JSON con acentos:** usar `[System.Text.Encoding]::UTF8.GetBytes($json)` + `-Body $bytes -ContentType "application/json; charset=utf-8"`.
-2. **Redirección stdin:** PowerShell NO soporta `<`. Usar pipeline (`|`) o `cmd /c`.
-3. **Comillas en JSON:** usar `Invoke-RestMethod` con hashtables + `ConvertTo-Json -Depth 5`.
-4. **Login JWT response es PLANA:** `{ success, token, user, mustResetPassword }`, no `{ success, data: { token } }`.
+Comillas en JSON: usar Invoke-RestMethod con hashtables + ConvertTo-Json -Depth 5.
 
-### Docker + MariaDB
-1. **EPERM al regenerar Prisma:** detener Express antes de `npm run db:generate`.
-2. **MariaDB post-crash:** si `docker exec` funciona pero desde host falla con P1017, reiniciar solo el contenedor mariadb.
-3. **Backticks en PowerShell:** los backticks de columnas reservadas se comen mal. Usar heredoc con `Out-File`.
+Login JWT response es PLANA: { success, token, user, mustResetPassword }, no { success, data: { token } }.
 
-### Prisma + DB
-1. **Naming:** modelos plural + snake_case. Campos snake_case.
-2. **JSON en MariaDB:** Prisma lo expone como `String?`. Serializar con `JSON.stringify()`, parsear con `JSON.parse()`.
-3. **UPSERT:** requiere un campo `@unique` en el `where`.
-4. **Imports con `.js`:** con `module: ESNext`, imports entre archivos `.ts` con `.js`.
+Docker + MariaDB
+EPERM al regenerar Prisma: detener Express antes de npm run db:generate.
 
-### TypeScript
-1. **Narrowing:** no siempre funciona en uniones discriminadas complejas. Usar comparaciones explícitas (`=== true`, `=== false`).
-2. **Cast doble:** `as unknown as X` es la técnica estándar cuando el tipo destino no declara todos los campos que el origen sí tiene.
-3. **Fallbacks en type guards:** al agregar un nuevo valor a un union type, actualizar TODOS los type guards que lo consumen.
+MariaDB post-crash: si docker exec funciona pero desde host falla con P1017, reiniciar solo el contenedor mariadb.
 
-### React
-1. **`useCallback` + `useRef`:** resuelven bucles infinitos de `useEffect` cuando las funciones del contexto se recrean en cada render.
-2. **Render condicional en App.tsx:** el orden importa. `authView` debe chequearse ANTES de `isAuthenticated`.
-3. **`localStorage` sobreescribe el mock:** cuando el usuario ya hizo login, el `currentUser` viene de `localStorage`, no del `defaultUser` del mock.
+Backticks en PowerShell: los backticks de columnas reservadas se comen mal. Usar heredoc con Out-File.
 
-### Git
-1. **Commits multilínea en PowerShell:** usar comillas dobles y `\` para escape. Alternativa: `git commit -F archivo.txt`.
-2. **`git add` selectivo:** NUNCA `git add .` ni `git add -A` si hay deuda técnica.
+Prisma + DB
+Naming: modelos plural + snake_case. Campos snake_case.
 
-### Auto-aprobación de DEMO (Sesión #25)
-1. **Los registros sin pago NO requieren aprobación humana.** Reutilizar `approveRegistration` con `reviewerUserId = null` es más limpio que duplicar la transacción.
-2. **Fallback en auto-aprobación:** si falla, dejar la solicitud en `pending`.
+JSON en MariaDB: Prisma lo expone como String?. Serializar con JSON.stringify(), parsear con JSON.parse().
 
-### Validación de archivos (Sesión #25)
-1. **Validar tipo MIME Y tamaño ANTES de convertir a Base64.**
-2. **Limpiar `e.target.value = ''` en caso de error** para permitir reintentar con el mismo archivo.
-3. **Badge de obligatoriedad:** mostrar visualmente si el comprobante es OBLIGATORIO u OPCIONAL reduce fricción.
+UPSERT: requiere un campo @unique en el where.
 
-### Errores esperados (Sesión #25)
-1. **Estado `already_pending`:** los errores esperados (como `UPGRADE_ALREADY_PENDING`) merecen una UI propia, no un ErrorCard genérico.
+Imports con .js: con module: ESNext, imports entre archivos .ts con .js.
 
-### Regla de producción (Sesión #25)
-1. **Los componentes de gestión NUNCA deben hardcodear datos mock.** Si un endpoint no existe, se crea. No se mockea en frontend.
+Relación 1-a-1: include: { tenant_subscriptions: true } devuelve objeto único, no array.
 
----
+TypeScript
+Narrowing: no siempre funciona en uniones discriminadas complejas. Usar comparaciones explícitas (=== true, === false).
 
-## 11. PRÓXIMOS PASOS
+Cast doble: as unknown as X es la técnica estándar cuando el tipo destino no declara todos los campos que el origen sí tiene.
 
-### Sub-fase inmediata
-**3.5.B.4.e.2 — Panel SaaS con datos reales.**
-- Crear `GET /api/saas/tenants` en backend.
-- Modificar `TenantContext` para cargar tenants reales cuando el usuario es `saas_super_admin`.
-- Modificar `SaasCentralDashboard.tsx` para consumir datos reales (no el mock del contexto).
-- Duración estimada: 1 sesión.
+Fallbacks en type guards: al agregar un nuevo valor a un union type, actualizar TODOS los type guards que lo consumen.
 
-### Sub-fases de 3.5.B pendientes
-- 3.5.B.4.f — Middleware verificación de límites.
-- 3.5.B.4.g — SMTP transaccional SaaS (ALTA PRIORIDAD).
+response.json() devuelve unknown: no acceder a .success ni .data sin type guard (Regla 29).
 
-### Deuda técnica prioritaria
-1. **3.5.B.4.e.2** — Panel SaaS con datos reales.
-2. **3.5.B.4.g** — SMTP transaccional.
-3. **Fase B.5** — Protección de `saas_super_admin`.
-4. **Evolution API crash de nginx.**
-5. **Fase 3.5.F — Cleanup y Estabilización** (agendada).
+React
+useCallback + useRef: resuelven bucles infinitos de useEffect cuando las funciones del contexto se recrean en cada render.
 
----
+Render condicional en App.tsx: el orden importa. authView debe chequearse ANTES de isAuthenticated.
+
+localStorage sobreescribe el mock: cuando el usuario ya hizo login, el currentUser viene de localStorage, no del defaultUser del mock.
+
+useMemo para cálculos derivados: calcular MRR y stats globales en base a saasTenants con useMemo evita re-cálculos innecesarios.
+
+useMemo para filtros: filtrar tenants por búsqueda + estado con useMemo mejora performance.
+
+Git
+Commits multilínea en PowerShell: usar comillas dobles y \ para escape. Alternativa: git commit -F archivo.txt.
+
+git add selectivo: NUNCA git add . ni git add -A si hay deuda técnica.
+
+git diff --stat: útil para verificar el alcance de los cambios antes del commit.
+
+Auto-aprobación de DEMO (Sesión #25)
+Los registros sin pago NO requieren aprobación humana. Reutilizar approveRegistration con reviewerUserId = null es más limpio que duplicar la transacción.
+
+Fallback en auto-aprobación: si falla, dejar la solicitud en pending.
+
+Validación de archivos (Sesión #25)
+Validar tipo MIME Y tamaño ANTES de convertir a Base64.
+
+Limpiar e.target.value = '' en caso de error para permitir reintentar con el mismo archivo.
+
+Badge de obligatoriedad: mostrar visualmente si el comprobante es OBLIGATORIO u OPCIONAL reduce fricción.
+
+Errores esperados (Sesión #25)
+Estado already_pending: los errores esperados (como UPGRADE_ALREADY_PENDING) merecen una UI propia, no un ErrorCard genérico.
+
+Regla de producción (Sesión #25)
+Los componentes de gestión NUNCA deben hardcodear datos mock. Si un endpoint no existe, se crea. No se mockea en frontend.
+
+Panel SaaS con datos reales (Sesión #26)
+DTO espejo del backend: el tipo SaasTenantDTO es el mismo en backend y frontend (camelCase).
+
+Fuente única de datos: el panel consume saasTenants cuando está disponible, si no cae al mock del contexto. Así no queda vacío si el fetch falla.
+
+Refrescar tras mutaciones: después de aprobar/rechazar comprobantes, se llama refreshSaasTenants() para actualizar la lista.
+
+useMemo para métricas derivadas: MRR, counts por estado, etc. se calculan con useMemo a partir de saasTenants.
+
+No todos los datos vienen de la DB: las stats agregadas (usersCount, clientsCount, policiesCount) las calcula el backend con queries paralelas (Promise.all).
+
+Type guard para response.json(): con TS estricto, hay que validar 'success' in body antes de acceder (Regla 29).
+
+11. PRÓXIMOS PASOS
+Sub-fase inmediata
+3.5.B.4.e.3 — Super Admin ve datos reales de cada tenant.
+
+Backend: modificar clientsService, policiesService, etc. para aceptar ?tenantId=X cuando el usuario es saas_super_admin.
+
+Frontend: modificar TenantContext para que al cambiar currentTenantId, haga fetch con el nuevo tenantId.
+
+Frontend: recargar toda la UI cuando cambie el tenant (forzar re-render).
+
+Duración estimada: 1-2 sesiones.
+
+Sub-fases de 3.5.B pendientes
+3.5.B.4.f — Middleware verificación de límites.
+
+3.5.B.4.g — SMTP transaccional SaaS (ALTA PRIORIDAD).
+
+Deuda técnica prioritaria
+3.5.B.4.e.3 — Super Admin ve datos reales de cada tenant (ALTA).
+
+3.5.B.4.g — SMTP transaccional (ALTA).
+
+Fase B.5 — Protección de saas_super_admin (ALTA).
+
+Evolution API crash de nginx (MEDIA).
+
+Fase 3.5.F — Cleanup y Estabilización (agendada).
 
 ════════════════════════════════════════════════════════════════════
-**FIN DEL AGENTS.md**
-Última actualización: 2026-10-13 (Sesión #25)
-Progreso global: ~62%
-Siguiente sub-fase: 3.5.B.4.e.2 — Panel SaaS con datos reales
-════════════════════════════════════════════════════════════════════
+FIN DEL AGENTS.md
+Última actualización: 2026-10-14 (Sesión #26)
+Progreso global: ~63%
+Siguiente sub-fase: 3.5.B.4.e.3 — Super Admin ve datos reales de cada tenant
+══════════════════════════════════════════════════════════════════

@@ -68,6 +68,10 @@ import {
   SaasDatabaseConfig,
   SaasVpsDeploymentConfig,
   SaasPaymentReceipt,
+  // ═══════════════════════════════════════════════════════════════
+  // NUEVO — Sesión 3.5.B.4.e.2
+  // ═══════════════════════════════════════════════════════════════
+  SaasTenantDTO,
 } from '../types';
 
 // ═══════════════════════════════════════════════════════════════════
@@ -160,6 +164,13 @@ interface TenantContextType {
   updateTenantBranding?: (data: any) => void;
   currentTenantLandingConfig?: any;
   updateTenantLandingConfig?: (tenantId: string, config: any) => void;
+  // ─── NUEVO (Sesión 3.5.B.4.e.2): Tenants reales de la DB ───
+  /** Lista de tenants reales de la DB (solo para saas_super_admin). */
+  saasTenants: SaasTenantDTO[];
+  /** true mientras se cargan los tenants desde el backend. */
+  saasTenantsLoading: boolean;
+  /** Recarga la lista de tenants desde el backend. */
+  refreshSaasTenants: () => Promise<void>;
 
   // ─── SaaS Admins ───
   saasAdmins: any[];
@@ -371,7 +382,7 @@ const defaultTenant: TenantBranding = {
   secondaryColor: '#06B6D4',
   clientCategories: ['Salud / ACA', 'Vida', 'Dental', 'Visión', 'Medicare'],
   policyTypes: ['Salud ACA', 'Vida Término', 'IUL', 'Dental', 'Suplementario'],
-  subscription: {
+    subscription: {
     status: 'active',
     plan: 'enterprise',
     validUntil: '2026-12-31',
@@ -852,6 +863,9 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [saasWhatsAppCentralConfig, setSaasWhatsAppCentralConfig] = useState<any>({ isEnabled: false });
   const [saasPaymentReceipts, setSaasPaymentReceipts] = useState<any[]>([]);
   const [globalSaasMetrics, setGlobalSaasMetrics] = useState<any>({ totalMrr: 0 });
+  // ─── NUEVO (Sesión 3.5.B.4.e.2): Tenants reales de la DB ───
+  const [saasTenants, setSaasTenants] = useState<SaasTenantDTO[]>([]);
+  const [saasTenantsLoading, setSaasTenantsLoading] = useState<boolean>(false);
 
   // ─── ESTADOS Sesión #20 (Fix Pantallas Bloque Base) ───
   /** Plantillas de mensaje para campañas */
@@ -919,6 +933,72 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   useEffect(() => {
     currentTenantIdRef.current = currentTenant.id || 'tenant-demo';
   }, [currentTenant.id]);
+
+    // ─── NUEVO (Sesión 3.5.B.4.e.2): Cargar tenants reales para Super Admin ───
+  /**
+   * Recarga la lista de tenants reales de la DB desde el backend.
+   * Solo tiene sentido cuando el usuario es `saas_super_admin`.
+   *
+   * Endpoint: GET /api/saas/tenants (requirePlatformUser).
+   */
+    const refreshSaasTenants = useCallback(async () => {
+    const token = localStorage.getItem('ateendia_auth_token')
+      || localStorage.getItem('auth_token')
+      || localStorage.getItem('token');
+
+    if (!token) {
+      console.warn('[TenantContext] refreshSaasTenants: no hay JWT en localStorage');
+      return;
+    }
+
+    setSaasTenantsLoading(true);
+    try {
+      const res = await fetch('/api/saas/tenants', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!res.ok) {
+        console.error('[TenantContext] refreshSaasTenants: HTTP', res.status);
+        return;
+      }
+
+      // ✅ FIX: tipamos el body como un shape conocido y validamos con type guard
+      const body: unknown = await res.json();
+
+      if (
+        typeof body === 'object' &&
+        body !== null &&
+        'success' in body &&
+        (body as { success: unknown }).success === true &&
+        'data' in body &&
+        Array.isArray((body as { data: unknown }).data)
+      ) {
+        const data = (body as { data: SaasTenantDTO[] }).data;
+        setSaasTenants(data);
+      } else {
+        console.warn('[TenantContext] refreshSaasTenants: respuesta inesperada', body);
+      }
+    } catch (error) {
+      console.error('[TenantContext] refreshSaasTenants: error de red', error);
+    } finally {
+      setSaasTenantsLoading(false);
+    }
+  }, []);
+
+  /**
+   * Cuando el usuario actual es `saas_super_admin`, cargamos los tenants
+   * reales de la DB. Cuando es un usuario tenant normal, no hacemos nada
+   * (el array `saasTenants` queda vacío).
+   */
+  useEffect(() => {
+    if (currentUser?.role === 'saas_super_admin') {
+      refreshSaasTenants();
+    }
+  }, [currentUser?.role, refreshSaasTenants]);
 
   // ─── Setters con referencias estables (useCallback) ───
   const setCurrentTenant = useCallback((tenant: any) => {
@@ -1801,6 +1881,10 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         toggleTenantStatus,
         resetTenantData,
         updateTenantLandingConfig,
+        // ─── NUEVO (Sesión 3.5.B.4.e.2): Tenants reales ───
+        saasTenants,
+        saasTenantsLoading,
+        refreshSaasTenants,
 
         // ─── SaaS Admins ───
         saasAdmins,

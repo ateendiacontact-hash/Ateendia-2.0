@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Building2,
   Users,
@@ -53,10 +53,19 @@ import {
   LayoutGrid,
   Table as TableIcon,
   ArrowRightLeft,
-  Crown
+  Crown,
+  Loader2,
 } from 'lucide-react';
 import { useTenant } from '../../context/TenantContext';
-import { TenantBranding, SaasDelegatedAdmin, SaasLandingConfig, TenantLandingConfig, SaasPaymentReceipt, SaasPlanFeatureLimit } from '../../types';
+import {
+  TenantBranding,
+  SaasDelegatedAdmin,
+  SaasLandingConfig,
+  TenantLandingConfig,
+  SaasPaymentReceipt,
+  SaasPlanFeatureLimit,
+  SaasTenantDTO,
+} from '../../types';
 import { SaasLandingPreviewModal } from './SaasLandingPreviewModal';
 import { SaasPlansManagementSection } from './SaasPlansManagementSection';
 import { SaasSmtpConfigSection } from './SaasSmtpConfigSection';
@@ -66,42 +75,89 @@ import { PaymentReceiptViewerModal } from './PaymentReceiptViewerModal';
 import { getTenantPublicUrl, getSaasBaseDomain, getSaasPublicUrl } from '../../utils/urlUtils';
 
 export const SaasCentralDashboard: React.FC = () => {
-  const {
-    tenants,
-    currentTenant,
-    setCurrentTenantId,
-    users,
-    policies,
-    clients,
-    conversations,
-    createTenant,
-    updateTenantSubscription,
-    updateTenantSubscriptionPlan,
-    toggleTenantStatus,
-    resetTenantData,
-    saasAdmins,
-    addSaasAdmin,
-    updateSaasAdmin,
-    deleteSaasAdmin,
-    saasLandingConfig,
-    updateSaasLandingConfig,
-    updateTenantLandingConfig,
-    saasPlans,
-    updateSaasPlans,
-    saasSmtpConfig,
-    updateSaasSmtpConfig,
-    saasNotificationTemplates,
-    updateSaasNotificationTemplates,
-    testSaasSmtpConnection,
-    saasWhatsAppCentralConfig,
-    updateSaasWhatsAppCentralConfig,
-    sendWhatsAppCentralTestMessage,
-    saasPaymentReceipts,
-    approvePaymentReceipt,
-    rejectPaymentReceipt,
-    globalSaasMetrics,
-    currentUser
-  } = useTenant();
+  const tenantContext = useTenant();
+
+  // Safe destructuring with explicit array types and fallbacks
+  const tenants: any[] = tenantContext?.tenants || [];
+  const currentTenant = tenantContext?.currentTenant || { id: 'default', name: 'Default Tenant' };
+  const setCurrentTenantId = tenantContext?.setCurrentTenantId || (() => {});
+  const users: any[] = tenantContext?.users || [];
+  const policies: any[] = tenantContext?.policies || [];
+  const clients: any[] = tenantContext?.clients || [];
+  const conversations: any[] = tenantContext?.conversations || [];
+  const createTenant = tenantContext?.createTenant || (() => {});
+  const updateTenantSubscription = tenantContext?.updateTenantSubscription || (() => {});
+  const updateTenantSubscriptionPlan = tenantContext?.updateTenantSubscriptionPlan || (() => {});
+  const toggleTenantStatus = tenantContext?.toggleTenantStatus || (() => {});
+  const resetTenantData = tenantContext?.resetTenantData || (() => {});
+  const saasAdmins: any[] = tenantContext?.saasAdmins || [];
+  const addSaasAdmin = tenantContext?.addSaasAdmin || (() => {});
+  const updateSaasAdmin = tenantContext?.updateSaasAdmin || (() => {});
+  const deleteSaasAdmin = tenantContext?.deleteSaasAdmin || (() => {});
+  const saasLandingConfig = tenantContext?.saasLandingConfig || {
+    crmName: 'Ateendia',
+    publicUrl: 'https://ateendia.cloud',
+    domainName: 'ateendia.cloud',
+    primaryColor: '#4f46e5',
+    accentColor: '#10b981',
+    features: [],
+    pricingPlans: [],
+    testimonials: []
+  };
+  const updateSaasLandingConfig = tenantContext?.updateSaasLandingConfig || (() => {});
+  const updateTenantLandingConfig = tenantContext?.updateTenantLandingConfig || (() => {});
+  const saasPlans: any[] = tenantContext?.saasPlans || [];
+  const updateSaasPlans = tenantContext?.updateSaasPlans || (() => {});
+  const saasSmtpConfig = tenantContext?.saasSmtpConfig || { isEnabled: false };
+  const updateSaasSmtpConfig = tenantContext?.updateSaasSmtpConfig || (() => {});
+  const saasNotificationTemplates: any[] = tenantContext?.saasNotificationTemplates || [];
+  const updateSaasNotificationTemplates = tenantContext?.updateSaasNotificationTemplates || (() => {});
+  const testSaasSmtpConnection = tenantContext?.testSaasSmtpConnection || (async () => false);
+  const saasWhatsAppCentralConfig = tenantContext?.saasWhatsAppCentralConfig || { isEnabled: false };
+  const updateSaasWhatsAppCentralConfig = tenantContext?.updateSaasWhatsAppCentralConfig || (() => {});
+  const sendWhatsAppCentralTestMessage = tenantContext?.sendWhatsAppCentralTestMessage || (async () => false);
+  const saasPaymentReceipts: any[] = tenantContext?.saasPaymentReceipts || [];
+  const approvePaymentReceipt = tenantContext?.approvePaymentReceipt || (() => {});
+  const rejectPaymentReceipt = tenantContext?.rejectPaymentReceipt || (() => {});
+  const currentUser = tenantContext?.currentUser;
+
+  // ─── NUEVO (Sesión 3.5.B.4.e.2): Tenants reales de la DB ───
+  const saasTenants: SaasTenantDTO[] = tenantContext?.saasTenants || [];
+  const saasTenantsLoading: boolean = tenantContext?.saasTenantsLoading || false;
+  const refreshSaasTenants = tenantContext?.refreshSaasTenants || (async () => {});
+
+  // ─── Decide qué fuente usar: tenants reales o fallback al mock ───
+  // Si el Super Admin ya cargó tenants reales, los usamos.
+  // Si todavía no cargaron (loading), usamos el mock del contexto para no quedar vacío.
+  const useRealTenants = saasTenants.length > 0;
+  const tenantsSource: any[] = useRealTenants ? saasTenants : tenants;
+
+  // ─── Métricas globales calculadas en base a tenants reales ───
+  const computedGlobalMetrics = useMemo(() => {
+    if (!useRealTenants) return { totalMrr: 0, totalTenants: 0, activeTenants: 0, demoTenants: 0, suspendedTenants: 0 };
+
+    let totalMrr = 0;
+    let activeTenants = 0;
+    let demoTenants = 0;
+    let suspendedTenants = 0;
+
+    for (const t of saasTenants) {
+      if (t.status === 'active') activeTenants++;
+      if (t.status === 'demo') demoTenants++;
+      if (t.status === 'suspended') suspendedTenants++;
+      if (t.subscription && t.subscription.status === 'active') {
+        totalMrr += t.subscription.monthlyPrice || 0;
+      }
+    }
+
+    return {
+      totalMrr,
+      totalTenants: saasTenants.length,
+      activeTenants,
+      demoTenants,
+      suspendedTenants,
+    };
+  }, [saasTenants, useRealTenants]);
 
   const [activeTab, setActiveTab] = useState<
     | 'tenants'
@@ -131,7 +187,6 @@ export const SaasCentralDashboard: React.FC = () => {
 
   // Tenant Reset State
   const [confirmResetTenantId, setConfirmResetTenantId] = useState<string | null>(null);
-  const [resetSuccessMessage, setResetSuccessMessage] = useState<string | null>(null);
 
   // New Tenant Form State
   const [tenantFormData, setTenantFormData] = useState({
@@ -173,27 +228,77 @@ export const SaasCentralDashboard: React.FC = () => {
   });
 
   const [tenantSearchQuery, setTenantSearchQuery] = useState('');
+  const [tenantStatusFilter, setTenantStatusFilter] = useState<'all' | 'demo' | 'active' | 'suspended' | 'pending_payment'>('all');
   const [cmsSection, setCmsSection] = useState<'identity' | 'hero' | 'features' | 'pricing' | 'testimonials' | 'footer'>('identity');
   const [tenantViewMode, setTenantViewMode] = useState<'grid' | 'table'>('grid');
 
   const isGlobalSuperAdmin = currentUser?.email === 'victoraray8@gmail.com' || currentUser?.isSuperAdmin === true;
 
   const handleTenantSwitch = (tenantId: string) => {
-    // TenantContext.handleSetCurrentTenantId already preserves Super Admin Global credentials
     setCurrentTenantId(tenantId);
   };
 
-  const filteredTenants = tenants.filter(
-    (t) =>
-      t.name.toLowerCase().includes(tenantSearchQuery.toLowerCase()) ||
-      t.id.toLowerCase().includes(tenantSearchQuery.toLowerCase()) ||
-      t.taxId?.toLowerCase().includes(tenantSearchQuery.toLowerCase())
-  );
+  // ─── Filtrado de tenants: por búsqueda + por estado ───
+  const filteredTenants = useMemo(() => {
+    const q = tenantSearchQuery.toLowerCase();
+    return (tenantsSource || []).filter((t) => {
+      const matchesSearch =
+        !q ||
+        (t?.name && t.name.toLowerCase().includes(q)) ||
+        (t?.id && t.id.toLowerCase().includes(q)) ||
+        (t?.taxId && t.taxId.toLowerCase().includes(q)) ||
+        (t?.tax_id && t.tax_id.toLowerCase().includes(q)) ||
+        (t?.subdomain && t.subdomain.toLowerCase().includes(q));
+
+      const matchesStatus =
+        tenantStatusFilter === 'all' ||
+        t?.status === tenantStatusFilter ||
+        t?.subscription?.status === tenantStatusFilter;
+
+      return matchesSearch && matchesStatus;
+    });
+  }, [tenantsSource, tenantSearchQuery, tenantStatusFilter]);
 
   const handleCopy = (text: string, id: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedUrl(id);
-    setTimeout(() => setCopiedUrl(null), 2500);
+    if (navigator?.clipboard) {
+      navigator.clipboard.writeText(text);
+      setCopiedUrl(id);
+      setTimeout(() => setCopiedUrl(null), 2500);
+    }
+  };
+
+  // ─── Helper: formatear fecha de vencimiento ───
+  const formatRenewalDate = (dateStr: string | null | undefined): string => {
+    if (!dateStr) return 'Sin fecha';
+    try {
+      return new Date(dateStr).toLocaleDateString('es-ES', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      });
+    } catch {
+      return 'Sin fecha';
+    }
+  };
+
+  // ─── Helper: obtener el estado legible de un tenant ───
+  const getTenantStatusLabel = (status: string): { label: string; color: string } => {
+    switch (status) {
+      case 'active':
+        return { label: 'Activo', color: 'bg-emerald-50 text-emerald-700 border border-emerald-200' };
+      case 'demo':
+        return { label: 'DEMO', color: 'bg-blue-50 text-blue-700 border border-blue-200' };
+      case 'suspended':
+        return { label: 'Suspendido', color: 'bg-rose-50 text-rose-700 border border-rose-200' };
+      case 'pending_payment':
+        return { label: 'Pendiente Pago', color: 'bg-amber-50 text-amber-700 border border-amber-200' };
+      case 'cancelled':
+        return { label: 'Cancelado', color: 'bg-slate-100 text-slate-700 border border-slate-200' };
+      case 'expired':
+        return { label: 'Expirado', color: 'bg-rose-50 text-rose-700 border border-rose-200' };
+      default:
+        return { label: status || 'Desconocido', color: 'bg-slate-100 text-slate-700 border border-slate-200' };
+    }
   };
 
   const handleCreateTenantSubmit = (e: React.FormEvent) => {
@@ -361,7 +466,7 @@ export const SaasCentralDashboard: React.FC = () => {
           }`}
         >
           <Building2 className="w-4 h-4" />
-          <span>Empresas & Instancias ({tenants.length})</span>
+          <span>Empresas & Instancias ({(tenantsSource || []).length})</span>
         </button>
 
         <button
@@ -374,9 +479,9 @@ export const SaasCentralDashboard: React.FC = () => {
         >
           <Receipt className="w-4 h-4" />
           <span>Comprobantes de Pago</span>
-          {saasPaymentReceipts.filter((r) => r.status === 'pending').length > 0 && (
+          {(saasPaymentReceipts || []).filter((r) => r.status === 'pending').length > 0 && (
             <span className="px-1.5 py-0.5 rounded-full bg-amber-400 text-slate-950 font-black text-[10px]">
-              {saasPaymentReceipts.filter((r) => r.status === 'pending').length}
+              {(saasPaymentReceipts || []).filter((r) => r.status === 'pending').length}
             </span>
           )}
         </button>
@@ -450,7 +555,7 @@ export const SaasCentralDashboard: React.FC = () => {
           }`}
         >
           <Shield className="w-4 h-4" />
-          <span>Administradores ({saasAdmins.length})</span>
+          <span>Administradores ({(saasAdmins || []).length})</span>
         </button>
 
         <button
@@ -494,7 +599,7 @@ export const SaasCentralDashboard: React.FC = () => {
                   Garantía de Aislamiento Lógico de Datos Multi-Empresa
                 </h3>
                 <p className="text-xs text-slate-600 leading-relaxed">
-                  Cada empresa registrada en {saasLandingConfig.crmName || 'Ateendia'} opera en un espacio de base de datos lógicamente aislado mediante
+                  Cada empresa registrada en {saasLandingConfig?.crmName || 'Ateendia'} opera en un espacio de base de datos lógicamente aislado mediante
                   la clave de partición <code className="bg-white px-1.5 py-0.5 rounded border text-indigo-700 font-mono">tenant_id</code>.
                   Los usuarios de una agencia solo pueden consultar, modificar o exportar sus propios clientes, pólizas,
                   campañas y líneas de WhatsApp.
@@ -509,7 +614,7 @@ export const SaasCentralDashboard: React.FC = () => {
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
-                placeholder="Buscar por nombre, ID o EIN..."
+                placeholder="Buscar por nombre, ID, EIN o subdominio..."
                 value={tenantSearchQuery}
                 onChange={(e) => setTenantSearchQuery(e.target.value)}
                 className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500"
@@ -517,365 +622,422 @@ export const SaasCentralDashboard: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
-              <span>{filteredTenants.length} empresas aprovisionadas</span>
+              <span>{(filteredTenants || []).length} de {(tenantsSource || []).length} empresas</span>
+              <span className="text-slate-300">|</span>
+              <span className="text-emerald-600">
+                {useRealTenants ? '● Datos reales' : '○ Datos mock'}
+              </span>
             </div>
 
-            <div className="flex items-center gap-1.5 bg-slate-100 rounded-xl p-1">
-              <button
-                onClick={() => setTenantViewMode('grid')}
-                className={`p-2 rounded-lg transition-all ${
-                  tenantViewMode === 'grid'
-                    ? 'bg-white text-indigo-600 shadow-sm'
-                    : 'text-slate-500 hover:text-slate-700'
-                }`}
-                title="Vista Cuadrícula"
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Status filter */}
+              <select
+                value={tenantStatusFilter}
+                onChange={(e) => setTenantStatusFilter(e.target.value as any)}
+                className="px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold bg-white text-slate-700 focus:ring-2 focus:ring-indigo-500"
               >
-                <LayoutGrid className="w-4 h-4" />
-              </button>
+                <option value="all">Todos los estados</option>
+                <option value="demo">Demo</option>
+                <option value="active">Activos</option>
+                <option value="suspended">Suspendidos</option>
+                <option value="pending_payment">Pendiente Pago</option>
+              </select>
+
+              {/* Refresh button */}
               <button
-                onClick={() => setTenantViewMode('table')}
-                className={`p-2 rounded-lg transition-all ${
-                  tenantViewMode === 'table'
-                    ? 'bg-white text-indigo-600 shadow-sm'
-                    : 'text-slate-500 hover:text-slate-700'
-                }`}
-                title="Vista Tabla"
+                onClick={() => refreshSaasTenants()}
+                disabled={saasTenantsLoading}
+                className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors disabled:opacity-50"
+                title="Refrescar lista de tenants"
               >
-                <TableIcon className="w-4 h-4" />
+                <RefreshCw className={`w-4 h-4 ${saasTenantsLoading ? 'animate-spin' : ''}`} />
               </button>
+
+              {/* View mode toggle */}
+              <div className="flex items-center gap-1.5 bg-slate-100 rounded-xl p-1">
+                <button
+                  onClick={() => setTenantViewMode('grid')}
+                  className={`p-2 rounded-lg transition-all ${
+                    tenantViewMode === 'grid'
+                      ? 'bg-white text-indigo-600 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                  title="Vista Cuadrícula"
+                >
+                  <LayoutGrid className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setTenantViewMode('table')}
+                  className={`p-2 rounded-lg transition-all ${
+                    tenantViewMode === 'table'
+                      ? 'bg-white text-indigo-600 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                  title="Vista Tabla"
+                >
+                  <TableIcon className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           </div>
 
-          {/* Tenants View: Grid or Table */}
-          {tenantViewMode === 'grid' ? (
-            /* Grid View */
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-              {filteredTenants.map((t) => {
-                const tenantUsersCount = users.filter((u) => u.tenantId === t.id).length;
-                const tenantPolicies = policies.filter((p) => p.tenantId === t.id);
-                const tenantPremiumSum = tenantPolicies.reduce((acc, curr) => acc + (curr.monthlyPremium || 0), 0);
-                const tenantClientsCount = clients.filter((c) => c.tenantId === t.id).length;
-                const isCurrent = t.id === currentTenant.id;
-                const publicLink = getTenantPublicUrl(t, saasLandingConfig);
-
-                return (
-                  <div
-                    key={t.id}
-                    className={`bg-white rounded-3xl p-5 border transition-all shadow-2xs hover:shadow-md flex flex-col justify-between ${
-                      isCurrent ? 'border-indigo-600 ring-2 ring-indigo-500/20' : 'border-slate-200'
-                    }`}
-                  >
-                    <div className="space-y-4">
-                      {/* Header */}
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <div
-                            className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-black text-sm shadow-xs"
-                            style={{ backgroundColor: t.primaryColor || '#4f46e5' }}
-                          >
-                            {t.name.charAt(0)}
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-1.5">
-                              <h3 className="font-bold text-sm text-slate-900">{t.name}</h3>
-                              {isCurrent && (
-                                <span className="px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 text-[10px] font-bold">
-                                  Activa
-                                </span>
-                              )}
-                            </div>
-                            <span className="text-[11px] text-slate-400 font-mono">{t.id}</span>
-                          </div>
-                        </div>
-
-                        <span
-                          className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                            t.subscription?.status === 'active'
-                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                              : 'bg-rose-50 text-rose-700 border border-rose-200'
-                          }`}
-                        >
-                          {t.subscription?.plan || 'Starter'}
-                        </span>
-                      </div>
-
-                      {/* Technical & Isolation Details */}
-                      <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100 space-y-2 text-xs">
-                        <div className="flex items-center justify-between text-slate-600">
-                          <span className="text-slate-400 flex items-center gap-1">
-                            <Globe className="w-3.5 h-3.5" /> Subdominio:
-                          </span>
-                          <span className="font-mono text-indigo-700 font-semibold truncate max-w-[140px]">
-                            {t.subdomain || t.id}.{getSaasBaseDomain()}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center justify-between text-slate-600">
-                          <span className="text-slate-400 flex items-center gap-1">
-                            <Lock className="w-3.5 h-3.5" /> Partición DB:
-                          </span>
-                          <span className="font-mono text-slate-700 text-[11px]">
-                            {t.databaseIsolation?.partitionKey || `part_${t.id}`} (AES-256)
-                          </span>
-                        </div>
-
-                        <div className="flex items-center justify-between text-slate-600 pt-1 border-t border-slate-200/60">
-                          <span className="text-slate-400 flex items-center gap-1">
-                            <Clock className="w-3.5 h-3.5" /> Vigencia:
-                          </span>
-                          <span className="font-semibold text-slate-700 text-[11px]">
-                            {t.subscription?.renewalDate
-                              ? new Date(t.subscription.renewalDate).toLocaleDateString('es-ES', {
-                                  day: '2-digit',
-                                  month: 'short',
-                                  year: 'numeric'
-                                })
-                              : '30 días'}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Tenant Stats */}
-                      <div className="grid grid-cols-3 gap-2 text-center">
-                        <div className="p-2 bg-slate-50 rounded-xl border border-slate-100">
-                          <div className="text-[10px] text-slate-400 font-bold uppercase">Usuarios</div>
-                          <div className="text-sm font-black text-slate-900">{tenantUsersCount}</div>
-                        </div>
-                        <div className="p-2 bg-slate-50 rounded-xl border border-slate-100">
-                          <div className="text-[10px] text-slate-400 font-bold uppercase">Clientes</div>
-                          <div className="text-sm font-black text-slate-900">{tenantClientsCount}</div>
-                        </div>
-                        <div className="p-2 bg-slate-50 rounded-xl border border-slate-100">
-                          <div className="text-[10px] text-slate-400 font-bold uppercase">Pólizas</div>
-                          <div className="text-sm font-black text-indigo-600">{tenantPolicies.length}</div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Actions & Administration */}
-                    <div className="mt-5 pt-3 border-t border-slate-100 space-y-2">
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          onClick={() => toggleTenantStatus(t.id)}
-                          className={`flex-1 py-1.5 px-2 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition-colors ${
-                            t.subscription?.status === 'active'
-                              ? 'bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200'
-                              : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200'
-                          }`}
-                          title={t.subscription?.status === 'active' ? 'Suspender acceso a la empresa' : 'Habilitar acceso a la empresa'}
-                        >
-                          {t.subscription?.status === 'active' ? (
-                            <>
-                              <Ban className="w-3.5 h-3.5" />
-                              <span>Suspender</span>
-                            </>
-                          ) : (
-                            <>
-                              <CheckCircle className="w-3.5 h-3.5" />
-                              <span>Habilitar</span>
-                            </>
-                          )}
-                        </button>
-
-                        <button
-                          onClick={() => setConfirmResetTenantId(t.id)}
-                          className="py-1.5 px-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[11px] font-bold flex items-center gap-1 transition-colors"
-                          title="Limpiar datos de prueba y resetear cuenta a cero"
-                        >
-                          <RotateCcw className="w-3.5 h-3.5" />
-                          <span>Resetear</span>
-                        </button>
-
-                        <button
-                          onClick={() => {
-                            setReceiptFilter('all');
-                            setReceiptSearchQuery(t.name);
-                            setActiveTab('payment_receipts');
-                          }}
-                          className="py-1.5 px-2.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-[11px] font-bold flex items-center gap-1 transition-colors"
-                          title="Ver comprobantes y pagos adjuntados"
-                        >
-                          <Receipt className="w-3.5 h-3.5" />
-                          <span>Pagos</span>
-                        </button>
-                      </div>
-
-                      <div className="flex items-center justify-between gap-2">
-                        <button
-                          onClick={() => {
-                            setPreviewTenant(t);
-                            setPreviewMode('tenant_agency');
-                          }}
-                          className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1 transition-colors"
-                          title="Ver Micro-Landing Pública"
-                        >
-                          <Globe className="w-3.5 h-3.5 text-indigo-600" />
-                          <span>Landing</span>
-                        </button>
-
-                        <button
-                          onClick={() => handleTenantSwitch(t.id)}
-                          disabled={isCurrent}
-                          className={`flex-1 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-                            isCurrent
-                              ? 'bg-slate-100 text-slate-400 cursor-default'
-                              : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs'
-                          }`}
-                        >
-                          <span>{isCurrent ? 'Empresa Seleccionada' : 'Entrar a Instancia'}</span>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+          {/* Loading state */}
+          {saasTenantsLoading && !useRealTenants && (
+            <div className="bg-white rounded-3xl p-12 text-center border border-slate-200">
+              <Loader2 className="w-8 h-8 text-indigo-600 animate-spin mx-auto mb-3" />
+              <p className="text-sm font-semibold text-slate-700">Cargando empresas...</p>
+              <p className="text-xs text-slate-500 mt-1">Estamos consultando la base de datos.</p>
             </div>
-          ) : (
-            /* Table View */
-            <div className="bg-white rounded-3xl border border-slate-200 shadow-2xs overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 text-slate-500 font-bold border-b border-slate-200">
-                    <tr>
-                      <th className="p-4">Empresa / Logo</th>
-                      <th className="p-4">Subdominio</th>
-                      <th className="p-4">Partición DB</th>
-                      <th className="p-4">Plan / Suscripción</th>
-                      <th className="p-4">Usuarios</th>
-                      <th className="p-4">Clientes</th>
-                      <th className="p-4">Pólizas</th>
-                      <th className="p-4">Vigencia</th>
-                      <th className="p-4">Estado</th>
-                      <th className="p-4 text-right">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {filteredTenants.map((t) => {
-                      const tenantUsersCount = users.filter((u) => u.tenantId === t.id).length;
-                      const tenantPolicies = policies.filter((p) => p.tenantId === t.id);
-                      const tenantClientsCount = clients.filter((c) => c.tenantId === t.id).length;
-                      const isCurrent = t.id === currentTenant.id;
+          )}
 
-                      return (
-                        <tr key={t.id} className={`hover:bg-slate-50/80 transition-colors ${isCurrent ? 'bg-indigo-50/30' : ''}`}>
-                          <td className="p-4">
-                            <div className="flex items-center gap-3">
-                              <div
-                                className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-black text-xs shadow-xs shrink-0"
-                                style={{ backgroundColor: t.primaryColor || '#4f46e5' }}
-                              >
-                                {t.name.charAt(0)}
-                              </div>
-                              <div>
-                                <div className="font-bold text-slate-900 flex items-center gap-1.5">
-                                  {t.name}
-                                  {isCurrent && (
-                                    <span className="px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 text-[10px] font-bold">
-                                      Activa
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="text-[10px] text-slate-400 font-mono">{t.id}</div>
-                              </div>
-                            </div>
-                          </td>
-                          <td className="p-4">
-                            <span className="font-mono text-indigo-700 font-semibold text-[11px]">
-                              {t.subdomain || t.id}.{getSaasBaseDomain()}
-                            </span>
-                          </td>
-                          <td className="p-4">
-                            <span className="font-mono text-slate-700 text-[11px]">
-                              {t.databaseIsolation?.partitionKey || `part_${t.id}`}
-                            </span>
-                          </td>
-                          <td className="p-4">
-                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                              t.subscription?.status === 'active'
-                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                : 'bg-rose-50 text-rose-700 border border-rose-200'
-                            }`}>
-                              {t.subscription?.plan || 'Starter'}
-                            </span>
-                          </td>
-                          <td className="p-4 text-center font-bold text-slate-700">{tenantUsersCount}</td>
-                          <td className="p-4 text-center font-bold text-slate-700">{tenantClientsCount}</td>
-                          <td className="p-4 text-center font-bold text-indigo-600">{tenantPolicies.length}</td>
-                          <td className="p-4">
-                            <span className="font-semibold text-slate-700 text-[11px]">
-                              {t.subscription?.renewalDate
-                                ? new Date(t.subscription.renewalDate).toLocaleDateString('es-ES', {
-                                    day: '2-digit',
-                                    month: 'short',
-                                    year: 'numeric'
-                                  })
-                                : '30 días'}
-                            </span>
-                          </td>
-                          <td className="p-4">
-                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                              t.subscription?.status === 'active'
-                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                : 'bg-rose-50 text-rose-700 border border-rose-200'
-                            }`}>
-                              {t.subscription?.status === 'active' ? (
-                                <><CheckCircle className="w-3 h-3" /> Activo</>
-                              ) : (
-                                <><Ban className="w-3 h-3" /> Suspendido</>
-                              )}
-                            </span>
-                          </td>
-                          <td className="p-4 text-right">
-                            <div className="flex items-center justify-end gap-1">
-                              <button
-                                onClick={() => toggleTenantStatus(t.id)}
-                                className={`p-1.5 rounded-lg transition-colors ${
-                                  t.subscription?.status === 'active'
-                                    ? 'bg-amber-50 hover:bg-amber-100 text-amber-700'
-                                    : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700'
-                                }`}
-                                title={t.subscription?.status === 'active' ? 'Suspender' : 'Habilitar'}
-                              >
-                                {t.subscription?.status === 'active' ? (
-                                  <Ban className="w-3.5 h-3.5" />
-                                ) : (
-                                  <CheckCircle className="w-3.5 h-3.5" />
-                                )}
-                              </button>
-
-                              <button
-                                onClick={() => {
-                                  setReceiptFilter('all');
-                                  setReceiptSearchQuery(t.name);
-                                  setActiveTab('payment_receipts');
-                                }}
-                                className="p-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 transition-colors"
-                                title="Ver Pagos"
-                              >
-                                <Receipt className="w-3.5 h-3.5" />
-                              </button>
-
-                              <button
-                                onClick={() => handleTenantSwitch(t.id)}
-                                disabled={isCurrent}
-                                className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1 ${
-                                  isCurrent
-                                    ? 'bg-slate-100 text-slate-400 cursor-default'
-                                    : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs'
-                                }`}
-                              >
-                                <ArrowRightLeft className="w-3.5 h-3.5" />
-                                <span>Entrar</span>
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+          {/* Empty state */}
+          {!saasTenantsLoading && filteredTenants.length === 0 && (
+            <div className="bg-white rounded-3xl p-12 text-center border border-slate-200 space-y-3">
+              <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+                <Building2 className="w-6 h-6" />
               </div>
+              <h4 className="text-sm font-bold text-slate-900">
+                {tenantSearchQuery || tenantStatusFilter !== 'all'
+                  ? 'No hay empresas que coincidan con los filtros'
+                  : 'Todavía no hay empresas registradas'}
+              </h4>
+              <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                {tenantSearchQuery || tenantStatusFilter !== 'all'
+                  ? 'Probá limpiar los filtros o cambiar el término de búsqueda.'
+                  : 'Cuando se registren nuevas empresas (demo o pago), aparecerán acá.'}
+              </p>
             </div>
+          )}
+
+          {/* Tenants View: Grid or Table */}
+          {!saasTenantsLoading && filteredTenants.length > 0 && (
+            tenantViewMode === 'grid' ? (
+              /* Grid View */
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                {filteredTenants.map((t) => {
+                  // ─── Determinar si es un tenant real (DTO) o mock ───
+                  const isRealTenant = 'usersCount' in t;
+
+                  // Stats: para tenants reales vienen del DTO; para mocks, filtramos las colecciones.
+                  const tenantUsersCount = isRealTenant
+                    ? t.usersCount
+                    : (users || []).filter((u) => u.tenantId === t.id).length;
+                  const tenantPolicies = isRealTenant
+                    ? t.policiesCount
+                    : (policies || []).filter((p) => p.tenantId === t.id).length;
+                  const tenantClientsCount = isRealTenant
+                    ? t.clientsCount
+                    : (clients || []).filter((c) => c.tenantId === t.id).length;
+
+                  const isCurrent = t.id === currentTenant?.id;
+                  const statusLabel = getTenantStatusLabel(t.status);
+                  const subdomain = t.subdomain || t.id;
+                  const baseDomain = getSaasBaseDomain();
+
+                  return (
+                    <div
+                      key={t.id}
+                      className={`bg-white rounded-3xl p-5 border transition-all shadow-2xs hover:shadow-md flex flex-col justify-between ${
+                        isCurrent ? 'border-indigo-600 ring-2 ring-indigo-500/20' : 'border-slate-200'
+                      }`}
+                    >
+                      <div className="space-y-4">
+                        {/* Header */}
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div
+                              className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-black text-sm shadow-xs"
+                              style={{ backgroundColor: t.primaryColor || t.primary_color || '#4f46e5' }}
+                            >
+                              {t.name ? t.name.charAt(0) : 'T'}
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-1.5">
+                                <h3 className="font-bold text-sm text-slate-900">{t.name}</h3>
+                                {isCurrent && (
+                                  <span className="px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 text-[10px] font-bold">
+                                    Activa
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-[11px] text-slate-400 font-mono">{t.id}</span>
+                            </div>
+                          </div>
+
+                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${statusLabel.color}`}>
+                            {statusLabel.label}
+                          </span>
+                        </div>
+
+                        {/* Technical & Isolation Details */}
+                        <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100 space-y-2 text-xs">
+                          <div className="flex items-center justify-between text-slate-600">
+                            <span className="text-slate-400 flex items-center gap-1">
+                              <Globe className="w-3.5 h-3.5" /> Subdominio:
+                            </span>
+                            <span className="font-mono text-indigo-700 font-semibold truncate max-w-[140px]">
+                              {subdomain}.{baseDomain}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center justify-between text-slate-600">
+                            <span className="text-slate-400 flex items-center gap-1">
+                              <Lock className="w-3.5 h-3.5" /> Plan:
+                            </span>
+                            <span className="font-semibold text-slate-700 text-[11px]">
+                              {t.subscription?.plan || 'Sin plan'}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center justify-between text-slate-600 pt-1 border-t border-slate-200/60">
+                            <span className="text-slate-400 flex items-center gap-1">
+                              <Clock className="w-3.5 h-3.5" /> Vence:
+                            </span>
+                            <span className="font-semibold text-slate-700 text-[11px]">
+                              {formatRenewalDate(t.subscription?.renewalDate || t.demoExpiresAt)}
+                            </span>
+                          </div>
+
+                          {t.subscription && (
+                            <div className="flex items-center justify-between text-slate-600 pt-1 border-t border-slate-200/60">
+                              <span className="text-slate-400 flex items-center gap-1">
+                                <DollarSign className="w-3.5 h-3.5" /> MRR:
+                              </span>
+                              <span className="font-bold text-emerald-600 text-[11px]">
+                                ${t.subscription.monthlyPrice?.toFixed(2) || '0.00'} {t.currency || 'USD'}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Tenant Stats */}
+                        <div className="grid grid-cols-3 gap-2 text-center">
+                          <div className="p-2 bg-slate-50 rounded-xl border border-slate-100">
+                            <div className="text-[10px] text-slate-400 font-bold uppercase">Usuarios</div>
+                            <div className="text-sm font-black text-slate-900">{tenantUsersCount}</div>
+                          </div>
+                          <div className="p-2 bg-slate-50 rounded-xl border border-slate-100">
+                            <div className="text-[10px] text-slate-400 font-bold uppercase">Clientes</div>
+                            <div className="text-sm font-black text-slate-900">{tenantClientsCount}</div>
+                          </div>
+                          <div className="p-2 bg-slate-50 rounded-xl border border-slate-100">
+                            <div className="text-[10px] text-slate-400 font-bold uppercase">Pólizas</div>
+                            <div className="text-sm font-black text-indigo-600">{tenantPolicies}</div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Actions & Administration */}
+                      <div className="mt-5 pt-3 border-t border-slate-100 space-y-2">
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => toggleTenantStatus(t.id)}
+                            className={`flex-1 py-1.5 px-2 rounded-xl text-[11px] font-bold flex items-center justify-center gap-1 transition-colors ${
+                              t.status === 'active'
+                                ? 'bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200'
+                                : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200'
+                            }`}
+                            title={t.status === 'active' ? 'Suspender acceso a la empresa' : 'Habilitar acceso a la empresa'}
+                          >
+                            {t.status === 'active' ? (
+                              <>
+                                <Ban className="w-3.5 h-3.5" />
+                                <span>Suspender</span>
+                              </>
+                            ) : (
+                              <>
+                                <CheckCircle className="w-3.5 h-3.5" />
+                                <span>Habilitar</span>
+                              </>
+                            )}
+                          </button>
+
+                          <button
+                            onClick={() => setConfirmResetTenantId(t.id)}
+                            className="py-1.5 px-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[11px] font-bold flex items-center gap-1 transition-colors"
+                            title="Limpiar datos de prueba y resetear cuenta a cero"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                            <span>Resetear</span>
+                          </button>
+
+                          <button
+                            onClick={() => {
+                              setReceiptFilter('all');
+                              setReceiptSearchQuery(t.name);
+                              setActiveTab('payment_receipts');
+                            }}
+                            className="py-1.5 px-2.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-[11px] font-bold flex items-center gap-1 transition-colors"
+                            title="Ver comprobantes y pagos adjuntados"
+                          >
+                            <Receipt className="w-3.5 h-3.5" />
+                            <span>Pagos</span>
+                          </button>
+                        </div>
+
+                        <div className="flex items-center justify-between gap-2">
+                          <button
+                            onClick={() => {
+                              setPreviewTenant(t);
+                              setPreviewMode('tenant_agency');
+                            }}
+                            className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1 transition-colors"
+                            title="Ver Micro-Landing Pública"
+                          >
+                            <Globe className="w-3.5 h-3.5 text-indigo-600" />
+                            <span>Landing</span>
+                          </button>
+
+                          <button
+                            onClick={() => handleTenantSwitch(t.id)}
+                            disabled={isCurrent}
+                            className={`flex-1 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                              isCurrent
+                                ? 'bg-slate-100 text-slate-400 cursor-default'
+                                : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs'
+                            }`}
+                          >
+                            <span>{isCurrent ? 'Empresa Seleccionada' : 'Entrar a Instancia'}</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              /* Table View */
+              <div className="bg-white rounded-3xl border border-slate-200 shadow-2xs overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 text-slate-500 font-bold border-b border-slate-200">
+                      <tr>
+                        <th className="p-4">Empresa / Logo</th>
+                        <th className="p-4">Subdominio</th>
+                        <th className="p-4">Plan / Suscripción</th>
+                        <th className="p-4">Usuarios</th>
+                        <th className="p-4">Clientes</th>
+                        <th className="p-4">Pólizas</th>
+                        <th className="p-4">Vence</th>
+                        <th className="p-4">Estado</th>
+                        <th className="p-4 text-right">Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {filteredTenants.map((t) => {
+                        const isRealTenant = 'usersCount' in t;
+                        const tenantUsersCount = isRealTenant
+                          ? t.usersCount
+                          : (users || []).filter((u) => u.tenantId === t.id).length;
+                        const tenantPolicies = isRealTenant
+                          ? t.policiesCount
+                          : (policies || []).filter((p) => p.tenantId === t.id).length;
+                        const tenantClientsCount = isRealTenant
+                          ? t.clientsCount
+                          : (clients || []).filter((c) => c.tenantId === t.id).length;
+                        const isCurrent = t.id === currentTenant?.id;
+                        const statusLabel = getTenantStatusLabel(t.status);
+                        const subdomain = t.subdomain || t.id;
+                        const baseDomain = getSaasBaseDomain();
+
+                        return (
+                          <tr key={t.id} className={`hover:bg-slate-50/80 transition-colors ${isCurrent ? 'bg-indigo-50/30' : ''}`}>
+                            <td className="p-4">
+                              <div className="flex items-center gap-3">
+                                <div
+                                  className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-black text-xs shadow-xs shrink-0"
+                                  style={{ backgroundColor: t.primaryColor || t.primary_color || '#4f46e5' }}
+                                >
+                                  {t.name ? t.name.charAt(0) : 'T'}
+                                </div>
+                                <div>
+                                  <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                                    {t.name}
+                                    {isCurrent && (
+                                      <span className="px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 text-[10px] font-bold">
+                                        Activa
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="text-[10px] text-slate-400 font-mono">{t.id}</div>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="p-4">
+                              <span className="font-mono text-indigo-700 font-semibold text-[11px]">
+                                {subdomain}.{baseDomain}
+                              </span>
+                            </td>
+                            <td className="p-4">
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700">
+                                {t.subscription?.plan || 'Sin plan'}
+                              </span>
+                            </td>
+                            <td className="p-4 text-center font-bold text-slate-700">{tenantUsersCount}</td>
+                            <td className="p-4 text-center font-bold text-slate-700">{tenantClientsCount}</td>
+                            <td className="p-4 text-center font-bold text-indigo-600">{tenantPolicies}</td>
+                            <td className="p-4">
+                              <span className="font-semibold text-slate-700 text-[11px]">
+                                {formatRenewalDate(t.subscription?.renewalDate || t.demoExpiresAt)}
+                              </span>
+                            </td>
+                            <td className="p-4">
+                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${statusLabel.color}`}>
+                                {statusLabel.label}
+                              </span>
+                            </td>
+                            <td className="p-4 text-right">
+                              <div className="flex items-center justify-end gap-1">
+                                <button
+                                  onClick={() => toggleTenantStatus(t.id)}
+                                  className={`p-1.5 rounded-lg transition-colors ${
+                                    t.status === 'active'
+                                      ? 'bg-amber-50 hover:bg-amber-100 text-amber-700'
+                                      : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700'
+                                  }`}
+                                  title={t.status === 'active' ? 'Suspender' : 'Habilitar'}
+                                >
+                                  {t.status === 'active' ? (
+                                    <Ban className="w-3.5 h-3.5" />
+                                  ) : (
+                                    <CheckCircle className="w-3.5 h-3.5" />
+                                  )}
+                                </button>
+
+                                <button
+                                  onClick={() => {
+                                    setReceiptFilter('all');
+                                    setReceiptSearchQuery(t.name);
+                                    setActiveTab('payment_receipts');
+                                  }}
+                                  className="p-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 transition-colors"
+                                  title="Ver Pagos"
+                                >
+                                  <Receipt className="w-3.5 h-3.5" />
+                                </button>
+
+                                <button
+                                  onClick={() => handleTenantSwitch(t.id)}
+                                  disabled={isCurrent}
+                                  className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all flex items-center gap-1 ${
+                                    isCurrent
+                                      ? 'bg-slate-100 text-slate-400 cursor-default'
+                                      : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs'
+                                  }`}
+                                >
+                                  <ArrowRightLeft className="w-3.5 h-3.5" />
+                                  <span>Entrar</span>
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )
           )}
         </div>
       )}
@@ -892,7 +1054,7 @@ export const SaasCentralDashboard: React.FC = () => {
                 <Receipt className="w-5 h-5" />
               </div>
               <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Comprobantes</div>
-              <div className="text-2xl font-black text-slate-900 mt-1">{saasPaymentReceipts.length}</div>
+              <div className="text-2xl font-black text-slate-900 mt-1">{(saasPaymentReceipts || []).length}</div>
               <div className="text-[11px] text-slate-500 font-medium mt-1">Registros y renovaciones</div>
             </div>
 
@@ -902,7 +1064,7 @@ export const SaasCentralDashboard: React.FC = () => {
               </div>
               <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Pendientes de Revisión</div>
               <div className="text-2xl font-black text-amber-600 mt-1">
-                {saasPaymentReceipts.filter((r) => r.status === 'pending').length}
+                {(saasPaymentReceipts || []).filter((r) => r.status === 'pending').length}
               </div>
               <div className="text-[11px] text-amber-600 font-bold mt-1">Esperando validación de pago</div>
             </div>
@@ -913,7 +1075,7 @@ export const SaasCentralDashboard: React.FC = () => {
               </div>
               <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Aprobados / Habilitados</div>
               <div className="text-2xl font-black text-emerald-600 mt-1">
-                {saasPaymentReceipts.filter((r) => r.status === 'approved').length}
+                {(saasPaymentReceipts || []).filter((r) => r.status === 'approved').length}
               </div>
               <div className="text-[11px] text-emerald-600 font-bold mt-1">Cuentas con acceso activo</div>
             </div>
@@ -924,7 +1086,7 @@ export const SaasCentralDashboard: React.FC = () => {
               </div>
               <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Rechazados</div>
               <div className="text-2xl font-black text-rose-600 mt-1">
-                {saasPaymentReceipts.filter((r) => r.status === 'rejected').length}
+                {(saasPaymentReceipts || []).filter((r) => r.status === 'rejected').length}
               </div>
               <div className="text-[11px] text-rose-600 font-medium mt-1">Comprobantes no válidos</div>
             </div>
@@ -968,16 +1130,16 @@ export const SaasCentralDashboard: React.FC = () => {
           </div>
 
           {/* Receipts Table / List */}
-          {saasPaymentReceipts.filter((r) => {
+          {(saasPaymentReceipts || []).filter((r) => {
             const matchesFilter = receiptFilter === 'all' || r.status === receiptFilter;
             const query = receiptSearchQuery.toLowerCase();
             const matchesQuery =
               !query ||
-              r.tenantName.toLowerCase().includes(query) ||
-              r.adminName.toLowerCase().includes(query) ||
-              r.adminEmail.toLowerCase().includes(query) ||
-              r.referenceNumber?.toLowerCase().includes(query) ||
-              r.planName.toLowerCase().includes(query);
+              (r?.tenantName && r.tenantName.toLowerCase().includes(query)) ||
+              (r?.adminName && r.adminName.toLowerCase().includes(query)) ||
+              (r?.adminEmail && r.adminEmail.toLowerCase().includes(query)) ||
+              (r?.referenceNumber && r.referenceNumber.toLowerCase().includes(query)) ||
+              (r?.planName && r.planName.toLowerCase().includes(query));
             return matchesFilter && matchesQuery;
           }).length === 0 ? (
             <div className="bg-white rounded-3xl p-12 text-center border border-slate-200 space-y-3">
@@ -1006,23 +1168,22 @@ export const SaasCentralDashboard: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {saasPaymentReceipts
+                    {(saasPaymentReceipts || [])
                       .filter((r) => {
                         const matchesFilter = receiptFilter === 'all' || r.status === receiptFilter;
                         const query = receiptSearchQuery.toLowerCase();
                         const matchesQuery =
                           !query ||
-                          r.tenantName.toLowerCase().includes(query) ||
-                          r.adminName.toLowerCase().includes(query) ||
-                          r.adminEmail.toLowerCase().includes(query) ||
-                          r.referenceNumber?.toLowerCase().includes(query) ||
-                          r.planName.toLowerCase().includes(query);
+                          (r?.tenantName && r.tenantName.toLowerCase().includes(query)) ||
+                          (r?.adminName && r.adminName.toLowerCase().includes(query)) ||
+                          (r?.adminEmail && r.adminEmail.toLowerCase().includes(query)) ||
+                          (r?.referenceNumber && r.referenceNumber.toLowerCase().includes(query)) ||
+                          (r?.planName && r.planName.toLowerCase().includes(query));
                         return matchesFilter && matchesQuery;
                       })
                       .map((receipt) => {
                         return (
                           <tr key={receipt.id} className="hover:bg-slate-50/80 transition-colors">
-                            {/* Receipt Image Thumbnail */}
                             <td className="p-4">
                               <button
                                 onClick={() => setSelectedReceiptForReview(receipt)}
@@ -1043,7 +1204,6 @@ export const SaasCentralDashboard: React.FC = () => {
                               </button>
                             </td>
 
-                            {/* Tenant / Admin Details */}
                             <td className="p-4">
                               <div className="font-bold text-slate-900">{receipt.tenantName}</div>
                               <div className="text-[11px] text-slate-500">{receipt.adminName}</div>
@@ -1053,7 +1213,6 @@ export const SaasCentralDashboard: React.FC = () => {
                               )}
                             </td>
 
-                            {/* Plan & Amount */}
                             <td className="p-4">
                               <div className="font-bold text-slate-900">{receipt.planName}</div>
                               <div className="text-sm font-black text-emerald-600 mt-0.5">
@@ -1064,7 +1223,6 @@ export const SaasCentralDashboard: React.FC = () => {
                               </div>
                             </td>
 
-                            {/* Payment Method & Ref */}
                             <td className="p-4">
                               <span className="inline-block px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-semibold text-[11px]">
                                 {receipt.paymentMethod === 'zelle'
@@ -1080,18 +1238,16 @@ export const SaasCentralDashboard: React.FC = () => {
                               </div>
                             </td>
 
-                            {/* Date */}
                             <td className="p-4 text-slate-500 text-[11px]">
-                              {new Date(receipt.createdAt).toLocaleString('es-ES', {
+                              {receipt.createdAt ? new Date(receipt.createdAt).toLocaleString('es-ES', {
                                 day: '2-digit',
                                 month: 'short',
                                 year: 'numeric',
                                 hour: '2-digit',
                                 minute: '2-digit'
-                              })}
+                              }) : 'Reciente'}
                             </td>
 
-                            {/* Status */}
                             <td className="p-4">
                               <span
                                 className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full font-bold text-[10px] ${
@@ -1118,7 +1274,6 @@ export const SaasCentralDashboard: React.FC = () => {
                               </span>
                             </td>
 
-                            {/* Actions */}
                             <td className="p-4 text-right">
                               <button
                                 onClick={() => setSelectedReceiptForReview(receipt)}
@@ -1147,10 +1302,10 @@ export const SaasCentralDashboard: React.FC = () => {
       {/* ========================================================================= */}
       {activeTab === 'saas_plans' && (
         <SaasPlansManagementSection
-          plans={saasPlans}
+          plans={saasPlans || []}
           onUpdatePlans={updateSaasPlans}
           onApplyPlanToTenant={updateTenantSubscriptionPlan}
-          tenants={tenants}
+          tenants={tenantsSource || []}
         />
       )}
 
@@ -1161,7 +1316,7 @@ export const SaasCentralDashboard: React.FC = () => {
         <SaasSmtpConfigSection
           config={saasSmtpConfig}
           onUpdateConfig={updateSaasSmtpConfig}
-          templates={saasNotificationTemplates}
+          templates={saasNotificationTemplates || []}
           onUpdateTemplates={updateSaasNotificationTemplates}
           onTestConnection={testSaasSmtpConnection}
         />
@@ -1177,6 +1332,10 @@ export const SaasCentralDashboard: React.FC = () => {
           onTestSend={sendWhatsAppCentralTestMessage}
         />
       )}
+
+      {/* ========================================================================= */}
+      {/* TAB: MÉTRICAS GLOBALES */}
+      {/* ========================================================================= */}
       {activeTab === 'metrics' && (
         <div className="space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
@@ -1186,7 +1345,7 @@ export const SaasCentralDashboard: React.FC = () => {
               </div>
               <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">MRR Total SaaS</div>
               <div className="text-2xl font-black text-slate-900 mt-1">
-                ${globalSaasMetrics.totalMrr?.toLocaleString() || '757'}/mes
+                ${computedGlobalMetrics.totalMrr.toLocaleString()}/mes
               </div>
               <div className="text-[11px] text-emerald-600 font-bold mt-1">Facturación recurrente mensual</div>
             </div>
@@ -1196,26 +1355,34 @@ export const SaasCentralDashboard: React.FC = () => {
                 <Building2 className="w-5 h-5" />
               </div>
               <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Empresas Activas</div>
-              <div className="text-2xl font-black text-slate-900 mt-1">{tenants.length}</div>
-              <div className="text-[11px] text-indigo-600 font-bold mt-1">100% particionadas lógicamente</div>
-            </div>
-
-            <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-2xs">
-              <div className="w-10 h-10 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold mb-3">
-                <Users className="w-5 h-5" />
+              <div className="text-2xl font-black text-slate-900 mt-1">
+                {useRealTenants ? computedGlobalMetrics.activeTenants : (tenantsSource || []).length}
               </div>
-              <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Usuarios / Agentes</div>
-              <div className="text-2xl font-black text-slate-900 mt-1">{users.length}</div>
-              <div className="text-[11px] text-purple-600 font-bold mt-1">En todas las agencias</div>
+              <div className="text-[11px] text-indigo-600 font-bold mt-1">
+                {useRealTenants ? `de ${computedGlobalMetrics.totalTenants} totales` : '100% particionadas'}
+              </div>
             </div>
 
             <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-2xs">
               <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold mb-3">
-                <FileSpreadsheet className="w-5 h-5" />
+                <Sparkles className="w-5 h-5" />
               </div>
-              <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Pólizas en Plataforma</div>
-              <div className="text-2xl font-black text-slate-900 mt-1">{policies.length}</div>
-              <div className="text-[11px] text-blue-600 font-bold mt-1">Gestionadas en tiempo real</div>
+              <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Empresas DEMO</div>
+              <div className="text-2xl font-black text-blue-600 mt-1">
+                {computedGlobalMetrics.demoTenants}
+              </div>
+              <div className="text-[11px] text-blue-600 font-bold mt-1">Cuentas en prueba</div>
+            </div>
+
+            <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-2xs">
+              <div className="w-10 h-10 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold mb-3">
+                <Ban className="w-5 h-5" />
+              </div>
+              <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Suspendidas</div>
+              <div className="text-2xl font-black text-rose-600 mt-1">
+                {computedGlobalMetrics.suspendedTenants}
+              </div>
+              <div className="text-[11px] text-rose-600 font-bold mt-1">Por falta de pago</div>
             </div>
           </div>
 
@@ -1226,6 +1393,14 @@ export const SaasCentralDashboard: React.FC = () => {
                 <h3 className="font-black text-base text-slate-900">Desglose por Empresa Aprovisionada</h3>
                 <p className="text-xs text-slate-500">Métricas consolidadas de producción por cada tenant.</p>
               </div>
+              <button
+                onClick={() => refreshSaasTenants()}
+                disabled={saasTenantsLoading}
+                className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1.5 transition-colors disabled:opacity-50"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${saasTenantsLoading ? 'animate-spin' : ''}`} />
+                <span>Refrescar</span>
+              </button>
             </div>
 
             <div className="overflow-x-auto">
@@ -1233,40 +1408,52 @@ export const SaasCentralDashboard: React.FC = () => {
                 <thead className="bg-slate-50 text-slate-500 font-bold border-b border-slate-100">
                   <tr>
                     <th className="p-4">Empresa</th>
+                    <th className="p-4">Estado</th>
                     <th className="p-4">Plan SaaS</th>
                     <th className="p-4">Cuota MRR</th>
                     <th className="p-4">Usuarios</th>
                     <th className="p-4">Clientes</th>
                     <th className="p-4">Pólizas</th>
-                    <th className="p-4">Prima Mensual</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-700">
-                  {tenants.map((t) => {
-                    const tUsers = users.filter((u) => u.tenantId === t.id).length;
-                    const tClients = clients.filter((c) => c.tenantId === t.id).length;
-                    const tPolicies = policies.filter((p) => p.tenantId === t.id);
-                    const tPremium = tPolicies.reduce((acc, curr) => acc + (curr.monthlyPremium || 0), 0);
+                  {(tenantsSource || []).map((t) => {
+                    const isRealTenant = 'usersCount' in t;
+                    const tUsers = isRealTenant
+                      ? t.usersCount
+                      : (users || []).filter((u) => u.tenantId === t.id).length;
+                    const tClients = isRealTenant
+                      ? t.clientsCount
+                      : (clients || []).filter((c) => c.tenantId === t.id).length;
+                    const tPolicies = isRealTenant
+                      ? t.policiesCount
+                      : (policies || []).filter((p) => p.tenantId === t.id).length;
+                    const tMrr = t.subscription?.monthlyPrice || 0;
+                    const statusLabel = getTenantStatusLabel(t.status);
 
                     return (
                       <tr key={t.id} className="hover:bg-slate-50">
                         <td className="p-4 font-bold text-slate-900 flex items-center gap-2">
                           <span
                             className="w-3 h-3 rounded-full inline-block"
-                            style={{ backgroundColor: t.primaryColor || '#4f46e5' }}
+                            style={{ backgroundColor: t.primaryColor || t.primary_color || '#4f46e5' }}
                           ></span>
                           <span>{t.name}</span>
                         </td>
                         <td className="p-4">
-                          <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-800 text-[10px] font-bold">
-                            {t.subscription?.plan || 'Starter'}
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${statusLabel.color}`}>
+                            {statusLabel.label}
                           </span>
                         </td>
-                        <td className="p-4 font-bold text-emerald-600">${t.subscription?.monthlyPrice || 79}/mes</td>
+                        <td className="p-4">
+                          <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-800 text-[10px] font-bold">
+                            {t.subscription?.plan || 'Sin plan'}
+                          </span>
+                        </td>
+                        <td className="p-4 font-bold text-emerald-600">${tMrr.toFixed(2)}/mes</td>
                         <td className="p-4">{tUsers}</td>
                         <td className="p-4">{tClients}</td>
-                        <td className="p-4 font-bold">{tPolicies.length}</td>
-                        <td className="p-4 font-black text-slate-900">${tPremium.toLocaleString()}</td>
+                        <td className="p-4 font-bold">{tPolicies}</td>
                       </tr>
                     );
                   })}
@@ -1299,12 +1486,12 @@ export const SaasCentralDashboard: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {saasAdmins.map((adm) => (
+            {(saasAdmins || []).map((adm) => (
               <div key={adm.id} className="bg-white rounded-3xl p-5 border border-slate-200 shadow-2xs space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center font-bold">
-                      {adm.name.charAt(0)}
+                      {adm.name ? adm.name.charAt(0) : 'A'}
                     </div>
                     <div>
                       <h4 className="font-bold text-sm text-slate-900">{adm.name}</h4>
@@ -1370,9 +1557,9 @@ export const SaasCentralDashboard: React.FC = () => {
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-xl text-xs font-mono text-slate-700 border border-slate-200">
                 <Globe className="w-3.5 h-3.5 text-indigo-600" />
-                <span>{getSaasPublicUrl(saasLandingConfig.crmName, saasLandingConfig.publicUrl, saasLandingConfig.domainName)}</span>
+                <span>{getSaasPublicUrl(saasLandingConfig?.crmName, saasLandingConfig?.publicUrl, saasLandingConfig?.domainName)}</span>
                 <button
-                  onClick={() => handleCopy(getSaasPublicUrl(saasLandingConfig.crmName, saasLandingConfig.publicUrl, saasLandingConfig.domainName), 'saas_url')}
+                  onClick={() => handleCopy(getSaasPublicUrl(saasLandingConfig?.crmName, saasLandingConfig?.publicUrl, saasLandingConfig?.domainName), 'saas_url')}
                   className="p-1 text-slate-400 hover:text-slate-800 transition-colors"
                   title="Copiar Link"
                 >
@@ -1417,7 +1604,7 @@ export const SaasCentralDashboard: React.FC = () => {
                 cmsSection === 'features' ? 'bg-indigo-50 text-indigo-700 font-extrabold' : 'text-slate-500 hover:text-slate-900'
               }`}
             >
-              Funcionalidades ({saasLandingConfig.features?.length || 0})
+              Funcionalidades ({saasLandingConfig?.features?.length || 0})
             </button>
             <button
               onClick={() => setCmsSection('pricing')}
@@ -1425,7 +1612,7 @@ export const SaasCentralDashboard: React.FC = () => {
                 cmsSection === 'pricing' ? 'bg-indigo-50 text-indigo-700 font-extrabold' : 'text-slate-500 hover:text-slate-900'
               }`}
             >
-              Planes de Precios ({saasLandingConfig.pricingPlans?.length || 0})
+              Planes de Precios ({saasLandingConfig?.pricingPlans?.length || 0})
             </button>
             <button
               onClick={() => setCmsSection('testimonials')}
@@ -1455,7 +1642,7 @@ export const SaasCentralDashboard: React.FC = () => {
                     <input
                       type="text"
                       placeholder="Ateendia"
-                      value={saasLandingConfig.crmName || ''}
+                      value={saasLandingConfig?.crmName || ''}
                       onChange={(e) => updateSaasLandingConfig({ crmName: e.target.value })}
                       className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-900 focus:ring-2 focus:ring-indigo-500"
                     />
@@ -1466,7 +1653,7 @@ export const SaasCentralDashboard: React.FC = () => {
                     <input
                       type="text"
                       placeholder="Ateendia Cloud LLC"
-                      value={saasLandingConfig.companyLegalName || ''}
+                      value={saasLandingConfig?.companyLegalName || ''}
                       onChange={(e) => updateSaasLandingConfig({ companyLegalName: e.target.value })}
                       className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:ring-2 focus:ring-indigo-500"
                     />
@@ -1479,7 +1666,7 @@ export const SaasCentralDashboard: React.FC = () => {
                     <input
                       type="text"
                       placeholder="ateendia.cloud"
-                      value={saasLandingConfig.domainName || ''}
+                      value={saasLandingConfig?.domainName || ''}
                       onChange={(e) => updateSaasLandingConfig({ domainName: e.target.value })}
                       className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-mono font-bold text-indigo-700 focus:ring-2 focus:ring-indigo-500"
                     />
@@ -1490,7 +1677,7 @@ export const SaasCentralDashboard: React.FC = () => {
                     <input
                       type="email"
                       placeholder="soporte@ateendia.cloud"
-                      value={saasLandingConfig.supportEmail || ''}
+                      value={saasLandingConfig?.supportEmail || ''}
                       onChange={(e) => updateSaasLandingConfig({ supportEmail: e.target.value })}
                       className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:ring-2 focus:ring-indigo-500"
                     />
@@ -1502,7 +1689,7 @@ export const SaasCentralDashboard: React.FC = () => {
                   <input
                     type="text"
                     placeholder="800 Brickell Ave, Suite 900, Miami, FL 33131, Estados Unidos"
-                    value={saasLandingConfig.companyAddress || ''}
+                    value={saasLandingConfig?.companyAddress || ''}
                     onChange={(e) => updateSaasLandingConfig({ companyAddress: e.target.value })}
                     className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 focus:ring-2 focus:ring-indigo-500"
                   />
@@ -1514,7 +1701,7 @@ export const SaasCentralDashboard: React.FC = () => {
                     <input
                       type="text"
                       maxLength={3}
-                      value={saasLandingConfig.logoIconText || (saasLandingConfig.crmName ? saasLandingConfig.crmName.charAt(0) : 'A')}
+                      value={saasLandingConfig?.logoIconText || (saasLandingConfig?.crmName ? saasLandingConfig.crmName.charAt(0) : 'A')}
                       onChange={(e) => updateSaasLandingConfig({ logoIconText: e.target.value })}
                       className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-center uppercase"
                     />
@@ -1524,7 +1711,7 @@ export const SaasCentralDashboard: React.FC = () => {
                     <input
                       type="text"
                       placeholder="https://..."
-                      value={saasLandingConfig.logoUrl || ''}
+                      value={saasLandingConfig?.logoUrl || ''}
                       onChange={(e) => updateSaasLandingConfig({ logoUrl: e.target.value })}
                       className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-mono"
                     />
@@ -1536,7 +1723,7 @@ export const SaasCentralDashboard: React.FC = () => {
                   <input
                     type="text"
                     placeholder="https://..."
-                    value={saasLandingConfig.faviconUrl || ''}
+                    value={saasLandingConfig?.faviconUrl || ''}
                     onChange={(e) => updateSaasLandingConfig({ faviconUrl: e.target.value })}
                     className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-mono"
                   />
@@ -1549,7 +1736,6 @@ export const SaasCentralDashboard: React.FC = () => {
                     <span className="text-[11px] text-slate-400 font-medium">Presets rápidos disponibles</span>
                   </div>
 
-                  {/* Preset Swatches */}
                   <div className="flex flex-wrap items-center gap-2">
                     {[
                       { name: 'Ateendia Índigo / Esmeralda', primary: '#4f46e5', accent: '#10b981' },
@@ -1582,13 +1768,13 @@ export const SaasCentralDashboard: React.FC = () => {
                       <div className="flex items-center gap-2">
                         <input
                           type="color"
-                          value={saasLandingConfig.primaryColor || '#4f46e5'}
+                          value={saasLandingConfig?.primaryColor || '#4f46e5'}
                           onChange={(e) => updateSaasLandingConfig({ primaryColor: e.target.value })}
                           className="w-10 h-9 p-0.5 rounded-lg border border-slate-200 cursor-pointer"
                         />
                         <input
                           type="text"
-                          value={saasLandingConfig.primaryColor || '#4f46e5'}
+                          value={saasLandingConfig?.primaryColor || '#4f46e5'}
                           onChange={(e) => updateSaasLandingConfig({ primaryColor: e.target.value })}
                           className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-mono font-bold"
                         />
@@ -1600,13 +1786,13 @@ export const SaasCentralDashboard: React.FC = () => {
                       <div className="flex items-center gap-2">
                         <input
                           type="color"
-                          value={saasLandingConfig.accentColor || '#10b981'}
+                          value={saasLandingConfig?.accentColor || '#10b981'}
                           onChange={(e) => updateSaasLandingConfig({ accentColor: e.target.value })}
                           className="w-10 h-9 p-0.5 rounded-lg border border-slate-200 cursor-pointer"
                         />
                         <input
                           type="text"
-                          value={saasLandingConfig.accentColor || '#10b981'}
+                          value={saasLandingConfig?.accentColor || '#10b981'}
                           onChange={(e) => updateSaasLandingConfig({ accentColor: e.target.value })}
                           className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-mono font-bold"
                         />
@@ -1623,25 +1809,23 @@ export const SaasCentralDashboard: React.FC = () => {
                     Simulación Visual de Pestaña & URLs Dinámicas
                   </h4>
 
-                  {/* Browser Tab Mock */}
                   <div className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-xs flex items-center gap-3">
                     <div
                       className="w-7 h-7 rounded-lg text-white font-black text-xs flex items-center justify-center shrink-0 shadow-xs"
-                      style={{ backgroundColor: saasLandingConfig.primaryColor || '#4f46e5' }}
+                      style={{ backgroundColor: saasLandingConfig?.primaryColor || '#4f46e5' }}
                     >
-                      {saasLandingConfig.logoIconText || (saasLandingConfig.crmName ? saasLandingConfig.crmName.charAt(0) : 'A')}
+                      {saasLandingConfig?.logoIconText || (saasLandingConfig?.crmName ? saasLandingConfig.crmName.charAt(0) : 'A')}
                     </div>
                     <div className="min-w-0">
                       <div className="text-xs font-bold text-slate-900 truncate">
-                        {saasLandingConfig.crmName || 'Ateendia'} — CRM SaaS Multi-Empresas de Seguros
+                        {saasLandingConfig?.crmName || 'Ateendia'} — CRM SaaS Multi-Empresas de Seguros
                       </div>
                       <div className="text-[11px] text-indigo-600 font-mono truncate font-semibold">
-                        {getSaasPublicUrl(saasLandingConfig.crmName, saasLandingConfig.publicUrl, saasLandingConfig.domainName)}
+                        {getSaasPublicUrl(saasLandingConfig?.crmName, saasLandingConfig?.publicUrl, saasLandingConfig?.domainName)}
                       </div>
                     </div>
                   </div>
 
-                  {/* Dynamic URLs Inspection */}
                   <div className="bg-white p-4 rounded-2xl border border-slate-200 space-y-2.5 text-xs">
                     <div className="font-bold text-slate-700 text-[11px] uppercase tracking-wider">
                       Propagación Automática de Enlaces:
@@ -1650,34 +1834,33 @@ export const SaasCentralDashboard: React.FC = () => {
                       <div className="flex items-center justify-between text-slate-600 bg-slate-50 p-2 rounded-lg">
                         <span className="font-sans font-medium text-slate-500">Landing Principal:</span>
                         <span className="font-bold text-indigo-700">
-                          {getSaasPublicUrl(saasLandingConfig.crmName, saasLandingConfig.publicUrl, saasLandingConfig.domainName)}
+                          {getSaasPublicUrl(saasLandingConfig?.crmName, saasLandingConfig?.publicUrl, saasLandingConfig?.domainName)}
                         </span>
                       </div>
                       <div className="flex items-center justify-between text-slate-600 bg-slate-50 p-2 rounded-lg">
                         <span className="font-sans font-medium text-slate-500">Registro Agencias:</span>
                         <span className="font-bold text-indigo-700">
-                          {getSaasPublicUrl(saasLandingConfig.crmName, saasLandingConfig.publicUrl, saasLandingConfig.domainName)}/registro-agencias
+                          {getSaasPublicUrl(saasLandingConfig?.crmName, saasLandingConfig?.publicUrl, saasLandingConfig?.domainName)}/registro-agencias
                         </span>
                       </div>
                       <div className="flex items-center justify-between text-slate-600 bg-slate-50 p-2 rounded-lg">
                         <span className="font-sans font-medium text-slate-500">Micro-Landings:</span>
                         <span className="font-bold text-indigo-700">
-                          https://[empresa].{saasLandingConfig.domainName || `${saasLandingConfig.crmName?.toLowerCase().replace(/[^a-z0-9]/g, '') || 'ateendia'}.cloud`}
+                          https://[empresa].{saasLandingConfig?.domainName || `${saasLandingConfig?.crmName?.toLowerCase().replace(/[^a-z0-9]/g, '') || 'ateendia'}.cloud`}
                         </span>
                       </div>
                     </div>
                   </div>
 
-                  {/* Business Card Summary */}
                   <div className="bg-white p-4 rounded-2xl border border-slate-200 space-y-1.5 text-xs">
                     <div className="font-bold text-slate-800">
-                      {saasLandingConfig.companyLegalName || `${saasLandingConfig.crmName || 'Ateendia'} Cloud LLC`}
+                      {saasLandingConfig?.companyLegalName || `${saasLandingConfig?.crmName || 'Ateendia'} Cloud LLC`}
                     </div>
                     <div className="text-slate-500 text-[11px]">
-                      📍 {saasLandingConfig.companyAddress || 'Miami, FL, Estados Unidos'}
+                      📍 {saasLandingConfig?.companyAddress || 'Miami, FL, Estados Unidos'}
                     </div>
                     <div className="text-slate-500 text-[11px]">
-                      ✉️ {saasLandingConfig.supportEmail || `soporte@${saasLandingConfig.domainName || 'ateendia.cloud'}`}
+                      ✉️ {saasLandingConfig?.supportEmail || `soporte@${saasLandingConfig?.domainName || 'ateendia.cloud'}`}
                     </div>
                   </div>
                 </div>
@@ -1697,7 +1880,7 @@ export const SaasCentralDashboard: React.FC = () => {
                   <label className="block text-xs font-bold text-slate-700 mb-1">Insignia Superior (Badge)</label>
                   <input
                     type="text"
-                    value={saasLandingConfig.heroBadge || ''}
+                    value={saasLandingConfig?.heroBadge || ''}
                     onChange={(e) => updateSaasLandingConfig({ heroBadge: e.target.value })}
                     className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-indigo-500"
                   />
@@ -1706,7 +1889,7 @@ export const SaasCentralDashboard: React.FC = () => {
                   <label className="block text-xs font-bold text-slate-700 mb-1">Palabras con Resaltado Degradado</label>
                   <input
                     type="text"
-                    value={saasLandingConfig.heroHighlight || ''}
+                    value={saasLandingConfig?.heroHighlight || ''}
                     onChange={(e) => updateSaasLandingConfig({ heroHighlight: e.target.value })}
                     className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-indigo-500"
                   />
@@ -1717,7 +1900,7 @@ export const SaasCentralDashboard: React.FC = () => {
                 <label className="block text-xs font-bold text-slate-700 mb-1">Título Principal (Hero Headline)</label>
                 <input
                   type="text"
-                  value={saasLandingConfig.heroTitle || ''}
+                  value={saasLandingConfig?.heroTitle || ''}
                   onChange={(e) => updateSaasLandingConfig({ heroTitle: e.target.value })}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs font-bold focus:ring-2 focus:ring-indigo-500"
                 />
@@ -1727,7 +1910,7 @@ export const SaasCentralDashboard: React.FC = () => {
                 <label className="block text-xs font-bold text-slate-700 mb-1">Subtítulo Descriptivo</label>
                 <textarea
                   rows={3}
-                  value={saasLandingConfig.heroSubtitle || ''}
+                  value={saasLandingConfig?.heroSubtitle || ''}
                   onChange={(e) => updateSaasLandingConfig({ heroSubtitle: e.target.value })}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-indigo-500"
                 />
@@ -1738,7 +1921,7 @@ export const SaasCentralDashboard: React.FC = () => {
                   <label className="block text-xs font-bold text-slate-700 mb-1">Texto Botón de Acción Principal (CTA)</label>
                   <input
                     type="text"
-                    value={saasLandingConfig.ctaPrimaryText || ''}
+                    value={saasLandingConfig?.ctaPrimaryText || ''}
                     onChange={(e) => updateSaasLandingConfig({ ctaPrimaryText: e.target.value })}
                     className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-indigo-500"
                   />
@@ -1747,7 +1930,7 @@ export const SaasCentralDashboard: React.FC = () => {
                   <label className="block text-xs font-bold text-slate-700 mb-1">Texto Botón Secundario</label>
                   <input
                     type="text"
-                    value={saasLandingConfig.ctaSecondaryText || ''}
+                    value={saasLandingConfig?.ctaSecondaryText || ''}
                     onChange={(e) => updateSaasLandingConfig({ ctaSecondaryText: e.target.value })}
                     className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-indigo-500"
                   />
@@ -1760,7 +1943,7 @@ export const SaasCentralDashboard: React.FC = () => {
           {cmsSection === 'features' && (
             <div className="space-y-4 pt-2">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {saasLandingConfig.features?.map((feat, idx) => (
+                {(saasLandingConfig?.features || []).map((feat, idx) => (
                   <div key={idx} className="p-4 rounded-2xl border border-slate-200 bg-slate-50 space-y-2.5">
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">
@@ -1771,7 +1954,7 @@ export const SaasCentralDashboard: React.FC = () => {
                       type="text"
                       value={feat.title}
                       onChange={(e) => {
-                        const updated = [...(saasLandingConfig.features || [])];
+                        const updated = [...(saasLandingConfig?.features || [])];
                         updated[idx] = { ...updated[idx], title: e.target.value };
                         updateSaasLandingConfig({ features: updated });
                       }}
@@ -1782,7 +1965,7 @@ export const SaasCentralDashboard: React.FC = () => {
                       rows={2}
                       value={feat.description}
                       onChange={(e) => {
-                        const updated = [...(saasLandingConfig.features || [])];
+                        const updated = [...(saasLandingConfig?.features || [])];
                         updated[idx] = { ...updated[idx], description: e.target.value };
                         updateSaasLandingConfig({ features: updated });
                       }}
@@ -1799,14 +1982,14 @@ export const SaasCentralDashboard: React.FC = () => {
           {cmsSection === 'pricing' && (
             <div className="space-y-4 pt-2">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {saasLandingConfig.pricingPlans?.map((plan, idx) => (
-                  <div key={plan.id} className="p-5 rounded-2xl border border-slate-200 bg-slate-50 space-y-3">
+                {(saasLandingConfig?.pricingPlans || []).map((plan, idx) => (
+                  <div key={plan.id || idx} className="p-5 rounded-2xl border border-slate-200 bg-slate-50 space-y-3">
                     <div className="flex items-center justify-between">
                       <input
                         type="text"
                         value={plan.name}
                         onChange={(e) => {
-                          const updated = [...(saasLandingConfig.pricingPlans || [])];
+                          const updated = [...(saasLandingConfig?.pricingPlans || [])];
                           updated[idx] = { ...updated[idx], name: e.target.value };
                           updateSaasLandingConfig({ pricingPlans: updated });
                         }}
@@ -1817,7 +2000,7 @@ export const SaasCentralDashboard: React.FC = () => {
                           type="checkbox"
                           checked={plan.popular}
                           onChange={(e) => {
-                            const updated = [...(saasLandingConfig.pricingPlans || [])];
+                            const updated = [...(saasLandingConfig?.pricingPlans || [])];
                             updated[idx] = { ...updated[idx], popular: e.target.checked };
                             updateSaasLandingConfig({ pricingPlans: updated });
                           }}
@@ -1832,7 +2015,7 @@ export const SaasCentralDashboard: React.FC = () => {
                         type="number"
                         value={plan.price}
                         onChange={(e) => {
-                          const updated = [...(saasLandingConfig.pricingPlans || [])];
+                          const updated = [...(saasLandingConfig?.pricingPlans || [])];
                           updated[idx] = { ...updated[idx], price: Number(e.target.value) };
                           updateSaasLandingConfig({ pricingPlans: updated });
                         }}
@@ -1845,7 +2028,7 @@ export const SaasCentralDashboard: React.FC = () => {
                       rows={2}
                       value={plan.description}
                       onChange={(e) => {
-                        const updated = [...(saasLandingConfig.pricingPlans || [])];
+                        const updated = [...(saasLandingConfig?.pricingPlans || [])];
                         updated[idx] = { ...updated[idx], description: e.target.value };
                         updateSaasLandingConfig({ pricingPlans: updated });
                       }}
@@ -1862,14 +2045,14 @@ export const SaasCentralDashboard: React.FC = () => {
           {cmsSection === 'testimonials' && (
             <div className="space-y-4 pt-2">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {saasLandingConfig.testimonials?.map((t, idx) => (
+                {(saasLandingConfig?.testimonials || []).map((t, idx) => (
                   <div key={idx} className="p-4 rounded-2xl border border-slate-200 bg-slate-50 space-y-3">
                     <div className="flex items-center justify-between">
                       <input
                         type="text"
                         value={t.name}
                         onChange={(e) => {
-                          const updated = [...(saasLandingConfig.testimonials || [])];
+                          const updated = [...(saasLandingConfig?.testimonials || [])];
                           updated[idx] = { ...updated[idx], name: e.target.value };
                           updateSaasLandingConfig({ testimonials: updated });
                         }}
@@ -1880,7 +2063,7 @@ export const SaasCentralDashboard: React.FC = () => {
                         type="text"
                         value={t.company}
                         onChange={(e) => {
-                          const updated = [...(saasLandingConfig.testimonials || [])];
+                          const updated = [...(saasLandingConfig?.testimonials || [])];
                           updated[idx] = { ...updated[idx], company: e.target.value };
                           updateSaasLandingConfig({ testimonials: updated });
                         }}
@@ -1892,7 +2075,7 @@ export const SaasCentralDashboard: React.FC = () => {
                       rows={2}
                       value={t.quote}
                       onChange={(e) => {
-                        const updated = [...(saasLandingConfig.testimonials || [])];
+                        const updated = [...(saasLandingConfig?.testimonials || [])];
                         updated[idx] = { ...updated[idx], quote: e.target.value };
                         updateSaasLandingConfig({ testimonials: updated });
                       }}
@@ -1912,7 +2095,7 @@ export const SaasCentralDashboard: React.FC = () => {
                 <label className="block text-xs font-bold text-slate-700 mb-1">Aviso de Cumplimiento & Privacidad</label>
                 <input
                   type="text"
-                  value={saasLandingConfig.complianceNotice || ''}
+                  value={saasLandingConfig?.complianceNotice || ''}
                   onChange={(e) => updateSaasLandingConfig({ complianceNotice: e.target.value })}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-indigo-500"
                 />
@@ -1922,7 +2105,7 @@ export const SaasCentralDashboard: React.FC = () => {
                 <label className="block text-xs font-bold text-slate-700 mb-1">Texto de Copyright</label>
                 <input
                   type="text"
-                  value={saasLandingConfig.copyrightText || ''}
+                  value={saasLandingConfig?.copyrightText || ''}
                   onChange={(e) => updateSaasLandingConfig({ copyrightText: e.target.value })}
                   className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-indigo-500"
                 />
@@ -1945,7 +2128,7 @@ export const SaasCentralDashboard: React.FC = () => {
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {tenants.map((t) => {
+              {(tenantsSource || []).map((t) => {
                 const landing = t.landingConfig || {
                   agencyName: t.name,
                   slug: t.subdomain || t.id,
@@ -1963,9 +2146,9 @@ export const SaasCentralDashboard: React.FC = () => {
                       <div className="flex items-center gap-3">
                         <div
                           className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-xs"
-                          style={{ backgroundColor: t.primaryColor || '#4f46e5' }}
+                          style={{ backgroundColor: t.primaryColor || t.primary_color || '#4f46e5' }}
                         >
-                          {t.name.charAt(0)}
+                          {t.name ? t.name.charAt(0) : 'T'}
                         </div>
                         <div>
                           <h4 className="text-sm font-bold text-slate-900">{t.name}</h4>
@@ -2000,7 +2183,7 @@ export const SaasCentralDashboard: React.FC = () => {
                         </label>
                         <input
                           type="text"
-                          value={landing.agencyName}
+                          value={landing.agencyName || ''}
                           onChange={(e) => updateTenantLandingConfig(t.id, { agencyName: e.target.value })}
                           className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs"
                         />
@@ -2010,7 +2193,7 @@ export const SaasCentralDashboard: React.FC = () => {
                         <label className="block text-[11px] font-bold text-slate-600 mb-1">Slogan / Tagline Principal</label>
                         <input
                           type="text"
-                          value={landing.tagline}
+                          value={landing.tagline || ''}
                           onChange={(e) => updateTenantLandingConfig(t.id, { tagline: e.target.value })}
                           className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs"
                         />
@@ -2021,7 +2204,7 @@ export const SaasCentralDashboard: React.FC = () => {
                           <label className="block text-[11px] font-bold text-slate-600 mb-1">WhatsApp Directo</label>
                           <input
                             type="text"
-                            value={landing.whatsappDirectNumber}
+                            value={landing.whatsappDirectNumber || ''}
                             onChange={(e) => updateTenantLandingConfig(t.id, { whatsappDirectNumber: e.target.value })}
                             className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs"
                           />
@@ -2030,7 +2213,7 @@ export const SaasCentralDashboard: React.FC = () => {
                           <label className="block text-[11px] font-bold text-slate-600 mb-1">Teléfono Directo PBX</label>
                           <input
                             type="text"
-                            value={landing.callDirectNumber}
+                            value={landing.callDirectNumber || ''}
                             onChange={(e) => updateTenantLandingConfig(t.id, { callDirectNumber: e.target.value })}
                             className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs"
                           />
@@ -2046,7 +2229,7 @@ export const SaasCentralDashboard: React.FC = () => {
       )}
 
       {/* ========================================================================= */}
-      {/* TAB 4: VPS & BASES DE DATOS EXTERNAS */}
+      {/* TAB: VPS & BASES DE DATOS EXTERNAS */}
       {/* ========================================================================= */}
       {activeTab === 'vps_database' && <SaasVpsDatabaseSection />}
 
@@ -2182,7 +2365,7 @@ export const SaasCentralDashboard: React.FC = () => {
                           className="flex-1 px-3.5 py-2 rounded-l-xl border border-slate-200 text-xs font-mono font-bold bg-white"
                         />
                         <span className="px-3 py-2 bg-slate-200 border border-l-0 border-slate-200 rounded-r-xl text-xs font-mono text-slate-600">
-                          .{getSaasBaseDomain(saasLandingConfig.crmName, saasLandingConfig.domainName)}
+                          .{getSaasBaseDomain(saasLandingConfig?.crmName, saasLandingConfig?.domainName)}
                         </span>
                       </div>
                     </div>
@@ -2440,7 +2623,6 @@ export const SaasCentralDashboard: React.FC = () => {
                 />
               </div>
 
-              {/* Granular Permissions */}
               <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-2.5">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Permisos de Acceso Concedidos</h4>
 
@@ -2526,10 +2708,14 @@ export const SaasCentralDashboard: React.FC = () => {
           onApprove={(receiptId, validFrom, validUntil) => {
             approvePaymentReceipt(receiptId, validFrom, validUntil);
             setSelectedReceiptForReview(null);
+            // ─── NUEVO: refrescar tenants después de aprobar ───
+            refreshSaasTenants();
           }}
           onReject={(receiptId, reason) => {
             rejectPaymentReceipt(receiptId, reason);
             setSelectedReceiptForReview(null);
+            // ─── NUEVO: refrescar tenants después de rechazar ───
+            refreshSaasTenants();
           }}
         />
       )}
@@ -2547,7 +2733,7 @@ export const SaasCentralDashboard: React.FC = () => {
                 Esta acción eliminará de forma irreversible todos los clientes, pólizas, prospectos, leads y mensajes
                 de chat generados para la empresa{' '}
                 <strong className="text-slate-800">
-                  {tenants.find((t) => t.id === confirmResetTenantId)?.name || confirmResetTenantId}
+                  {tenantsSource.find((t) => t.id === confirmResetTenantId)?.name || confirmResetTenantId}
                 </strong>
                 , dejando la cuenta en estado limpio/inicial.
               </p>

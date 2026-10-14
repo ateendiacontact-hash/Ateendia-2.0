@@ -1934,3 +1934,78 @@ export type UpgradeRequestOperationResult =
         | 'UNKNOWN_ERROR';
       details?: unknown;
     };
+
+    // ═══════════════════════════════════════════════════════════════════
+// SaaS — Lista de tenants para panel Super Admin (Sesión 3.5.B.4.e.2)
+// ═══════════════════════════════════════════════════════════════════
+//
+// Tipo espejo del DTO del backend (server/services/saasTenantsService.ts).
+// Consumido por GET /api/saas/tenants (requirePlatformUser).
+//
+// Usado en TenantContext y SaasCentralDashboard para mostrar los
+// tenants reales de la DB en el panel SaaS.
+
+export interface SaasTenantDTO {
+  id: string;
+  name: string;
+  legalName: string | null;
+  taxId: string | null;
+  subdomain: string | null;
+  customDomain: string | null;
+  status: string;
+  isActive: boolean;
+  demoExpiresAt: string | null;
+  gracePeriodEndsAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+
+  // Branding
+  primaryColor: string;
+  accentColor: string | null;
+  logoUrl: string | null;
+
+  // Ubicación
+  country: string | null;
+  city: string | null;
+  currency: string;
+
+  // Stats agregadas
+  usersCount: number;
+  clientsCount: number;
+  policiesCount: number;
+
+  // Subscription
+  subscription: {
+    plan: string;
+    planId: string | null;
+    status: string;
+    monthlyPrice: number;
+    billingCycle: string | null;
+    renewalDate: string | null;
+    startDate: string | null;
+    userQuota: number | null;
+    whatsappLinesQuota: number | null;
+    storageGb: number | null;
+    contactEmail: string | null;
+    gracePeriodDays: number | null;
+    lastPaymentDate: string | null;
+    isAutoSuspended: boolean;
+  } | null;
+}
+
+/**
+ * Respuesta del endpoint GET /api/saas/tenants.
+ */
+export interface SaasTenantsListResponse {
+  success: true;
+  data: SaasTenantDTO[];
+}
+
+/**
+ * Respuesta de error del endpoint GET /api/saas/tenants.
+ */
+export interface SaasTenantsErrorResponse {
+  success: false;
+  error: string;
+  code: string;
+}
