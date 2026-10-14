@@ -7,6 +7,7 @@
  *   una TRANSACCIÓN ATÓMICA (todo o nada).
  * - Rechazar una solicitud: marcar como rejected con razón.
  * - Expirar solicitudes pendientes cuyo expires_at ya pasó.
+ * - Auto-aprobar solicitudes DEMO (3.5.B.4.e.1): no requieren aprobación humana.
  *
  * Decisiones de seguridad (ver AGENTS.md):
  * - El password del admin que el usuario tipeó en el registro NO se
@@ -299,12 +300,15 @@ export interface ApproveRegistrationResult {
  *
  * Si cualquier paso falla, TODO se revierte (no hay tenants huérfanos).
  *
+ * @param reviewerUserId - ID del usuario que aprueba. `null` para
+ *        auto-aprobaciones del sistema (ej. registros DEMO).
+ *
  * @throws RegistrationReviewError si la request no existe, no está
  *         pending, o si algo falla en la transacción.
  */
 export async function approveRegistration(
   requestId: string,
-  reviewerUserId: string,
+  reviewerUserId: string | null,
   notes?: string,
 ): Promise<ApproveRegistrationResult> {
   // 1. Leer y validar (fuera de la transacción para fail-fast)
@@ -578,6 +582,64 @@ export async function approveRegistration(
     subdomain: subdomain ?? '(existente)',
     tempPassword: tempPassword ?? '(mantiene su password)',
   };
+}
+
+// ─── Auto-aprobación de DEMO ────────────────────────────────────────
+
+/**
+ * Auto-aprueba una solicitud de registro DEMO.
+ *
+ * A diferencia de `approveRegistration`, esta función NO requiere un
+ * reviewer humano (userId). Es llamada automáticamente por el servicio
+ * de registro cuando `type === 'demo'`.
+ *
+ * Reutiliza TODA la lógica de la transacción atómica de
+ * `approveRegistration`, pero con `reviewed_by = NULL` y una nota
+ * automática que indica que fue auto-aprobada por el sistema.
+ *
+ * @param requestId - ID de la solicitud a auto-aprobar.
+ * @returns Resultado con tenantId, userId, subscriptionId, subdomain.
+ * @throws RegistrationReviewError si la solicitud no existe o no es demo.
+ */
+export async function autoApproveDemoRegistration(
+  requestId: string,
+): Promise<ApproveRegistrationResult> {
+  // Leemos la solicitud para validar que sea DEMO.
+  const request = await prisma.saas_registration_requests.findUnique({
+    where: { id: requestId },
+  });
+
+  if (!request) {
+    throw new RegistrationReviewError(
+      'Solicitud no encontrada.',
+      'REGISTRATION_NOT_FOUND',
+      404,
+    );
+  }
+
+  if (request.type !== 'demo') {
+    throw new RegistrationReviewError(
+      `autoApproveDemoRegistration solo acepta type='demo'. Recibido: '${request.type}'.`,
+      'INVALID_REGISTRATION_TYPE',
+      400,
+    );
+  }
+
+  if (request.status !== 'pending') {
+    throw new RegistrationReviewError(
+      `La solicitud ya está en estado '${request.status}'. No se puede auto-aprobar.`,
+      'REGISTRATION_NOT_PENDING',
+      409,
+    );
+  }
+
+  // Reutilizamos la lógica de aprobación pasando reviewerUserId = null
+  // y una nota automática.
+  return approveRegistration(
+    requestId,
+    null, // reviewerUserId = null → auto-aprobación del sistema
+    'Auto-aprobado por el sistema: registro DEMO sin pago que validar.',
+  );
 }
 
 // ─── Rechazo ────────────────────────────────────────────────────────

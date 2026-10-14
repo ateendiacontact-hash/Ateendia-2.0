@@ -6,6 +6,7 @@
  * - Hashear el password del admin con bcrypt (y descartar el original).
  * - Detectar duplicados (mismo email o mismo tax_id pendientes).
  * - Insertar en saas_registration_requests con expiración a 7 días.
+ * - Auto-aprobar registros DEMO (3.5.B.4.e.1): no requieren aprobación humana.
  *
  * Decisiones de seguridad (ver AGENTS.md):
  * - El password del admin NO se transfiere al user creado al aprobar.
@@ -20,6 +21,7 @@
 import { randomUUID } from 'crypto';
 import bcrypt from 'bcryptjs';
 import { prisma } from '../db.js';
+import { autoApproveDemoRegistration } from './saasRegistrationReviewService.js';
 import type {
   RegisterRequestPayload,
   RegisterRequestMeta,
@@ -220,7 +222,8 @@ export async function checkDuplicateRequest(
  * 1. Normaliza el payload (sanitiza, hashea password, calcula expires_at).
  * 2. Verifica duplicados (mismo email o tax_id pendiente).
  * 3. Inserta en saas_registration_requests.
- * 4. Devuelve un resultado minimalista (anti-enumeración).
+ * 4. Si type === 'demo', AUTO-APRUEBA (crea tenant+user+subscription).
+ * 5. Devuelve un resultado minimalista (anti-enumeración).
  *
  * ⚠️ Si hay duplicado, NO se lanza error. Se devuelve un resultado
  * "fake" con el mismo formato para no revelar al atacante que el email
@@ -298,6 +301,22 @@ export async function createRegistrationRequest(
       expires_at: normalized.expires_at,
     },
   });
+
+  // ─── NUEVO (3.5.B.4.e.1): Auto-aprobación de DEMO ────────────────
+  // Los registros type='demo' NO requieren aprobación humana.
+  // Se aprueban automáticamente y se crea el tenant+user+subscription.
+  if (input.type === 'demo') {
+    try {
+      await autoApproveDemoRegistration(normalized.id);
+    } catch (error) {
+      // Fallback: si falla la auto-aprobación, la solicitud queda pending.
+      // El Super Admin puede aprobarla manualmente.
+      console.error(
+        '[createRegistrationRequest] Falló auto-aprobación de demo:',
+        error,
+      );
+    }
+  }
 
   // 4. Resultado minimalista
   return {

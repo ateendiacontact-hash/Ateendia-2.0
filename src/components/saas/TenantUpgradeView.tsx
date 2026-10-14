@@ -37,6 +37,8 @@ import {
   FileText,
   RefreshCw,
   ExternalLink,
+  UploadCloud,
+  X,           
 } from 'lucide-react';
 import { upgradeService } from '../../services/upgradeService';
 import { registrationService } from '../../services/registrationService';
@@ -74,7 +76,9 @@ type ViewState =
       currency: string;
       billingCycle: BillingCycle;
     }
-  | { kind: 'error'; message: string; code: string };
+  | { kind: 'error'; message: string; code: string }
+  // ─── NUEVO (3.5.B.4.e.1): solicitud duplicada ─────────────────────
+  | { kind: 'already_pending' };
 
 // ────────────────────────────────────────────────────────────────────
 // Componente principal
@@ -100,7 +104,14 @@ export const TenantUpgradeView: React.FC<TenantUpgradeViewProps> = ({
     useState<BillingCycle>('monthly');
   const [selectedPaymentMethodId, setSelectedPaymentMethodId] =
     useState<string>('');
-  const [notes, setNotes] = useState<string>('');
+    const [notes, setNotes] = useState<string>('');
+
+  // ─── Estado para el comprobante de pago ─────────────────────────────
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [receiptBase64, setReceiptBase64] = useState<string | null>(null);
+  const [receiptFilename, setReceiptFilename] = useState<string | null>(null);
+  const [receiptFileSize, setReceiptFileSize] = useState<string | null>(null);
+  const [receiptError, setReceiptError] = useState<string | null>(null);
 
   // Modal de consulta de estado (post-submit)
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
@@ -207,6 +218,90 @@ export const TenantUpgradeView: React.FC<TenantUpgradeViewProps> = ({
     });
   }, []);
 
+    // ─── Handler: cambio de archivo de comprobante ─────────────────────
+  const handleReceiptChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      // Limpiamos errores previos.
+      setReceiptError(null);
+
+      // ─── Validación 1: tipo MIME ─────────────────────────────────
+      const ALLOWED_TYPES = [
+        'image/png',
+        'image/jpeg',
+        'image/jpg',
+        'application/pdf',
+      ];
+      if (!ALLOWED_TYPES.includes(file.type)) {
+        setReceiptError(
+          'Formato no permitido. Solo aceptamos PNG, JPG o PDF.'
+        );
+        // Limpiamos el input para permitir reintentar con el mismo archivo.
+        e.target.value = '';
+        return;
+      }
+
+      // ─── Validación 2: tamaño máximo 5 MB ────────────────────────
+      const MAX_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
+      if (file.size > MAX_SIZE_BYTES) {
+        setReceiptError(
+          `El archivo es demasiado grande (${formatFileSize(file.size)}). El máximo es 5 MB.`
+        );
+        e.target.value = '';
+        return;
+      }
+
+      // ─── Conversión a Base64 con FileReader ──────────────────────
+      const reader = new FileReader();
+
+      reader.onload = () => {
+        const result = reader.result;
+        if (typeof result !== 'string') {
+          setReceiptError('No pudimos leer el archivo. Intentá de nuevo.');
+          return;
+        }
+        // `result` es un data URL: "data:image/png;base64,iVBORw0KG..."
+        setReceiptBase64(result);
+      };
+
+      reader.onerror = () => {
+        setReceiptError('Error al leer el archivo. Intentá de nuevo.');
+      };
+
+      // Disparamos la lectura asíncrona.
+      reader.readAsDataURL(file);
+
+      // Actualizamos el resto de los estados inmediatamente.
+      setReceiptFile(file);
+      setReceiptFilename(file.name);
+      setReceiptFileSize(formatFileSize(file.size));
+    },
+    []
+  );
+
+  // ─── Handler: eliminar comprobante ─────────────────────────────────
+  const handleReceiptClear = useCallback(() => {
+    setReceiptFile(null);
+    setReceiptBase64(null);
+    setReceiptFilename(null);
+    setReceiptFileSize(null);
+    setReceiptError(null);
+  }, []);
+
+  // ─── Helper: formatear tamaño de archivo ───────────────────────────
+  /**
+   * Convierte bytes a un string legible (ej: "2.5 MB", "340 KB").
+   * Se usa tanto para mostrar en la previsualización como en el
+   * mensaje de error de tamaño excedido.
+   */
+  const formatFileSize = (bytes: number): string => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  };
+
   // ─── Handler: submit del formulario ────────────────────────────────
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -232,6 +327,23 @@ export const TenantUpgradeView: React.FC<TenantUpgradeViewProps> = ({
 
     setView({ kind: 'submitting' });
 
+        // ─── Validación: comprobante obligatorio según método de pago ────
+    const selectedMethod = paymentMethods.find(
+      (m) => m.id === selectedPaymentMethodId
+    );
+    const isReceiptRequired =
+      selectedMethod?.type === 'manual' ||
+      selectedMethod?.type === 'crypto_semi_auto';
+
+    if (isReceiptRequired && !receiptBase64) {
+      setReceiptError(
+        'Este método de pago requiere que subas el comprobante.'
+      );
+      return; // No cambiamos de vista, solo mostramos el error.
+    }
+
+    setView({ kind: 'submitting' });
+
     const priceAmount =
       selectedBillingCycle === 'yearly'
         ? selectedPlan.priceAnnual
@@ -242,9 +354,20 @@ export const TenantUpgradeView: React.FC<TenantUpgradeViewProps> = ({
       billingCycle: selectedBillingCycle,
       paymentMethodId: selectedPaymentMethodId || undefined,
       notes: notes.trim() || undefined,
+      // ─── NUEVOS CAMPOS (3.5.B.4.e.1) ─────────────────────────────
+      receiptUrl: receiptBase64 || undefined,
+      receiptFilename: receiptFilename || undefined,
+      receiptFileSize: receiptFileSize || undefined,
     });
 
         if (result.success === false) {
+      // ─── Caso especial: ya hay una solicitud pendiente ────────────
+      if (result.code === 'UPGRADE_ALREADY_PENDING') {
+        setView({ kind: 'already_pending' });
+        return;
+      }
+
+      // ─── Cualquier otro error: ErrorCard genérico ─────────────────
       setView({
         kind: 'error',
         message: result.error,
@@ -321,6 +444,19 @@ export const TenantUpgradeView: React.FC<TenantUpgradeViewProps> = ({
           onPaymentMethodChange={setSelectedPaymentMethodId}
           onNotesChange={setNotes}
           onSubmit={handleSubmit}
+          // ─── NUEVAS PROPS (3.5.B.4.e.1) ────────────────────────
+          receiptFile={receiptFile}
+          receiptFilename={receiptFilename}
+          receiptFileSize={receiptFileSize}
+          receiptError={receiptError}
+          onReceiptChange={handleReceiptChange}
+          onReceiptClear={handleReceiptClear}
+        />
+      )}
+
+            {view.kind === 'already_pending' && (
+        <AlreadyPendingCard
+          onOpenStatusModal={() => setIsStatusModalOpen(true)}
         />
       )}
 
@@ -510,6 +646,13 @@ interface EligibleFormProps {
   onPaymentMethodChange: (id: string) => void;
   onNotesChange: (notes: string) => void;
   onSubmit: (e: React.FormEvent) => void;
+   // ─── NUEVAS PROPS (3.5.B.4.e.1) ──────────────────────────────
+  receiptFile: File | null;
+  receiptFilename: string | null;
+  receiptFileSize: string | null;
+  receiptError: string | null;
+  onReceiptChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onReceiptClear: () => void;
 }
 
 const EligibleForm: React.FC<EligibleFormProps> = ({
@@ -527,6 +670,13 @@ const EligibleForm: React.FC<EligibleFormProps> = ({
   onPaymentMethodChange,
   onNotesChange,
   onSubmit,
+  // ─── NUEVAS PROPS (3.5.B.4.e.1) ──────────────────────────────
+  receiptFile,
+  receiptFilename,
+  receiptFileSize,
+  receiptError,
+  onReceiptChange,
+  onReceiptClear,
 }) => {
   const selectedPlan = plans.find((p) => p.id === selectedPlanId);
 
@@ -675,7 +825,7 @@ const EligibleForm: React.FC<EligibleFormProps> = ({
         </section>
       )}
 
-      {/* Sección: método de pago */}
+            {/* Sección: método de pago */}
       {!catalogsLoading && !catalogsError && paymentMethods.length > 0 && (
         <section className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
           <div className="flex items-center gap-2">
@@ -711,6 +861,98 @@ const EligibleForm: React.FC<EligibleFormProps> = ({
               );
             })}
           </div>
+        </section>
+      )}
+
+      {/* Sección: comprobante de pago (NUEVO 3.5.B.4.e.1) */}
+      {!catalogsLoading && !catalogsError && (
+        <section className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <FileText className="w-5 h-5 text-purple-600" />
+              <h2 className="text-sm font-black text-slate-900 uppercase tracking-wide">
+                4. Comprobante de pago
+              </h2>
+            </div>
+                        {/* Badge: Obligatorio / Opcional según el método de pago */}
+            {(() => {
+              const selectedMethod = paymentMethods.find(
+                (m) => m.id === selectedPaymentMethodId
+              );
+              const isRequired =
+                selectedMethod?.type === 'manual' ||
+                selectedMethod?.type === 'crypto_semi_auto';
+
+              return isRequired ? (
+                <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-rose-100 text-rose-700 border border-rose-200">
+                  OBLIGATORIO
+                </span>
+              ) : (
+                <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
+                  OPCIONAL
+                </span>
+              );
+            })()}
+          </div>
+
+          {/* Zona de upload */}
+          {!receiptFile ? (
+            <label
+              className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-xl cursor-pointer transition-all ${
+                receiptError
+                  ? 'border-rose-300 bg-rose-50'
+                  : 'border-slate-300 bg-slate-50 hover:bg-slate-100 hover:border-purple-400'
+              }`}
+            >
+              <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                <UploadCloud className={`w-8 h-8 mb-2 ${receiptError ? 'text-rose-500' : 'text-slate-400'}`} />
+                <p className="text-sm text-slate-600 font-semibold">
+                  Hacé clic para subir tu comprobante
+                </p>
+                <p className="text-xs text-slate-400 mt-1">
+                  PNG, JPG o PDF (máx. 5 MB)
+                </p>
+              </div>
+              <input
+                type="file"
+                className="hidden"
+                accept=".png,.jpg,.jpeg,.pdf,image/png,image/jpeg,application/pdf"
+                onChange={onReceiptChange}
+              />
+            </label>
+          ) : (
+            <div className="flex items-center justify-between p-4 bg-slate-50 border border-slate-200 rounded-xl">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 rounded-lg bg-purple-100 flex items-center justify-center shrink-0">
+                  <FileText className="w-5 h-5 text-purple-600" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-slate-900 truncate">
+                    {receiptFilename}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    {receiptFileSize}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={onReceiptClear}
+                className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                title="Eliminar comprobante"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
+          {/* Mensaje de error */}
+          {receiptError && (
+            <div className="flex items-start gap-2 text-rose-600 text-xs font-medium">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              <p>{receiptError}</p>
+            </div>
+          )}
         </section>
       )}
 
@@ -760,7 +1002,12 @@ const EligibleForm: React.FC<EligibleFormProps> = ({
 
           <button
             type="submit"
-            disabled={!selectedPlanId || !selectedPaymentMethodId}
+                        disabled={
+              !selectedPlanId ||
+              !selectedPaymentMethodId ||
+              (paymentMethods.find((m) => m.id === selectedPaymentMethodId)
+                ?.type !== 'automatic' && !receiptFile)
+            }
             className="w-full py-3.5 px-4 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-sm shadow-md transition-all flex items-center justify-center gap-2 hover:shadow-lg active:scale-98 disabled:opacity-60 disabled:cursor-not-allowed"
           >
             <Sparkles className="w-4 h-4" />
@@ -866,6 +1113,47 @@ const SuccessCard: React.FC<SuccessCardProps> = ({
         <ExternalLink className="w-4 h-4" />
         Consultar estado
       </button>
+    </div>
+  </div>
+);
+
+// ────────────────────────────────────────────────────────────────────
+// Sub-componente: AlreadyPendingCard
+// ────────────────────────────────────────────────────────────────────
+
+interface AlreadyPendingCardProps {
+  onOpenStatusModal: () => void;
+}
+
+const AlreadyPendingCard: React.FC<AlreadyPendingCardProps> = ({
+  onOpenStatusModal,
+}) => (
+  <div className="rounded-2xl border-2 border-amber-200 bg-amber-50 p-8">
+    <div className="flex items-start gap-4">
+      <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center shrink-0 shadow-xs">
+        <Clock className="w-6 h-6 text-amber-600" />
+      </div>
+      <div className="flex-1">
+        <h2 className="text-lg font-black text-amber-700">
+          Ya tenés una solicitud de upgrade pendiente
+        </h2>
+        <p className="text-sm text-slate-700 mt-1">
+          Recibimos tu solicitud anterior y está siendo revisada por un
+          administrador. No podés crear una nueva hasta que se resuelva.
+        </p>
+        <p className="text-xs text-slate-500 mt-2">
+          Suele tardar menos de 24 horas hábiles. Si ya pasó ese tiempo,
+          contactá a soporte.
+        </p>
+        <button
+          type="button"
+          onClick={onOpenStatusModal}
+          className="mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold shadow-md transition-colors"
+        >
+          <ExternalLink className="w-3.5 h-3.5" />
+          Consultar estado de mi solicitud
+        </button>
+      </div>
     </div>
   </div>
 );
