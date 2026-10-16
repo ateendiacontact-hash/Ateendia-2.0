@@ -78,6 +78,29 @@ import {
 // TIPOS DEL CONTEXTO
 // ═══════════════════════════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════════════════
+// HELPERS GLOBALES
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * Lee el JWT del usuario desde localStorage.
+ *
+ * Prueba 3 nombres posibles porque históricamente el proyecto usó
+ * varios (deuda técnica). El nombre canónico actual es `'auth_token'`
+ * (ver src/services/authService.ts línea 191), pero mantenemos los
+ * otros dos como fallback defensivo.
+ *
+ * @returns El token JWT como string, o null si no hay ninguno.
+ */
+function getAuthToken(): string | null {
+  return (
+    localStorage.getItem('ateendia_auth_token') ||
+    localStorage.getItem('auth_token') ||
+    localStorage.getItem('token') ||
+    null
+  );
+}
+
 interface TenantContextType {
   // ─── Datos principales ───
   clients: any[];
@@ -171,6 +194,21 @@ interface TenantContextType {
   saasTenantsLoading: boolean;
   /** Recarga la lista de tenants desde el backend. */
   refreshSaasTenants: () => Promise<void>;
+    // ─── NUEVO (Sesión 3.5.B.4.e.3): Modo "Super Admin dentro de tenant" ───
+  /**
+   * ID del tenant cuyos datos estamos viendo actualmente.
+   * `null` = usar el tenant del JWT.
+   */
+  activeTenantId: string | null;
+  /**
+   * Entra al modo "instancia" del tenant indicado.
+   * Solo el Super Admin SaaS debería llamar a esto.
+   */
+  enterTenantInstance: (tenantId: string, tenantBrandingData?: Partial<TenantBranding>) => void;
+  /**
+   * Sale del modo "instancia" y vuelve al panel SaaS global.
+   */
+  exitTenantInstance: () => void;
 
   // ─── SaaS Admins ───
   saasAdmins: any[];
@@ -866,6 +904,32 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // ─── NUEVO (Sesión 3.5.B.4.e.2): Tenants reales de la DB ───
   const [saasTenants, setSaasTenants] = useState<SaasTenantDTO[]>([]);
   const [saasTenantsLoading, setSaasTenantsLoading] = useState<boolean>(false);
+  // ─── NUEVO (Sesión 3.5.B.4.e.3): Modo "Super Admin dentro de tenant" ───
+/**
+ * Tenant cuyos datos estamos viendo AHORA MISMO.
+ *
+ * - `null`  → usar el tenant del JWT (`currentUser.tenantId`).
+ *              Esto es el comportamiento normal para usuarios de tenant
+ *              y para el Super Admin en el panel SaaS global.
+ * - `string` → el Super Admin entró a esa instancia y todos los fetch
+ *              deben pedir datos de ese tenant vía `?tenantId=X`.
+ *
+ * Es DISTINTO de:
+ *   - `currentTenant.id`  → es el branding (colores, logo, nombre).
+ *   - `currentUser.tenantId` → es del JWT (inmutable).
+ */
+const [activeTenantId, setActiveTenantId] = useState<string | null>(null);
+
+/**
+ * Guarda el estado del Super Admin ANTES de entrar a una instancia,
+ * para poder restaurarlo cuando salga (`exitTenantInstance`).
+ *
+ * Si es `null`, no estamos impersonando a nadie.
+ */
+const [preImpersonationState, setPreImpersonationState] = useState<{
+  tenant: TenantBranding;
+  user: User | null;
+} | null>(null);
 
   // ─── ESTADOS Sesión #20 (Fix Pantallas Bloque Base) ───
   /** Plantillas de mensaje para campañas */
@@ -999,6 +1063,81 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       refreshSaasTenants();
     }
   }, [currentUser?.role, refreshSaasTenants]);
+
+  /**
+ * Entra al "modo instancia" para un tenant específico.
+ *
+ * Uso: Super Admin hace clic en "Entrar a Instancia" en el panel SaaS.
+ *
+ * ─── Qué hace ───
+ * 1. Guarda el estado actual (por si necesita salir después).
+ * 2. Setea `activeTenantId` → todos los fetch pedirán datos de ese tenant.
+ * 3. Actualiza el branding (`currentTenant`) al del tenant elegido.
+ * 4. Fuerza re-fetch de clients y policies.
+ *
+ * @param tenantId ID del tenant al que entrar (ej: 'tenant-demo')
+ * @param tenantBrandingData Datos del branding (colores, logo, nombre).
+ *                            Vienen del `SaasTenantDTO` que ya está en
+ *                            `saasTenants`.
+ */
+const enterTenantInstance = useCallback(
+  (tenantId: string, tenantBrandingData?: Partial<TenantBranding>) => {
+    if (!tenantId) {
+      console.warn('[TenantContext] enterTenantInstance: tenantId vacío');
+      return;
+    }
+
+    console.info('[TenantContext] enterTenantInstance:', tenantId);
+
+    // 1. Guardar estado actual para poder restaurarlo
+    setPreImpersonationState({
+      tenant: currentTenant,
+      user: currentUser,
+    });
+
+    // 2. Activar el tenant para los fetch
+    setActiveTenantId(tenantId);
+
+    // 3. Actualizar el branding con los datos que vienen del panel SaaS
+    if (tenantBrandingData) {
+      setCurrentTenantState((prev) => ({
+        ...prev,
+        ...tenantBrandingData,
+        id: tenantId,
+      }));
+    } else {
+      setCurrentTenantState((prev) => ({ ...prev, id: tenantId }));
+    }
+
+    // Nota: NO llamamos fetchClients()/fetchPolicies() acá.
+    // El useEffect que depende de `activeTenantId` se encarga.
+  },
+  [currentTenant, currentUser]
+);
+
+/**
+ * Sale del "modo instancia" y vuelve al panel SaaS global.
+ *
+ * Uso: Super Admin hace clic en "Salir de Instancia" (banner superior).
+ */
+const exitTenantInstance = useCallback(() => {
+  console.info('[TenantContext] exitTenantInstance');
+
+  // 1. Restaurar branding y user previos (si los guardamos)
+  if (preImpersonationState) {
+    setCurrentTenantState(preImpersonationState.tenant);
+    setCurrentUserState(preImpersonationState.user);
+  }
+
+  // 2. Desactivar el tenant impersonado
+  setActiveTenantId(null);
+
+  // 3. Limpiar el estado guardado
+  setPreImpersonationState(null);
+
+  // El useEffect que depende de `activeTenantId` recarga los datos
+  // automáticamente (con el tenant del JWT, que es 'platform').
+}, [preImpersonationState]);
 
   // ─── Setters con referencias estables (useCallback) ───
   const setCurrentTenant = useCallback((tenant: any) => {
@@ -1570,64 +1709,126 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setSaasVpsConfig((prev) => ({ ...prev, ...config }));
   }, []);
 
-  // ─── fetchClients con useCallback y ref para tenantId ───
-  const fetchClients = useCallback(async () => {
-    try {
-      setLoadingClients(true);
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 1500);
-      const tenantId = currentTenantIdRef.current;
+  /**
+ * Carga los clientes del tenant activo.
+ *
+ * ─── Lógica de resolución del tenant ───
+ * 1. Si `activeTenantId` está seteado (Super Admin impersonando) → usarlo.
+ * 2. Si no → usar `currentUser.tenantId` (del JWT).
+ * 3. Si no hay ninguno → usar el fallback del ref (compatibilidad).
+ *
+ * ─── Headers ───
+ * Siempre envía el JWT en `Authorization: Bearer <token>`. Sin esto,
+ * `requireAuth` en el backend responde 401 y los datos no se recargan.
+ */
+const fetchClients = useCallback(async () => {
+  try {
+    setLoadingClients(true);
 
-      const res = await fetch(`/api/clients?tenantId=${tenantId}`, {
-        signal: controller.signal
-      }).catch(() => null);
+    // Fuente del tenant: activeTenantId > currentUser.tenantId > ref
+    const tenantId = activeTenantId ?? currentUser?.tenantId ?? currentTenantIdRef.current;
 
-      clearTimeout(timeoutId);
+    // Token JWT (para requireAuth)
+    const token = getAuthToken();
 
-      if (res && res.ok) {
-        const contentType = res.headers.get('content-type');
-        if (contentType && contentType.includes('application/json')) {
-          const data = await res.json();
-          if (Array.isArray(data) && data.length > 0) {
-            setClients(data);
-            return;
-          }
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s (más realista que 1.5s)
+
+    const res = await fetch(`/api/clients?tenantId=${encodeURIComponent(tenantId)}`, {
+      method: 'GET',
+      headers,
+      signal: controller.signal,
+    }).catch(() => null);
+
+    clearTimeout(timeoutId);
+
+    if (res && res.ok) {
+      const contentType = res.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        const body: unknown = await res.json();
+
+        // Type guard (Regla 29): validar shape antes de acceder a .data
+        if (
+          typeof body === 'object' &&
+          body !== null &&
+          'success' in body &&
+          (body as { success: unknown }).success === true &&
+          'data' in body &&
+          Array.isArray((body as { data: unknown }).data)
+        ) {
+          const data = (body as { data: any[] }).data;
+          setClients(data);
+        } else if (Array.isArray(body)) {
+          // Fallback: algunos endpoints devuelven array directo
+          setClients(body);
         }
       }
-    } catch (error) {
-      // Mantiene datos locales si falla la API
-    } finally {
-      setLoadingClients(false);
     }
-  }, []);
+  } catch (error) {
+    console.warn('[TenantContext] fetchClients error:', error);
+    // No hacemos fallback a mock (Regla 28). El array queda como estaba.
+  } finally {
+    setLoadingClients(false);
+  }
+}, [activeTenantId, currentUser?.tenantId]);
 
-  // ─── fetchPolicies con useCallback y ref para tenantId ───
-  const fetchPolicies = useCallback(async () => {
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 1500);
-      const tenantId = currentTenantIdRef.current;
+  /**
+ * Carga las pólizas del tenant activo.
+ * Misma lógica que `fetchClients` (ver comentarios arriba).
+ */
+const fetchPolicies = useCallback(async () => {
+  try {
+    const tenantId = activeTenantId ?? currentUser?.tenantId ?? currentTenantIdRef.current;
+    const token = getAuthToken();
 
-      const res = await fetch(`/api/policies?tenantId=${tenantId}`, {
-        signal: controller.signal
-      }).catch(() => null);
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
 
-      clearTimeout(timeoutId);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
 
-      if (res && res.ok) {
-        const contentType = res.headers.get('content-type');
-        if (contentType && contentType.includes('application/json')) {
-          const data = await res.json();
-          if (Array.isArray(data) && data.length > 0) {
-            setPolicies(data);
-            return;
-          }
+    const res = await fetch(`/api/policies?tenantId=${encodeURIComponent(tenantId)}`, {
+      method: 'GET',
+      headers,
+      signal: controller.signal,
+    }).catch(() => null);
+
+    clearTimeout(timeoutId);
+
+    if (res && res.ok) {
+      const contentType = res.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        const body: unknown = await res.json();
+
+        if (
+          typeof body === 'object' &&
+          body !== null &&
+          'success' in body &&
+          (body as { success: unknown }).success === true &&
+          'data' in body &&
+          Array.isArray((body as { data: unknown }).data)
+        ) {
+          setPolicies((body as { data: any[] }).data);
+        } else if (Array.isArray(body)) {
+          setPolicies(body);
         }
       }
-    } catch (error) {
-      // Mantiene datos locales si falla la API
     }
-  }, []);
+  } catch (error) {
+    console.warn('[TenantContext] fetchPolicies error:', error);
+  }
+}, [activeTenantId, currentUser?.tenantId]);
 
   const addClient = async (newClientData: any) => {
     const clientWithId = { ...newClientData, id: `cli-${Date.now()}`, tenant_id: currentTenant.id };
@@ -1787,17 +1988,36 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   // ─── CONTROL DE EJECUCIÓN ÚNICA ───
-  useEffect(() => {
-    const currentId = currentTenant.id || 'tenant-demo';
+/**
+ * Dispara el fetch de datos cuando cambia el tenant "activo".
+ *
+ * El tenant activo se define así:
+ *   - Si `activeTenantId` está seteado (Super Admin impersonando) → ese.
+ *   - Si no → el del JWT (`currentUser.tenantId`).
+ *
+ * El `ref` evita loops infinitos: solo refetchea si el ID cambió.
+ *
+ * IMPORTANTE: `fetchClients` y `fetchPolicies` están en las deps
+ * porque son `useCallback` con deps internas (`activeTenantId`).
+ * Cuando cambian, las funciones se recrean y este efecto se re-dispara.
+ */
+useEffect(() => {
+  const effectiveTenantId =
+    activeTenantId ??
+    currentUser?.tenantId ??
+    currentTenant.id ??
+    'tenant-demo';
 
-    if (fetchedTenantRef.current === currentId) {
-      return;
-    }
+  if (fetchedTenantRef.current === effectiveTenantId) {
+    return; // No cambió → no refetch
+  }
 
-    fetchedTenantRef.current = currentId;
-    fetchClients();
-    fetchPolicies();
-  }, [currentTenant.id, fetchClients, fetchPolicies]);
+  console.info('[TenantContext] Tenant cambió → refetch:', effectiveTenantId);
+  fetchedTenantRef.current = effectiveTenantId;
+
+  fetchClients();
+  fetchPolicies();
+}, [activeTenantId, currentUser?.tenantId, currentTenant.id, fetchClients, fetchPolicies]);
 
   const catalogs = {
     clientCategories: (currentTenant as any).clientCategories || (defaultTenant as any).clientCategories,
@@ -1885,6 +2105,11 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         saasTenants,
         saasTenantsLoading,
         refreshSaasTenants,
+
+         // ─── NUEVO (Sesión 3.5.B.4.e.3): Modo instancia ───
+        activeTenantId,
+        enterTenantInstance,
+        exitTenantInstance,
 
         // ─── SaaS Admins ───
         saasAdmins,

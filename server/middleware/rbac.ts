@@ -12,10 +12,25 @@
 //
 // Los permisos se leen de la tabla `role_permissions` y se cachean
 // por 5 minutos para evitar queries en cada request.
+//
+// ─── EXCEPCIÓN PARA SAAS SUPER ADMIN (Sesión 3.5.B.4.e.3) ───
+// El rol `saas_super_admin` es un rol de PLATAFORMA (no de tenant).
+// No tiene filas en `role_permissions` porque no opera como un rol
+// de negocio, sino como un administrador global del SaaS.
+//
+// Para que pueda operar sobre cualquier tenant (impersonación),
+// `requirePermission` lo trata como bypass total: siempre `next()`.
+// Esta misma regla ya está implementada en el frontend (`can()` del
+// TenantContext), por lo que sincronizamos backend con frontend.
 // ===========================================
 
 import type { Request, Response, NextFunction } from 'express';
 import { prisma } from '../db.js';
+
+// ─── Constantes ───
+
+/** Rol de plataforma que tiene bypass total en `requirePermission`. */
+const SAAS_SUPER_ADMIN_ROLE = 'saas_super_admin';
 
 // ─── Cache de permisos por rol ───
 type PermissionSet = Set<string>; // formato: "module:action"
@@ -72,6 +87,13 @@ async function loadPermissionsForRole(roleKey: string): Promise<PermissionSet> {
 /**
  * Middleware factory. Devuelve un middleware que exige un permiso específico.
  *
+ * ─── Comportamiento por tipo de usuario ───
+ * A) `saas_super_admin` → bypass total. Siempre `next()`.
+ *    Justificación: es un rol de plataforma, no de tenant. Debe poder
+ *    operar sobre TODOS los tenants en modo impersonación.
+ *
+ * B) Cualquier otro rol → consulta la matriz `role_permissions` y valida.
+ *
  * @example
  * router.post('/clients', requireAuth, requireTenant, requirePermission('clients', 'create'), handler)
  */
@@ -89,6 +111,14 @@ export function requirePermission(module: string, action: string) {
     }
 
     const roleKey = req.user.role;
+
+    // ─── Excepción: Super Admin de plataforma ───
+    // Tiene acceso total a TODOS los módulos y tenants.
+    // No requiere filas en `role_permissions`.
+    if (roleKey === SAAS_SUPER_ADMIN_ROLE) {
+      next();
+      return;
+    }
 
     try {
       const permissions = await loadPermissionsForRole(roleKey);
@@ -170,7 +200,7 @@ export function requirePlatformUser(
     return;
   }
 
-  if (req.user.role !== 'saas_super_admin') {
+  if (req.user.role !== SAAS_SUPER_ADMIN_ROLE) {
     res.status(403).json({
       success: false,
       error: 'Acceso denegado: se requiere rol de Super Admin de plataforma',

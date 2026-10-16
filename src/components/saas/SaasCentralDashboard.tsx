@@ -234,8 +234,48 @@ export const SaasCentralDashboard: React.FC = () => {
 
   const isGlobalSuperAdmin = currentUser?.email === 'victoraray8@gmail.com' || currentUser?.isSuperAdmin === true;
 
+    /**
+   * Maneja el clic en "Entrar a Instancia".
+   *
+   * Antes: solo cambiaba el `currentTenantId` (branding) y NO recargaba
+   * los datos del tenant seleccionado.
+   *
+   * Ahora: llama a `enterTenantInstance` del TenantContext, que:
+   *   1. Setea `activeTenantId` → los fetch piden datos del tenant real.
+   *   2. Actualiza el branding del tenant.
+   *   3. Dispara re-fetch de clients y policies.
+   *   4. Fuerza remount de la UI (vía AppContentKeyed en App.tsx).
+   *
+   * @param tenantId ID del tenant al que entrar.
+   */
   const handleTenantSwitch = (tenantId: string) => {
-    setCurrentTenantId(tenantId);
+    // Buscar los datos del tenant en la lista de saasTenants reales
+    const selectedTenant = (tenantContext?.saasTenants || []).find(
+      (t: any) => t.id === tenantId
+    );
+
+    // Extraer datos de branding del DTO real (si existen)
+        const brandingData = selectedTenant
+      ? {
+          name: selectedTenant.name,
+          primaryColor: selectedTenant.primaryColor,
+          // ⚠️ IMPORTANTE: el DTO usa `accentColor`, no `secondaryColor`.
+          // El tipo TenantBranding sí declara `secondaryColor`.
+          // Mapeamos accentColor → secondaryColor para que el branding
+          // del tenant se aplique correctamente.
+          secondaryColor: selectedTenant.accentColor ?? undefined,
+          logoUrl: selectedTenant.logoUrl ?? undefined,
+        }
+      : undefined;
+
+    // Llamar a la nueva función del contexto
+    const enterTenantInstance = tenantContext?.enterTenantInstance;
+    if (typeof enterTenantInstance === 'function') {
+      enterTenantInstance(tenantId, brandingData);
+    } else {
+      // Fallback: comportamiento antiguo (por si el contexto aún no expone la función)
+      setCurrentTenantId(tenantId);
+    }
   };
 
   // ─── Filtrado de tenants: por búsqueda + por estado ───

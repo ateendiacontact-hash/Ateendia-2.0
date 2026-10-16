@@ -59,7 +59,11 @@ const AppContent: React.FC = () => {
     setActiveConversationId,
     fetchClients,
     fetchPolicies,
-  } = useTenant();
+     // ─── NUEVO (Sesión 3.5.B.4.e.3): Modo impersonación ───
+  activeTenantId,
+// ─── NUEVO: Refrescar tenants reales tras login ───
+  refreshSaasTenants,
+} = useTenant();
 
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
@@ -83,32 +87,53 @@ const AppContent: React.FC = () => {
   const [landingPreviewTenant, setLandingPreviewTenant] = useState<TenantBranding | null>(null);
 
   // ─── Check auth on mount ───
-  // Deps vacías: se ejecuta UNA sola vez al montar.
-  // Las dependencias `setCurrentUser` y `setCurrentTenant` del contexto
-  // ya son estables (useCallback), pero las dejamos fuera para evitar
-  // re-ejecuciones en cascada.
+  /**
+   * Carga el estado del usuario autenticado desde `authService`.
+   *
+   * ⚠️ IMPORTANTE (Sesión 3.5.B.4.e.3):
+   * Cuando el Super Admin está impersonando un tenant (`activeTenantId !== null`),
+   * NO debemos sobrescribir `currentTenant` con el tenant original del login.
+   * Eso haría que el branding del tenant impersonado se pierda cada vez que
+   * el componente se remonta.
+   *
+   * Solución: chequear `activeTenantId` antes de llamar a `setCurrentTenant`.
+   */
   useEffect(() => {
-    const checkAuth = async () => {
-      const state = authService.getState();
-      if (state.isAuthenticated && state.user) {
-        setIsAuthenticated(true);
-        if (state.user) setCurrentUser(state.user);
-        if (state.tenant) setCurrentTenant(state.tenant);
-      }
-      setAuthChecked(true);
-    };
-    checkAuth();
-
-    // Suscribirse a cambios del authService
-    const unsubscribe = authService.subscribe((state) => {
-      setIsAuthenticated(state.isAuthenticated);
+  const checkAuth = async () => {
+    const state = authService.getState();
+    if (state.isAuthenticated && state.user) {
+      setIsAuthenticated(true);
       if (state.user) setCurrentUser(state.user);
-      if (state.tenant) setCurrentTenant(state.tenant);
-    });
+      if (state.tenant && activeTenantId === null) {
+        setCurrentTenant(state.tenant);
+      }
+      // ─── NUEVO: si es Super Admin, cargar tenants reales ───
+      // El JWT ya está en localStorage después del login exitoso,
+      // así que `refreshSaasTenants` puede funcionar.
+      if (state.user?.role === 'saas_super_admin') {
+        refreshSaasTenants();
+      }
+    }
+    setAuthChecked(true);
+  };
+  checkAuth();
 
-    return () => { unsubscribe(); };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Suscribirse a cambios del authService
+  const unsubscribe = authService.subscribe((state) => {
+    setIsAuthenticated(state.isAuthenticated);
+    if (state.user) setCurrentUser(state.user);
+    if (state.tenant && activeTenantId === null) {
+      setCurrentTenant(state.tenant);
+    }
+    // ─── NUEVO: mismo fix para la suscripción ───
+    if (state.isAuthenticated && state.user?.role === 'saas_super_admin') {
+      refreshSaasTenants();
+    }
+  });
+
+  return () => { unsubscribe(); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [activeTenantId]);
 
   const handleLoginSuccess = (mustResetPassword: boolean = false) => {
     setIsAuthenticated(true);
@@ -387,6 +412,22 @@ const AppContent: React.FC = () => {
   );
 };
 
+/**
+ * Componente principal de la aplicación.
+ *
+ * ─── Sesión 3.5.B.4.e.3 ───
+ * Se ELIMINÓ el wrapper `<AppContentKeyed>` que forzaba un remount de
+ * `<AppContent>` al cambiar el tenant activo. Ese remount generaba:
+ *   - Doble click requerido para entrar a una instancia.
+ *   - Reset del `activeTab` a 'dashboard'.
+ *   - Reset de `isAuthenticated` a false.
+ *   - 3 fetches simultáneos en cascada.
+ *
+ * El re-fetch de datos al cambiar de tenant ahora lo maneja el
+ * `useEffect` dentro de `TenantContext` (que depende de `activeTenantId`).
+ * Los componentes consumidores se re-renderizan automáticamente cuando
+ * `clients` y `policies` cambian de valor en el contexto.
+ */
 export default function App() {
   return (
     <TenantProvider>
