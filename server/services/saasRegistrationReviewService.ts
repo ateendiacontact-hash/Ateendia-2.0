@@ -10,10 +10,8 @@
  * - Auto-aprobar solicitudes DEMO (3.5.B.4.e.1): no requieren aprobación humana.
  *
  * Decisiones de seguridad (ver AGENTS.md):
- * - El password del admin que el usuario tipeó en el registro NO se
- *   transfiere al user creado. Se genera un password temporal aleatorio
- *   y se marca must_reset_password = true.
- * - El password temporal NUNCA se loguea ni se guarda en claro.
+ * - El password del admin que el usuario tipeó en el registro SE TRANSFIERE
+ *   al user creado (Opción B implementada). Se usa el hash original.
  * - El subdominio se valida contra una lista de reservados y se
  *   desambigua con sufijo numérico si hay colisión.
  * - Si la transacción falla en cualquier paso, TODO se revierte
@@ -23,6 +21,8 @@
 import { randomUUID, randomBytes } from 'crypto';
 import bcrypt from 'bcryptjs';
 import { prisma } from '../db.js';
+// IMPORTANTE: Importamos Prisma para poder usar Prisma.Decimal
+import { Prisma } from '@prisma/client';
 
 /** Rondas de bcrypt. Mismas que en saasRegistrationService. */
 const BCRYPT_ROUNDS = 10;
@@ -33,16 +33,12 @@ const DEMO_GRACE_PERIOD_DAYS = 30;
 /** Días de gracia para pago de suscripciones pagas. */
 const PAID_GRACE_PERIOD_DAYS = 5;
 
-/** Longitud del password temporal generado. */
-const TEMP_PASSWORD_LENGTH = 16;
-
 /** Longitud mínima y máxima del subdominio (RFC 1035). */
 const SUBDOMAIN_MIN_LENGTH = 3;
 const SUBDOMAIN_MAX_LENGTH = 63;
 
 /**
  * Subdominios reservados que NO pueden ser asignados a ningún tenant.
- * Incluye nombres comunes de infraestructura, correo, y servicios.
  */
 const RESERVED_SLUGS = new Set<string>([
   'www', 'api', 'admin', 'app', 'mail', 'smtp', 'ftp', 'webmail',
@@ -71,55 +67,27 @@ export class RegistrationReviewError extends Error {
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
-/**
- * Genera un slug válido a partir de un nombre de empresa.
- *
- * Reglas:
- * - Lowercase.
- * - Sin acentos (normaliza NFD y elimina marcas diacríticas).
- * - Solo [a-z0-9-].
- * - Colapsa guiones repetidos.
- * - Trim de guiones al inicio/fin.
- * - Trunca a SUBDOMAIN_MAX_LENGTH.
- *
- * @returns slug limpio. Puede ser vacío si el input no tenía
- *          caracteres válidos; el caller debe manejar ese caso.
- */
 export function generateSlug(name: string): string {
   const normalized = name
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '') // elimina diacríticos
+    .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')     // todo lo no-alfanumérico → guion
-    .replace(/-+/g, '-')             // colapsa guiones
-    .replace(/^-|-$/g, '');          // trim guiones
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
 
   return normalized.slice(0, SUBDOMAIN_MAX_LENGTH);
 }
 
-/**
- * Encuentra un subdominio único para un tenant.
- *
- * Algoritmo:
- * 1. Genera el slug base desde el nombre.
- * 2. Si está vacío o es muy corto, usa 'tenant-' + 6 chars random.
- * 3. Si está en RESERVED_SLUGS, agrega sufijo aleatorio.
- * 4. Verifica contra la DB. Si ya existe, agrega -2, -3, etc.
- *
- * @throws RegistrationReviewError si no puede encontrar un slug único
- *         tras 100 intentos (improbable).
- */
 export async function findUniqueSubdomain(
   companyName: string,
 ): Promise<string> {
   let base = generateSlug(companyName);
 
-  // Fallback si el slug quedó vacío o muy corto
   if (base.length < SUBDOMAIN_MIN_LENGTH || RESERVED_SLUGS.has(base)) {
     base = `tenant-${randomBytes(3).toString('hex')}`;
   }
 
-  // Primer intento: el slug base tal cual
   const existing = await prisma.tenants.findUnique({
     where: { subdomain: base },
     select: { id: true },
@@ -129,7 +97,6 @@ export async function findUniqueSubdomain(
     return base;
   }
 
-  // Colisión: probar con sufijo numérico
   for (let i = 2; i <= 100; i++) {
     const candidate = `${base}-${i}`.slice(0, SUBDOMAIN_MAX_LENGTH);
     const conflict = await prisma.tenants.findUnique({
@@ -148,27 +115,8 @@ export async function findUniqueSubdomain(
   );
 }
 
-/**
- * Genera un password temporal aleatorio (16 chars base64url).
- * NUNCA se loguea ni se guarda en claro: se hashea inmediatamente.
- */
-export function generateTempPassword(): string {
-  return randomBytes(TEMP_PASSWORD_LENGTH)
-    .toString('base64url')
-    .slice(0, TEMP_PASSWORD_LENGTH);
-}
-
 // ─── Lazy check de expiración ───────────────────────────────────────
 
-/**
- * Marca como 'expired' las solicitudes pending cuyo expires_at ya pasó.
- *
- * Se llama ANTES de listar solicitudes, para que el Super Admin vea
- * el estado real. En el futuro, un cron job puede llamar a esta misma
- * función periódicamente.
- *
- * @returns cantidad de filas actualizadas.
- */
 export async function expireStaleRegistrations(): Promise<number> {
   const result = await prisma.saas_registration_requests.updateMany({
     where: {
@@ -216,17 +164,9 @@ export interface ListRegistrationsResult {
   expiredCount: number;
 }
 
-/**
- * Lista solicitudes de registro con filtro por status y paginación.
- *
- * Antes de listar, ejecuta un lazy check que marca como 'expired' las
- * solicitudes pending cuyo expires_at ya pasó. Esto evita necesitar un
- * cron job en el MVP.
- */
 export async function listRegistrations(
   filters: ListRegistrationsFilters = {},
 ): Promise<ListRegistrationsResult> {
-  // 1. Lazy check de expiración
   const expiredCount = await expireStaleRegistrations();
 
   const where =
@@ -237,7 +177,6 @@ export async function listRegistrations(
   const limit = Math.min(filters.limit ?? 50, 200);
   const offset = Math.max(filters.offset ?? 0, 0);
 
-  // 2. Query paginada
   const [rows, total] = await Promise.all([
     prisma.saas_registration_requests.findMany({
       where,
@@ -248,7 +187,6 @@ export async function listRegistrations(
     prisma.saas_registration_requests.count({ where }),
   ]);
 
-  // 3. Mapear a un DTO más limpio (sin hashes ni metadata interna)
   const items = rows.map((r) => ({
     id: r.id,
     type: r.type,
@@ -280,38 +218,14 @@ export interface ApproveRegistrationResult {
   userId: string;
   subscriptionId: string;
   subdomain: string;
-  /** Password temporal generado. Se devuelve UNA SOLA VEZ para que el
-   *  caller lo muestre/emails al admin. NUNCA se persiste en claro. */
   tempPassword: string;
 }
 
-/**
- * Aprueba una solicitud de registro.
- *
- * Flujo (TODO dentro de una transacción atómica):
- * 1. Leer la solicitud y validar que esté pending y no expirada.
- * 2. Generar subdominio único desde company_name.
- * 3. Crear tenant (status: 'active' o 'demo' según type).
- * 4. Generar password temporal + hashearlo.
- * 5. Crear user admin (rol tenant_admin, must_reset_password = true).
- * 6. Crear tenant_subscription con plan_id, plan_name, billing_cycle.
- * 7. Actualizar la request: status='approved', created_tenant_id,
- *    created_user_id, reviewed_by, reviewed_at, review_notes.
- *
- * Si cualquier paso falla, TODO se revierte (no hay tenants huérfanos).
- *
- * @param reviewerUserId - ID del usuario que aprueba. `null` para
- *        auto-aprobaciones del sistema (ej. registros DEMO).
- *
- * @throws RegistrationReviewError si la request no existe, no está
- *         pending, o si algo falla en la transacción.
- */
 export async function approveRegistration(
   requestId: string,
   reviewerUserId: string | null,
   notes?: string,
 ): Promise<ApproveRegistrationResult> {
-  // 1. Leer y validar (fuera de la transacción para fail-fast)
   const request = await prisma.saas_registration_requests.findUnique({
     where: { id: requestId },
   });
@@ -340,30 +254,17 @@ export async function approveRegistration(
     );
   }
 
-  // ─── Detección de modo: upgrade vs registro nuevo ───────────────
-  //
-  // Una solicitud es un UPGRADE si:
-  //   - type === 'upgrade' (marcado por saasUpgradeService)
-  //   - created_tenant_id viene pre-poblado (vínculo al tenant existente)
-  //
-  // En modo upgrade NO se crean tenant ni user. Solo se actualiza el
-  // tenant existente y se hace UPSERT de la subscription. El user admin
-  // ya existe y mantiene su password (no se toca).
   const isUpgrade = request.type === 'upgrade';
 
-  // 2. Generar subdominio y password temporal (solo en modo registro)
-  //    En modo upgrade, el tenant ya tiene subdominio y el user ya tiene
-  //    password. No generamos nada.
   const now = new Date();
   const subdomain = isUpgrade ? null : await findUniqueSubdomain(request.company_name);
-  const tempPassword = isUpgrade ? null : generateTempPassword();
-  const tempPasswordHash = tempPassword
-    ? await bcrypt.hash(tempPassword, BCRYPT_ROUNDS)
-    : null;
+  
+  // YA NO GENERAMOS PASSWORD TEMPORAL
+  const tempPassword = isUpgrade ? null : '(password original)';
+  const tempPasswordHash = null; // Lo tomamos del request directamente
 
-  // 3-7. Variables comunes
   const tenantId = isUpgrade ? request.created_tenant_id : randomUUID();
-  const userId = isUpgrade ? null : randomUUID(); // se sobreescribe tras el tx si upgrade
+  const userId = isUpgrade ? null : randomUUID();
   const subscriptionId = randomUUID();
 
   if (isUpgrade && !tenantId) {
@@ -374,13 +275,11 @@ export async function approveRegistration(
     );
   }
 
-  // Calcular renewal_date según billing_cycle
   const renewalDays = request.billing_cycle === 'yearly' ? 365 : 30;
   const renewalDate = new Date(
     now.getTime() + renewalDays * 24 * 60 * 60 * 1000,
   );
 
-  // ─── Modo upgrade: pre-cargar tenant + user admin existentes ────
   let upgradeTenantExists = false;
   let upgradeAdminUserId: string | null = null;
 
@@ -412,13 +311,9 @@ export async function approveRegistration(
     upgradeAdminUserId = adminUser.id;
   }
 
-  // ─── Transacción atómica ────────────────────────────────────────
   try {
     await prisma.$transaction(async (tx) => {
       if (isUpgrade) {
-        // ── MODO UPGRADE ──────────────────────────────────────────
-        // El tenant ya existe. Solo lo activamos y limpiamos los
-        // marcadores de demo.
         await tx.tenants.update({
           where: { id: tenantId! },
           data: {
@@ -430,12 +325,6 @@ export async function approveRegistration(
           },
         });
 
-        // El user admin ya existe: NO se toca. Solo registramos su id
-        // en la solicitud para trazabilidad.
-        // (upgradeAdminUserId ya lo tenemos)
-
-        // Subscription: UPSERT porque el tenant demo pudo haber tenido
-        // una subscription previa (creada al aprobar el registro demo).
         await tx.tenant_subscriptions.upsert({
           where: { tenant_id: tenantId! },
           create: {
@@ -467,12 +356,10 @@ export async function approveRegistration(
           },
         });
 
-        // Actualizar la solicitud
         await tx.saas_registration_requests.update({
           where: { id: requestId },
           data: {
             status: 'approved',
-            // created_tenant_id ya estaba seteado (vínculo del upgrade)
             created_user_id: upgradeAdminUserId,
             reviewed_by: reviewerUserId,
             reviewed_at: now,
@@ -481,7 +368,6 @@ export async function approveRegistration(
           },
         });
       } else {
-        // ── MODO REGISTRO NUEVO (comportamiento original) ─────────
         const isDemo = request.type === 'demo';
         const demoExpiresAt = isDemo
           ? new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000)
@@ -492,6 +378,26 @@ export async function approveRegistration(
                 (14 + DEMO_GRACE_PERIOD_DAYS) * 24 * 60 * 60 * 1000,
             )
           : null;
+
+        // ─── BUSCAR EL PLAN "DEMO FULL" O EL MÁS ALTO ───────────────────
+        let planIdToAssign = request.plan_id;
+        let planNameToAssign = request.plan_name;
+        let planPrice = request.price_amount;
+
+        if (isDemo) {
+          // Buscamos el plan activo con el max_users más alto
+          const bestPlan = await tx.saas_plans.findFirst({
+            where: { is_active: true },
+            orderBy: { max_users: 'desc' }
+          });
+
+          if (bestPlan) {
+            planIdToAssign = bestPlan.id;
+            planNameToAssign = `${bestPlan.name} (Demo)`;
+            // CORRECCIÓN TS2322: Usar Prisma.Decimal en lugar de number
+            planPrice = new Prisma.Decimal(0);
+          }
+        }
 
         // Crear tenant
         await tx.tenants.create({
@@ -520,8 +426,10 @@ export async function approveRegistration(
             tenant_id: tenantId!,
             name: request.admin_name,
             email: request.admin_email,
-            password_hash: tempPasswordHash!,
-            must_reset_password: true,
+            // Usamos el hash que ya guardó el formulario de registro
+            password_hash: request.admin_password_hash, 
+            // Ya no forzamos el reseteo
+            must_reset_password: false, 
             role: 'tenant_admin',
             phone: request.admin_phone,
             status: 'active',
@@ -532,15 +440,56 @@ export async function approveRegistration(
           },
         });
 
-        // Crear subscription
+        // ─── ASIGNAR PERMISOS AL ROL TENANT_ADMIN ─────────────────────
+        let tenantAdminRole = await tx.roles.findFirst({
+          where: { tenant_id: tenantId, key: 'tenant_admin' }
+        });
+
+        if (!tenantAdminRole) {
+          tenantAdminRole = await tx.roles.create({
+            data: {
+              id: randomUUID(),
+              tenant_id: tenantId,
+              key: 'tenant_admin',
+              name: 'Administrador de Empresa',
+              description: 'Rol por defecto con acceso total a su propio tenant',
+              is_system: true,
+              is_platform_role: false,
+            }
+          });
+        }
+
+        const modulos = ['clients', 'policies', 'users', 'banking', 'whatsapp', 'pipelines'];
+        for (const mod of modulos) {
+          await tx.role_permissions.upsert({
+            where: {
+              // CORRECCIÓN TS2353: Nombre correcto del compound unique
+              role_id_module_action: {
+                role_id: tenantAdminRole.id,
+                module: mod,
+                action: 'view'
+              }
+            },
+            create: {
+              id: randomUUID(),
+              role_id: tenantAdminRole.id,
+              module: mod,
+              action: 'view',
+              allowed: true,
+            },
+            update: { allowed: true }
+          });
+        }
+
+        // Crear subscription (ahora con el plan mejorado si es demo)
         await tx.tenant_subscriptions.create({
           data: {
             id: subscriptionId,
             tenant_id: tenantId!,
-            plan: request.plan_name,
-            plan_id: request.plan_id,
+            plan: planNameToAssign,
+            plan_id: planIdToAssign,
             status: 'active',
-            monthly_price: request.price_amount,
+            monthly_price: planPrice,
             renewal_date: renewalDate,
             start_date: now,
             billing_cycle: request.billing_cycle,
@@ -586,25 +535,9 @@ export async function approveRegistration(
 
 // ─── Auto-aprobación de DEMO ────────────────────────────────────────
 
-/**
- * Auto-aprueba una solicitud de registro DEMO.
- *
- * A diferencia de `approveRegistration`, esta función NO requiere un
- * reviewer humano (userId). Es llamada automáticamente por el servicio
- * de registro cuando `type === 'demo'`.
- *
- * Reutiliza TODA la lógica de la transacción atómica de
- * `approveRegistration`, pero con `reviewed_by = NULL` y una nota
- * automática que indica que fue auto-aprobada por el sistema.
- *
- * @param requestId - ID de la solicitud a auto-aprobar.
- * @returns Resultado con tenantId, userId, subscriptionId, subdomain.
- * @throws RegistrationReviewError si la solicitud no existe o no es demo.
- */
 export async function autoApproveDemoRegistration(
   requestId: string,
 ): Promise<ApproveRegistrationResult> {
-  // Leemos la solicitud para validar que sea DEMO.
   const request = await prisma.saas_registration_requests.findUnique({
     where: { id: requestId },
   });
@@ -633,11 +566,9 @@ export async function autoApproveDemoRegistration(
     );
   }
 
-  // Reutilizamos la lógica de aprobación pasando reviewerUserId = null
-  // y una nota automática.
   return approveRegistration(
     requestId,
-    null, // reviewerUserId = null → auto-aprobación del sistema
+    null,
     'Auto-aprobado por el sistema: registro DEMO sin pago que validar.',
   );
 }
@@ -650,12 +581,6 @@ export interface RejectRegistrationResult {
   reviewedAt: string;
 }
 
-/**
- * Rechaza una solicitud de registro.
- *
- * @throws RegistrationReviewError si la request no existe o no está
- *         pending (no se puede rechazar una ya aprobada/rechazada).
- */
 export async function rejectRegistration(
   requestId: string,
   reviewerUserId: string,

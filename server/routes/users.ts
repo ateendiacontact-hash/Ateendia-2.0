@@ -30,6 +30,7 @@ import {
   changeUserRole,
   resetUserPassword,
 } from '../services/usersService.js';
+import { checkLimit } from '../middleware/checkLimits.js';
 
 export const usersRouter = Router();
 
@@ -126,6 +127,7 @@ usersRouter.post(
   '/',
   requireAuth,
   requireTenant,
+  checkLimit('users'),
   requirePermission('users', 'invite'),
   auditLog('CREATE', 'Usuarios'),
   async (req, res, next) => {
