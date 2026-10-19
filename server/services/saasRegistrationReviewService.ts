@@ -16,6 +16,20 @@
  *   desambigua con sufijo numérico si hay colisión.
  * - Si la transacción falla en cualquier paso, TODO se revierte
  *   (no quedan tenants huérfanos sin user, ni users sin subscription).
+ *
+ * --- Sesión #28: fix BUG-DEMO-PERMISSIONS-FIX ---
+ * - El rol `tenant_admin` del nuevo tenant ya NO hardcodea la lista de
+ *   módulos ni hace `upsert` con compound unique (que fallaba).
+ * - Ahora se COPIAN (snapshot) los permisos del rol GLOBAL `tenant_admin`
+ *   (tenant_id = NULL), que es la plantilla que consume `rbac.ts`.
+ * - Si la plantilla global no existe o no tiene permisos, se aborta la
+ *   transacción completa para no crear un tenant inutilizable (0 permisos).
+ *
+ * --- Sesión #28: sub-fase 3.5.B.4.g (SMTP transaccional SaaS) ---
+ * - Se importa y llama a `sendWelcomeEmail()` FUERA de la transacción.
+ * - Si el email falla, NO se revierte el tenant: solo se loguea el error.
+ * - Si es un UPGRADE, no se envía email (el usuario ya existe y ya recibió
+ *   su bienvenida en el registro original).
  */
 
 import { randomUUID, randomBytes } from 'crypto';
@@ -23,6 +37,7 @@ import bcrypt from 'bcryptjs';
 import { prisma } from '../db.js';
 // IMPORTANTE: Importamos Prisma para poder usar Prisma.Decimal
 import { Prisma } from '@prisma/client';
+import { sendWelcomeEmail } from './emailService.js';
 
 /** Rondas de bcrypt. Mismas que en saasRegistrationService. */
 const BCRYPT_ROUNDS = 10;
@@ -440,46 +455,93 @@ export async function approveRegistration(
           },
         });
 
-        // ─── ASIGNAR PERMISOS AL ROL TENANT_ADMIN ─────────────────────
-        let tenantAdminRole = await tx.roles.findFirst({
-          where: { tenant_id: tenantId, key: 'tenant_admin' }
+        // ─── CREAR ROL TENANT_ADMIN DEL NUEVO TENANT (heredando permisos) ─
+        //
+        // Estrategia (Sesión #28, fix BUG-DEMO-PERMISSIONS-FIX):
+        //
+        // 1. El rol `tenant_admin` del tenant SIEMPRE se crea (uno por tenant),
+        //    porque en Fase B.6 cada tenant podrá customizar sus permisos.
+        //
+        // 2. Sus permisos NO se hardcodean. Se COPIAN (snapshot) del rol
+        //    GLOBAL `tenant_admin` (tenant_id = NULL), que es la fuente de
+        //    verdad que consume `rbac.ts` en `loadPermissionsForRole()`.
+        //
+        // 3. Si por alguna razón el rol global no existiera (DB recién
+        //    inicializada sin seed), la transacción se aborta con un error
+        //    explícito. Esto es preferible a crear un tenant sin permisos,
+        //    que luego daría 403 en todos los endpoints.
+        //
+        // Por qué esto resuelve el bug:
+        //   - Antes: el `upsert` fallaba porque el rol por tenant recién
+        //     creado no matcheaba el compound unique esperado por Prisma
+        //     o porque el rol global no existía para servir de plantilla.
+        //   - Ahora: primero creamos el rol (commit dentro de la tx),
+        //     luego COPIAMOS filas ya existentes del rol global con
+        //     `createMany` (bulk insert, sin upsert complejo).
+
+        // Paso 3.1 — Crear el rol tenant_admin del nuevo tenant.
+        // Usamos `create` directo (no `findFirst + create`) porque acabamos
+        // de crear el tenant, así que este rol NO puede existir todavía.
+        const tenantAdminRole = await tx.roles.create({
+          data: {
+            id: randomUUID(),
+            tenant_id: tenantId!,
+            key: 'tenant_admin',
+            name: 'Administrador de Empresa',
+            description:
+              'Rol por defecto con acceso total a su propio tenant. ' +
+              'Permisos heredados del rol global tenant_admin.',
+            is_system: true,
+            is_platform_role: false,
+          },
         });
 
-        if (!tenantAdminRole) {
-          tenantAdminRole = await tx.roles.create({
-            data: {
-              id: randomUUID(),
-              tenant_id: tenantId,
-              key: 'tenant_admin',
-              name: 'Administrador de Empresa',
-              description: 'Rol por defecto con acceso total a su propio tenant',
-              is_system: true,
-              is_platform_role: false,
-            }
-          });
+        // Paso 3.2 — Buscar el rol GLOBAL tenant_admin (plantilla).
+        const globalTemplateRole = await tx.roles.findFirst({
+          where: { tenant_id: null, key: 'tenant_admin' },
+          include: {
+            role_permissions: {
+              where: { allowed: true },
+              select: { module: true, action: true },
+            },
+          },
+        });
+
+        // Paso 3.3 — Guard clause: sin plantilla global no podemos seguir.
+        // Preferimos abortar la transacción completa antes que crear un
+        // tenant con 0 permisos (lo dejaría inutilizable).
+        if (!globalTemplateRole) {
+          throw new RegistrationReviewError(
+            'No existe el rol global tenant_admin (tenant_id = NULL). ' +
+              'Ejecutá `npx tsx server/prisma/seedTenantAdminRole.ts` antes de aprobar registros.',
+            'GLOBAL_TENANT_ADMIN_ROLE_MISSING',
+            500,
+          );
         }
 
-        const modulos = ['clients', 'policies', 'users', 'banking', 'whatsapp', 'pipelines'];
-        for (const mod of modulos) {
-          await tx.role_permissions.upsert({
-            where: {
-              // CORRECCIÓN TS2353: Nombre correcto del compound unique
-              role_id_module_action: {
-                role_id: tenantAdminRole.id,
-                module: mod,
-                action: 'view'
-              }
-            },
-            create: {
-              id: randomUUID(),
-              role_id: tenantAdminRole.id,
-              module: mod,
-              action: 'view',
-              allowed: true,
-            },
-            update: { allowed: true }
-          });
+        // Paso 3.4 — Copiar (snapshot) los permisos del rol global al rol
+        // del nuevo tenant. `createMany` es la forma más eficiente y evita
+        // el `upsert` con compound unique que causaba el bug.
+        const permissionsToCopy = globalTemplateRole.role_permissions;
+
+        if (permissionsToCopy.length === 0) {
+          throw new RegistrationReviewError(
+            'El rol global tenant_admin no tiene permisos configurados. ' +
+              'Ejecutá `npx tsx server/prisma/seedTenantAdminRole.ts` para poblarlos.',
+            'GLOBAL_TENANT_ADMIN_PERMISSIONS_EMPTY',
+            500,
+          );
         }
+
+        await tx.role_permissions.createMany({
+          data: permissionsToCopy.map((perm) => ({
+            id: randomUUID(),
+            role_id: tenantAdminRole.id,
+            module: perm.module,
+            action: perm.action,
+            allowed: true,
+          })),
+        });
 
         // Crear subscription (ahora con el plan mejorado si es demo)
         await tx.tenant_subscriptions.create({
@@ -521,6 +583,49 @@ export async function approveRegistration(
       'APPROVAL_TRANSACTION_FAILED',
       500,
     );
+  }
+
+  // ─── ENVIAR EMAIL DE BIENVENIDA (fuera de la transacción) ─────────
+  //
+  // ¿Por qué fuera de la transacción?
+  // - Porque si el SMTP falla, NO queremos revertir la creación del
+  //   tenant. El usuario ya está creado y puede loguearse. El email es
+  //   un canal de notificación secundario.
+  // - Además, la transacción debe ser lo más corta posible para evitar
+  //   locks en la DB.
+  //
+  // ¿Por qué no await bloqueante?
+  // - Hacemos await para poder loguear el resultado (enviado / falló)
+  //   en la consola del servidor. Pero si falla, NO lanzamos error:
+  //   solo logueamos.
+  //
+  // ¿Por qué no enviamos email en UPGRADE?
+  // - El usuario ya existe (es un upgrade de demo a pago). Ya recibió
+  //   su email de bienvenida cuando se creó su cuenta originalmente.
+  // - No tiene sentido reenviar el correo de bienvenida en este caso.
+
+  if (!isUpgrade) {
+    const isDemo = request.type === 'demo';
+    const loginUrl = process.env.FRONTEND_URL
+      ? `${process.env.FRONTEND_URL}/login`
+      : 'http://localhost:3100';
+
+    const emailResult = await sendWelcomeEmail({
+      to: request.admin_email,
+      adminName: request.admin_name,
+      companyName: request.company_name,
+      loginUrl,
+      isDemo,
+      demoExpiresAt: isDemo
+        ? new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000)
+        : null,
+    });
+
+    if (!emailResult.sent) {
+      console.warn(
+        `[approveRegistration] Email de bienvenida NO enviado a ${request.admin_email}: ${emailResult.error ?? 'desconocido'}`,
+      );
+    }
   }
 
   return {

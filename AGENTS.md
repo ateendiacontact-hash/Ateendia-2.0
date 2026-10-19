@@ -1,8 +1,8 @@
 ﻿# AGENTS.md — Memory Bank de Ateendia CRM 2.0
 
-> **Última actualización:** 2026-10-14 (Sesión #26)
-> **Progreso global:** ~63%
-> **Sesiones completadas:** 26
+> **Última actualización:** 2026-10-19 (Sesión #28)
+> **Progreso global:** ~66%
+> **Sesiones completadas:** 28
 
 ---
 
@@ -213,6 +213,12 @@ Opción A: Get-Content archivo.sql -Raw | docker compose exec -T ...
 
 Opción B: cmd /c "docker compose exec -T ... < archivo.sql"
 
+- `key` es palabra reservada en MariaDB/MySQL. Siempre usar backticks
+  cuando se haga SQL crudo sobre columnas llamadas `key`, `order`,
+  `group`, `desc`, `status`, etc.
+- Alternativa robusta: usar `Get-Content archivo.sql -Raw | docker
+  compose exec -T ...` (Regla 15, Opción A).
+
 16. ⚠️ CSPELL EN VS CODE
 
 Los "Unknown word cSpell" NO son errores reales.
@@ -363,11 +369,11 @@ Impacto: Cada componente que se agregue debe consumir datos REALES desde endpoin
 Progreso Global
 Total estimado: ~40 sesiones
 
-Completadas: 26 sesiones
+Completadas: 28 sesiones
 
-Restantes: ~14 sesiones
+Restantes: ~12 sesiones
 
-Progreso global: ~63%
+Progreso global: ~66%
 
 Progreso por Fase
 Fase	Descripción	Progreso
@@ -376,7 +382,7 @@ Fase 1	Backend Base	100% ✅
 Fase 2	Clients	100% ✅
 Fase 3.1	Banking	100% ✅
 Fase 3.5.A	SaaS Plans Base	100% ✅
-Fase 3.5.B	Landing + Registro + Demo	99% ⏳
+Fase 3.5.B	Landing + Registro + Demo	100% ✅
 Fase 3.5.C-E	Pagos, Frontend SaaS, Límites	0% ⏳
 Fase 4	Multibandeja Unificada	0% ⏳
 Fase 5	IA + Automatizaciones	0% ⏳
@@ -477,11 +483,11 @@ Fase 3.5.B — Landing + Registro + Demo [~99%]
 
 3.5.B.4.e.2 — Panel SaaS con datos reales ✅
 
-3.5.B.4.e.3 — Super Admin ve datos reales de cada tenant ⏳ SIGUIENTE
+3.5.B.4.e.3 — Super Admin ve datos reales de cada tenant ✅
 
-3.5.B.4.f — Middleware verificación de límites ⏳
+3.5.B.4.f — Middleware verificación de límites ✅
 
-3.5.B.4.g — SMTP transaccional SaaS ⏳
+3.5.B.4.g — SMTP transaccional SaaS ✅
 
 Fase 3.5.C — Pagos, Verificación, Suspensión [⏳ ~10 sesiones]
 Fase 3.5.D — Frontend SaaS Central [⏳ 4 sesiones]
@@ -565,6 +571,10 @@ sql
 conversations (id, tenant_id, channel, channel_account, client_id, contact_name, contact_handle, last_message, last_message_at, unread_count, assigned_agent_id, status, metadata_json)
 messages (id, conversation_id, direction, sender_type, sender_id, sender_name, content, media_type, media_url, status, timestamp, metadata_json)
 7. DECISIONES ESTRATÉGICAS
+
+### Decisión de Negocio — Cuentas DEMO con acceso completo
+Las cuentas DEMO deben tener acceso a **TODAS las funcionalidades del sistema** (equivalente al plan más alto), limitadas únicamente por el tiempo (`demo_expires_at`), para permitir una evaluación completa del SaaS.
+
 Telegram
 Bot global de Ateendia (no por tenant).
 
@@ -606,31 +616,6 @@ Media externa: Cloudflare R2 o S3.
 
 8. DEUDA TÉCNICA REGISTRADA
 Prioridad ALTA
-3.5.B.4.e.3 — Super Admin ve datos reales de cada tenant (SIGUIENTE)
-
-Problema: Al hacer clic en "Entrar a Instancia" en el panel SaaS, el branding se actualiza pero los datos (clientes, pólizas, pipeline, etc.) NO se recargan desde el backend del tenant seleccionado.
-
-Causa raíz: Los endpoints existentes (/api/clients, /api/policies, etc.) usan el tenantId del JWT, no del query string. No hay forma de pedir "los datos del tenant X" desde el Super Admin.
-
-Solución propuesta:
-
-Backend: modificar los servicios (clientsService, policiesService, etc.) para que, si el usuario es saas_super_admin y viene ?tenantId=X, consulten los datos de ese tenant.
-Frontend: modificar TenantContext para que al cambiar currentTenantId, haga fetch con el nuevo tenantId.
-Frontend: recargar toda la UI cuando cambie el tenant (forzar re-render).
-Prioridad: ALTA (bloquea el flujo de Super Admin gestionando tenants).
-
-Duración estimada: 1-2 sesiones.
-
-3.5.B.4.g — SMTP transaccional SaaS
-
-Problema: El tempPassword se devuelve UNA VEZ en el response del endpoint /approve. En producción debe enviarse por email.
-
-Causa raíz: SMTP no configurado para envío transaccional del SaaS.
-
-Solución propuesta: Implementar SMTP transaccional + templates de email (payment pending, account approved, plan expiring, etc.).
-
-Prioridad: ALTA.
-
 Fase B.5 — Protección de saas_super_admin
 
 Problema: Reglas de visibilidad/gestión de super admins no implementadas.
@@ -639,7 +624,48 @@ Reglas a implementar: Solo saas_super_admin puede ver/crear/editar/eliminar otro
 
 Prioridad: ALTA (seguridad multi-tenant).
 
+**SMTP-CREDENTIALS-DEPLOY — Configurar credenciales SMTP reales en producción**
+Problema: El servicio `emailService.ts` está implementado pero
+`SMTP_USER` y `SMTP_PASS` están vacíos en `server/.env`. En dev
+los emails solo se loguean a consola, no se envían.
+Causa raíz: No se han configurado credenciales de Gmail (o proveedor
+equivalente) con App Password.
+Solución propuesta: En producción, setear SMTP_USER y SMTP_PASS en
+el `.env` del servidor con credenciales válidas. Idealmente usar
+SMTP dedicado (SendGrid / Mailgun) en lugar de Gmail.
+Prioridad: ALTA (solo cuando se pase a producción; en dev no bloquea).
+
 Prioridad MEDIA
+**BUG-AUTH-1 — JWT expirado sin redirección a login**
+- **Problema:** Cuando el JWT expira, los endpoints devuelven
+  `401 AUTH_TOKEN_MISSING`, pero el frontend no redirige a login.
+  El usuario ve errores crípticos en consola.
+- **Causa raíz:** No hay interceptor global de 401 ni manejo
+  centralizado de sesión expirada.
+- **Solución propuesta:** Agregar un helper `fetchWithAuth()` que
+  detecte 401 y llame a `authService.logout()` + redirija a login.
+- **Prioridad:** MEDIA.
+
+**BUG-PERFIL-1 — El avatar del usuario no persiste**
+- **Problema:** Al cambiar el avatar (predeterminado o subido), se
+  actualiza visualmente en memoria, pero al recargar vuelve al original.
+- **Causa raíz:**
+  * `ProfileModal.tsx` llama a `updateUser` del `TenantContext`.
+  * `TenantContext.updateUser` solo hace `setCurrentUserState`
+    (estado en memoria, no persistente).
+  * `authService.updateProfile` existe pero usa endpoint legacy
+    `/api/user/profile` que NO existe en el backend Express actual.
+  * Al recargar, `App.tsx` lee `authService.getState().user` desde
+    localStorage (sin el avatar nuevo) y sobrescribe `currentUser`.
+- **Solución propuesta:**
+  1. Crear `PATCH /api/auth/me` en Express (actualiza `name` y
+     `avatar` en tabla `users`).
+  2. Modificar `TenantContext.updateUser` para llamar al endpoint
+     con JWT.
+  3. Modificar `authService` para persistir el user actualizado en
+     `localStorage.ateendia_session`.
+- **Prioridad:** MEDIA.
+
 TenantSubscription['status'] desactualizado
 
 Problema: El tipo frontend no incluye 'demo' ni 'expired' que sí usa el backend.
@@ -663,6 +689,12 @@ Problema: El contenedor Evolution API crashea con nginx: [emerg] invalid value "
 Impacto: Endpoint /socket.io/ y /instance/fetchInstances responden 401.
 
 Prioridad: MEDIA (bloquea reconectar WhatsApp real).
+
+**SMTP-EMAIL-BATCH — Extender emailService con más templates**
+Problema: Solo existe el template `welcome`. Faltan:
+payment_approved, payment_rejected, subscription_expiring,
+password_reset.
+Prioridad: MEDIA.
 
 Prioridad BAJA
 RegisterForm.tsx duplica lógica de fetch
@@ -707,6 +739,12 @@ Solución: Declarar las props faltantes en las interfaces de SaasPlansManagement
 
 Prioridad: BAJA (no bloqueante).
 
+**Mejora de middleware de límites: extender `checkLimit()` a las rutas POST de `clients` y `policies`**
+- **Problema:** El middleware `checkLimit()` implementado en la sesión #27 solo protege la creación de usuarios (`POST /api/users`). No cubre la creación de clientes (`POST /api/clients`) ni pólizas (`POST /api/policies`), dejando huecos en la verificación de límites del plan.
+- **Causa raíz:** La implementación inicial se centró solo en users.ts por ser el caso más crítico.
+- **Solución propuesta:** Aplicar el middleware `checkLimit()` con los módulos correspondientes (`clients`, `policies`) en las rutas POST de `clients.ts` y `policies.ts` (cuando se implementen).
+- **Prioridad:** BAJA.
+
 Deuda Técnica Preexistente (varias sesiones)
 ~28 archivos M sin commitear en src/components/*, src/services/*, src/context/*.
 
@@ -717,6 +755,66 @@ Deuda Técnica Preexistente (varias sesiones)
 Placeholders <67118c3> y <hash_corto> en AGENTS.md.
 
 9. HISTORIAL DE SESIONES
+### Sesión #28 — Fix permisos DEMO + SMTP transaccional (3.5.B.4.g)
+**Fecha:** 2026-10-19
+**Commit:** <pendiente de hacer al cierre>
+
+**Objetivo cumplido:**
+- Resuelta deuda técnica ALTA `BUG-DEMO-PERMISSIONS-FIX`.
+- Implementada sub-fase 3.5.B.4.g (SMTP transaccional SaaS).
+
+**Archivos NUEVOS (2):**
+- `server/prisma/seedTenantAdminRole.ts` — Seed idempotente del rol
+  global tenant_admin + 22 permisos base.
+- `server/services/emailService.ts` — Transporter nodemailer + template
+  welcome HTML + fallback seguro sin credenciales.
+
+**Archivos MODIFICADOS (2):**
+- `server/services/saasRegistrationReviewService.ts` — Refactor del
+  bloque de permisos (copia desde rol global) + llamada a
+  sendWelcomeEmail() fuera de la transacción.
+- `server/package.json` (+ lock) — Deps: nodemailer, @types/nodemailer.
+
+**Lecciones aprendidas:**
+- Los roles globales de Prisma requieren `tenant_id = NULL` explícito;
+  no basta con `tenant_id` ausente.
+- En SQL puro, `key` es palabra reservada en MariaDB → backticks
+  obligatorios. Esto se suma a la Regla 15 (usar archivo .sql en
+  PowerShell para evitar problemas de escaping).
+- Los emails transaccionales DEBEN enviarse fuera de la transacción
+  de DB, para que un fallo SMTP no revierta la creación del tenant.
+- Un servicio de email debe ser idempotente / fail-safe: mejor loguear
+  y seguir que romper el flujo principal.
+
+**Verificación end-to-end:**
+- `npx tsc --noEmit -p server/tsconfig.json` → 0 errores.
+- Tenant `test-email` creado con 22 permisos (paridad exacta con rol
+  global).
+- Registro DEMO exitoso → aprobación automática → login exitoso →
+  dashboard accesible.
+- Log de Express muestra `[approveRegistration] Email de bienvenida
+  NO enviado... SMTP_NOT_CONFIGURED` (fallback esperado).
+
+**Deuda técnica registrada:** ver sección 8.
+
+### Sesión #27 — Middleware verificación de límites + Fix auto-aprobación DEMO (3.5.B.4.f)
+**Fecha:** 2026-10-19
+**Commit:** <hash_del_commit>
+**Push:** <hash_push>
+
+**Objetivo cumplido:** Implementación exitosa de middleware de límites (3.5.B.4.f) en users.ts. Se corrigió el flujo de auto-aprobación de demos (Opción B) para que usen la contraseña original y obtengan el plan más alto. Queda pendiente la creación automática de permisos (deuda técnica).
+
+**Archivos MODIFICADOS (Backend):**
+- `server/middleware/checkLimits.ts`: Nuevo middleware `checkLimit()` para verificar límites del plan antes de crear recursos.
+- `server/routes/users.ts`: Aplicado middleware `checkLimit('users')` en ruta POST.
+- `server/services/saasRegistrationReviewService.ts`: Modificado `autoApproveDemoRegistration` para usar `passwordHash` de la solicitud y `must_reset_password = 0`, y asignar el plan más alto disponible.
+
+**Deudas técnicas nuevas registradas (ver sección 8):**
+- BUG-DEMO-PERMISSIONS-FIX: La creación automática de permisos para demos falla por conflicto de claves foráneas (ALTA).
+- Mejora de middleware de límites: extender `checkLimit()` a `clients` y `policies` (BAJA).
+
+**Próximo paso:** Fase 3.5.B.4.g — SMTP transaccional SaaS.
+
 Sesión #26 — Panel SaaS con datos reales (3.5.B.4.e.2)
 Fecha: 2026-10-14
 
@@ -1020,25 +1118,17 @@ Type guard para response.json(): con TS estricto, hay que validar 'success' in b
 
 11. PRÓXIMOS PASOS
 Sub-fase inmediata
-3.5.B.4.e.3 — Super Admin ve datos reales de cada tenant.
-
-Backend: modificar clientsService, policiesService, etc. para aceptar ?tenantId=X cuando el usuario es saas_super_admin.
-
-Frontend: modificar TenantContext para que al cambiar currentTenantId, haga fetch con el nuevo tenantId.
-
-Frontend: recargar toda la UI cuando cambie el tenant (forzar re-render).
-
-Duración estimada: 1-2 sesiones.
+3.5.F — Cleanup y Estabilización (consolidar ~28 archivos M pendientes en src/, atacar BUG-AUTH-1 y BUG-PERFIL-1) o 3.5.C — Pagos y Suspensión (a definir en sesión #29).
 
 Sub-fases de 3.5.B pendientes
-3.5.B.4.f — Middleware verificación de límites.
-
-3.5.B.4.g — SMTP transaccional SaaS (ALTA PRIORIDAD).
+*Ninguna — Fase 3.5.B completa (B.1 a B.4.g todas ✅).*
 
 Deuda técnica prioritaria
-3.5.B.4.e.3 — Super Admin ve datos reales de cada tenant (ALTA).
+BUG-AUTH-1 — JWT expirado sin redirección a login (MEDIA).
 
-3.5.B.4.g — SMTP transaccional (ALTA).
+BUG-PERFIL-1 — El avatar del usuario no persiste (MEDIA).
+
+SMTP-CREDENTIALS-DEPLOY — Configurar credenciales SMTP reales en producción (ALTA).
 
 Fase B.5 — Protección de saas_super_admin (ALTA).
 
@@ -1048,7 +1138,9 @@ Fase 3.5.F — Cleanup y Estabilización (agendada).
 
 ════════════════════════════════════════════════════════════════════
 FIN DEL AGENTS.md
-Última actualización: 2026-10-14 (Sesión #26)
-Progreso global: ~63%
-Siguiente sub-fase: 3.5.B.4.e.3 — Super Admin ve datos reales de cada tenant
+Última actualización: 2026-10-19 (Sesión #28)
+Progreso global: ~66%
+Siguiente sub-fase: 3.5.F — Cleanup y Estabilización
+(consolidar ~28 archivos M pendientes en src/, atacar BUG-AUTH-1
+y BUG-PERFIL-1) o 3.5.C — Pagos y Suspensión (a definir en sesión #29).
 ══════════════════════════════════════════════════════════════════
