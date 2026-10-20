@@ -46,22 +46,23 @@ export const Header: React.FC<HeaderProps> = ({
   onLogout
 }) => {
   const triggerSearch = onOpenGlobalSearch || onOpenSearch || (() => {});
-  const {
-    currentTenant,
-    currentTenantLandingConfig,
-    tenants,
-    setCurrentTenantId,
-    currentUser,
-    setCurrentUserId,
-    users,
-    alerts,
-    appNotifications,
-    showSoftphone,
-    setShowSoftphone,
-    activeCall,
-    updateTenantBranding,
-    saasLandingConfig
-  } = useTenant();
+  const tenantContext = useTenant();
+
+  // Desestructuración segura con valores por defecto
+  const currentTenant = tenantContext?.currentTenant || { id: 'default', name: 'Ateendia Seguros', primaryColor: '#4f46e5' };
+  const currentTenantLandingConfig = tenantContext?.currentTenantLandingConfig || null;
+  const tenants = Array.isArray(tenantContext?.tenants) ? tenantContext.tenants : [];
+  const setCurrentTenantId = tenantContext?.setCurrentTenantId || (() => {});
+  const currentUser = tenantContext?.currentUser || { name: 'Usuario', email: '', role: 'agent', extension: '101' };
+  const setCurrentUserId = tenantContext?.setCurrentUserId || (() => {});
+  const users = Array.isArray(tenantContext?.users) ? tenantContext.users : [];
+  const alerts = Array.isArray(tenantContext?.alerts) ? tenantContext.alerts : [];
+  const appNotifications = Array.isArray(tenantContext?.appNotifications) ? tenantContext.appNotifications : [];
+  const showSoftphone = Boolean(tenantContext?.showSoftphone);
+  const setShowSoftphone = tenantContext?.setShowSoftphone || (() => {});
+  const activeCall = tenantContext?.activeCall || null;
+  const updateTenantBranding = tenantContext?.updateTenantBranding || (() => {});
+  const saasLandingConfig = tenantContext?.saasLandingConfig || null;
 
   const [showTenantDropdown, setShowTenantDropdown] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
@@ -83,31 +84,39 @@ export const Header: React.FC<HeaderProps> = ({
     super_admin: 'bg-purple-50 text-purple-700 border-purple-200'
   };
 
-  const highPriorityAlertsCount = alerts.filter((a) => a.priority === 'high').length;
-  const unreadNotificationsCount = appNotifications.filter((n) => !n.read).length;
+  // Filtrado seguro contra valores nulos/undefined
+  const highPriorityAlertsCount = alerts.filter((a) => a?.priority === 'high').length;
+  const unreadNotificationsCount = appNotifications.filter((n) => n && !n.read).length;
 
   const isSuperAdminGlobal = isGlobalSuperAdmin();
 
-  // HARDCODED: 3 empresas para Super Admin Global (victoraray8@gmail.com)
+  // HARDCODED: 3 empresas para Super Admin Global
   const SUPER_ADMIN_TENANTS = [
     { id: 'tenant-ateendia', name: 'Ateendia Seguros', type: 'Enterprise', primaryColor: '#4f46e5' },
     { id: 'tenant-optima', name: 'Optima Health Brokers', type: 'Pro Business', primaryColor: '#059669' },
     { id: 'tenant-sol', name: 'Seguros Sol Naciente', type: 'Starter', primaryColor: '#dc2626' },
   ];
 
-  // Super Admin Global: tenant selector shows hardcoded 3 companies
-  const tenantOptions = isSuperAdminGlobal ? SUPER_ADMIN_TENANTS : tenants.filter(t => t.id === currentTenant.id);
+  // Opciones de empresas seguras
+  const tenantOptions = isSuperAdminGlobal
+    ? SUPER_ADMIN_TENANTS
+    : tenants.filter((t) => t?.id === currentTenant?.id);
 
-  // Get display name and role for Super Admin
+  // Nombre y rol a mostrar
   const displayName = isSuperAdminGlobal ? 'Víctor Aray (Super Admin)' : (currentUser?.name || 'Usuario');
-  const displayRole = isSuperAdminGlobal ? 'Super Admin Global 👑' : (roleLabels[currentUser?.role] || currentUser?.role || 'Admin');
-  const displayRoleColor = isSuperAdminGlobal ? 'bg-purple-100 text-purple-700 border-purple-200/60' : (roleBadgeColors[currentUser?.role] || 'bg-slate-100 text-slate-700 border-slate-200');
+  const userRoleKey = currentUser?.role || 'agent';
+  const displayRole = isSuperAdminGlobal ? 'Super Admin Global 👑' : (roleLabels[userRoleKey] || userRoleKey || 'Admin');
+  const displayRoleColor = isSuperAdminGlobal
+    ? 'bg-purple-100 text-purple-700 border-purple-200/60'
+    : (roleBadgeColors[userRoleKey] || 'bg-slate-100 text-slate-700 border-slate-200');
+
+  const tenantInitial = (currentTenant?.name || 'A').charAt(0).toUpperCase();
 
   return (
     <header className="h-16 sm:h-20 bg-white border-b border-slate-200 sticky top-0 z-30 px-6 sm:px-8 flex items-center justify-between flex-shrink-0 shadow-xs">
-      {/* Left: Tenant Selector & Global Search */}
+      {/* Selector de Tenant y Búsqueda Global */}
       <div className="flex items-center gap-3 sm:gap-6">
-        {/* Tenant Switcher with Sleek badge */}
+        {/* Cambiador de Tenant */}
         <div className="relative">
           <button
             id="tenant-switcher-btn"
@@ -116,13 +125,13 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <div
               className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold text-xs shadow-xs"
-              style={{ backgroundColor: currentTenant.primaryColor || '#4f46e5' }}
+              style={{ backgroundColor: currentTenant?.primaryColor || '#4f46e5' }}
             >
-              {currentTenant.name.charAt(0)}
+              {tenantInitial}
             </div>
             <div className="hidden sm:block">
               <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                {currentTenant.name}
+                {currentTenant?.name || 'Cargando...'}
                 {isSuperAdminGlobal && (
                   <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full text-[10px] font-semibold border border-purple-200/60 flex items-center gap-1">
                     <Crown className="w-3 h-3" />
@@ -135,7 +144,7 @@ export const Header: React.FC<HeaderProps> = ({
                   </span>
                 )}
               </div>
-              <div className="text-[10px] text-slate-400 font-mono">Tenant ID: {currentTenant.id}</div>
+              <div className="text-[10px] text-slate-400 font-mono">Tenant ID: {currentTenant?.id}</div>
             </div>
             <ChevronDown className="w-4 h-4 text-slate-400 group-hover:text-indigo-600 transition-colors" />
           </button>
@@ -146,7 +155,7 @@ export const Header: React.FC<HeaderProps> = ({
                 {isSuperAdminGlobal ? (
                   <>
                     <Crown className="w-3.5 h-3.5 text-purple-600" />
-                    <span>Aislamiento Multi-Empresa (Super Admin Global)</span>
+                    <span>Aislamiento Multi-Empresa (Super Admin)</span>
                   </>
                 ) : (
                   <span>Aislamiento Multi-Empresa</span>
@@ -155,27 +164,27 @@ export const Header: React.FC<HeaderProps> = ({
               <div className="space-y-1 max-h-60 overflow-y-auto">
                 {tenantOptions.map((t) => (
                   <button
-                    key={t.id}
+                    key={t?.id || Math.random()}
                     onClick={() => {
-                      setCurrentTenantId(t.id);
+                      if (t?.id) setCurrentTenantId(t.id);
                       setShowTenantDropdown(false);
                     }}
                     className={`w-full text-left px-3 py-2 rounded-xl flex items-center gap-2.5 hover:bg-slate-50 transition-colors ${
-                      t.id === currentTenant.id ? 'bg-indigo-50/80 font-bold text-indigo-900' : ''
+                      t?.id === currentTenant?.id ? 'bg-indigo-50/80 font-bold text-indigo-900' : ''
                     }`}
                   >
                     <div
                       className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold shadow-xs"
-                      style={{ backgroundColor: t.primaryColor || '#4f46e5' }}
+                      style={{ backgroundColor: t?.primaryColor || '#4f46e5' }}
                     >
-                      {t.name.charAt(0)}
+                      {(t?.name || 'E').charAt(0).toUpperCase()}
                     </div>
                     <div className="flex-1 truncate">
-                      <div className="text-xs text-slate-800 truncate">{t.name}</div>
-                      <div className="text-[10px] text-slate-400 font-mono">{t.id}</div>
+                      <div className="text-xs text-slate-800 truncate">{t?.name}</div>
+                      <div className="text-[10px] text-slate-400 font-mono">{t?.id}</div>
                     </div>
-                    {t.id === currentTenant.id && <CheckCircle2 className="w-4 h-4 text-indigo-600 shrink-0" />}
-                    {isSuperAdminGlobal && t.id !== currentTenant.id && (
+                    {t?.id === currentTenant?.id && <CheckCircle2 className="w-4 h-4 text-indigo-600 shrink-0" />}
+                    {isSuperAdminGlobal && t?.id !== currentTenant?.id && (
                       <ArrowRightLeft className="w-4 h-4 text-purple-500 shrink-0 opacity-70" title="Cambiar a esta empresa" />
                     )}
                   </button>
@@ -186,7 +195,6 @@ export const Header: React.FC<HeaderProps> = ({
                 <button
                   onClick={() => {
                     setShowTenantDropdown(false);
-                    // Navigate to SaaS Central to create new company
                     window.location.href = '/saas_central';
                   }}
                   className="w-full px-3 py-2 rounded-xl flex items-center gap-2.5 hover:bg-purple-50 text-purple-700 text-xs font-semibold transition-colors"
@@ -197,8 +205,8 @@ export const Header: React.FC<HeaderProps> = ({
               )}
               <div className="px-3 py-1.5">
                 <span className="text-[10px] text-slate-500">
-                  {isSuperAdminGlobal 
-                    ? 'Super Admin Global: acceso transparente a todas las empresas.' 
+                  {isSuperAdminGlobal
+                    ? 'Super Admin Global: acceso transparente a todas las empresas.'
                     : 'Cada empresa aísla estrictamente sus clientes, pólizas y métricas.'}
                 </span>
               </div>
@@ -206,7 +214,7 @@ export const Header: React.FC<HeaderProps> = ({
           )}
         </div>
 
-        {/* Global Quick Search */}
+        {/* Búsqueda Rápida Global */}
         <button
           id="global-search-trigger"
           onClick={triggerSearch}
@@ -220,9 +228,9 @@ export const Header: React.FC<HeaderProps> = ({
         </button>
       </div>
 
-      {/* Right Controls: Issabel PBX Status + Alerts Center + User Profile */}
+      {/* Controles Derecha: Telefonía + Alertas + Notificaciones + Perfil */}
       <div className="flex items-center gap-3 sm:gap-4">
-        {/* Issabel Telephony Status / Dialer Toggle */}
+        {/* Marcador PBX Issabel */}
         <button
           id="toggle-softphone-btn"
           onClick={() => setShowSoftphone(!showSoftphone)}
@@ -241,17 +249,17 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
           <span className="hidden sm:inline">
             {activeCall?.active
-              ? `En llamada (${Math.floor(activeCall.duration / 60)}:${String(activeCall.duration % 60).padStart(2, '0')})`
-              : `Ext. ${currentUser.extension || '101'}`}
+              ? `En llamada (${Math.floor((activeCall.duration || 0) / 60)}:${String((activeCall.duration || 0) % 60).padStart(2, '0')})`
+              : `Ext. ${currentUser?.extension || '101'}`}
           </span>
         </button>
 
-        {/* Company Informative Micro-Landing Access Icon */}
+        {/* Acceso a Micro-Landing */}
         <button
           id="header-microlanding-btn"
           onClick={onOpenMicroLanding}
           className="relative flex items-center gap-1.5 px-3 py-2 rounded-xl text-slate-700 bg-slate-50 hover:bg-indigo-50/70 border border-slate-200 hover:border-indigo-200 transition-all shadow-2xs group"
-          title={`Micro-Landing Informativa de ${currentTenant.name} (${getTenantPublicUrl(currentTenant, saasLandingConfig?.crmName)})`}
+          title={`Micro-Landing Informativa de ${currentTenant?.name || 'Ateendia'} (${getTenantPublicUrl(currentTenant, saasLandingConfig?.crmName)})`}
         >
           <div className="relative">
             <Globe className="w-4 h-4 text-indigo-600 group-hover:scale-110 transition-transform" />
@@ -263,7 +271,7 @@ export const Header: React.FC<HeaderProps> = ({
           <ExternalLink className="w-3 h-3 text-slate-400 group-hover:text-indigo-600 hidden sm:inline" />
         </button>
 
-        {/* Real-time Live Notification Center (WhatsApp & Policies) */}
+        {/* Centro de Notificaciones */}
         <button
           id="header-notifications-btn"
           onClick={onOpenNotifications || onOpenAlerts}
@@ -278,7 +286,7 @@ export const Header: React.FC<HeaderProps> = ({
           )}
         </button>
 
-        {/* Automatic Alerts Center */}
+        {/* Centro de Alertas Automáticas */}
         <button
           id="header-alerts-btn"
           onClick={onOpenAlerts}
@@ -297,9 +305,8 @@ export const Header: React.FC<HeaderProps> = ({
           )}
         </button>
 
-        {/* User Profile & Role Switcher */}
+        {/* Perfil de Usuario */}
         <div className="relative border-l border-slate-200 pl-3 sm:pl-4">
-          {/* Profile click opens modal, chevron opens dropdown */}
           <div className="flex items-center gap-3">
             <button
               id="user-profile-btn"
@@ -311,16 +318,17 @@ export const Header: React.FC<HeaderProps> = ({
                 <p className="text-xs font-bold text-slate-900 leading-tight">{displayName}</p>
                 <p className="text-[10px] text-slate-500">{displayRole}</p>
               </div>
-              <div className="w-10 h-10 rounded-xl bg-indigo-100 border border-indigo-200 flex items-center justify-center text-indigo-700 font-bold text-xs shadow-xs">
+              <div className="w-10 h-10 rounded-xl bg-indigo-100 border border-indigo-200 flex items-center justify-center text-indigo-700 font-bold text-xs shadow-xs overflow-hidden">
                 {currentUser?.avatar ? (
-                  <img src={currentUser.avatar} alt={currentUser.name} className="w-full h-full object-cover rounded-xl" />
+                  <img src={currentUser.avatar} alt={currentUser?.name || 'Avatar'} className="w-full h-full object-cover rounded-xl" />
                 ) : (
-                  <span>{((currentUser?.name || 'US').split(' ').filter(Boolean).map((n) => n[0]).join('') || 'US').slice(0, 2).toUpperCase()}</span>
+                  <span>
+                    {((currentUser?.name || 'US').split(' ').filter(Boolean).map((n) => n[0]).join('') || 'US').slice(0, 2).toUpperCase()}
+                  </span>
                 )}
               </div>
             </button>
-            
-            {/* Dropdown for role switching and logout */}
+
             <button
               id="user-dropdown-btn"
               onClick={() => setShowUserDropdown(!showUserDropdown)}
@@ -334,13 +342,13 @@ export const Header: React.FC<HeaderProps> = ({
           {showUserDropdown && (
             <div className="absolute right-0 mt-2 w-72 bg-white rounded-2xl shadow-xl border border-slate-200 p-2.5 z-50 animate-in fade-in zoom-in-95">
               <div className="px-3 py-2 border-b border-slate-100">
-                <div className="text-xs font-bold text-slate-900">{currentUser.name}</div>
-                <div className="text-[11px] text-slate-500 font-mono truncate">{currentUser.email}</div>
+                <div className="text-xs font-bold text-slate-900">{currentUser?.name || 'Usuario'}</div>
+                <div className="text-[11px] text-slate-500 font-mono truncate">{currentUser?.email || ''}</div>
                 <div className="mt-2 flex items-center gap-2">
                   <span className={`text-[10px] px-2 py-0.5 rounded-full border font-bold ${displayRoleColor}`}>
                     {displayRole}
                   </span>
-                  <span className="text-[10px] text-slate-400">Ext: #{currentUser.extension}</span>
+                  <span className="text-[10px] text-slate-400">Ext: #{currentUser?.extension || '101'}</span>
                 </div>
               </div>
 
@@ -359,10 +367,9 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           )}
 
-{/* Profile Modal */}
           <ProfileModal isOpen={showProfileModal} onClose={() => setShowProfileModal(false)} />
         </div>
-        </div>
-      </header>
-    );
-  };
+      </div>
+    </header>
+  );
+};
