@@ -154,7 +154,7 @@ const fileInputRef = useRef<HTMLInputElement>(null);
    const [showScrollButtons, setShowScrollButtons] = useState(false);
 
    // Conversations filtered by channel & account line & search keyword
-  const filteredConversations = conversations.filter((c) => {
+  const filteredConversations = (conversations || []).filter((c) => {
     const channelSource = (c.channelSource || 'whatsapp') as 'whatsapp' | 'instagram' | 'facebook' | 'landing';
     const account = (c.account || 'WA1') as 'WA1' | 'WA2';
 
@@ -190,9 +190,9 @@ const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Current active conversation
   const activeConv: WhatsAppConversation | undefined =
-    conversations.find((c) => c.id === activeConversationId) ||
+    (conversations || []).find((c) => c.id === activeConversationId) ||
     filteredConversations[0] ||
-    conversations[0];
+    (conversations || [])[0];
 
   const activeClient = clients.find((c) => c.id === activeConv?.clientId);
 
@@ -434,10 +434,10 @@ const fileInputRef = useRef<HTMLInputElement>(null);
   };
 
   // Get count stats
-  const wa1Count = conversations.filter((c) => (c.account || 'WA1') === 'WA1' && (c.channelSource || 'whatsapp') === 'whatsapp').length;
-  const wa2Count = conversations.filter((c) => c.account === 'WA2' && (c.channelSource || 'whatsapp') === 'whatsapp').length;
-  const totalConversations = conversations.length;
-  const totalUnread = conversations.reduce((sum, c) => sum + (c.unreadCount || 0), 0);
+  const wa1Count = (conversations || []).filter((c) => (c.account || 'WA1') === 'WA1' && (c.channelSource || 'whatsapp') === 'whatsapp').length;
+  const wa2Count = (conversations || []).filter((c) => c.account === 'WA2' && (c.channelSource || 'whatsapp') === 'whatsapp').length;
+  const totalConversations = (conversations || []).length;
+  const totalUnread = (conversations || []).reduce((sum, c) => sum + (c.unreadCount || 0), 0);
 
   return (
     <div className="space-y-4 animate-in fade-in">
@@ -502,7 +502,7 @@ const fileInputRef = useRef<HTMLInputElement>(null);
             >
               <span>Todas</span>
               <span className="bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full text-[10px] font-bold">
-                {conversations.length}
+                {(conversations || []).length}
               </span>
             </button>
 
@@ -597,7 +597,7 @@ const fileInputRef = useRef<HTMLInputElement>(null);
                 <Instagram className="w-3.5 h-3.5" />
                 <span>Instagram</span>
                 <span className="bg-pink-100 text-pink-800 px-1.5 py-0.5 rounded-full text-[10px]">
-                  {conversations.filter(c => c.channelSource === 'instagram').length}
+                  {(conversations || []).filter(c => c.channelSource === 'instagram').length}
                 </span>
               </button>
 
@@ -616,7 +616,7 @@ const fileInputRef = useRef<HTMLInputElement>(null);
                 <Facebook className="w-3.5 h-3.5" />
                 <span>Facebook</span>
                 <span className="bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded-full text-[10px]">
-                  {conversations.filter(c => c.channelSource === 'facebook').length}
+                  {(conversations || []).filter(c => c.channelSource === 'facebook').length}
                 </span>
               </button>
 
@@ -635,7 +635,7 @@ const fileInputRef = useRef<HTMLInputElement>(null);
                 <SendIcon className="w-3.5 h-3.5" />
                 <span>Web Chat</span>
                 <span className="bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-full text-[10px]">
-                  {conversations.filter(c => c.channelSource === 'landing').length}
+                  {(conversations || []).filter(c => c.channelSource === 'landing').length}
                 </span>
 </button>
 
@@ -681,7 +681,7 @@ const fileInputRef = useRef<HTMLInputElement>(null);
             ) : (
               filteredConversations.map((conv) => {
                 const isSelected = activeConv?.id === conv.id;
-                const lastMsg = conv.messages[conv.messages.length - 1];
+                const lastMsg = conv.messages?.[(conv.messages?.length || 0) - 1];
                 const accountType = conv.account || 'WA1';
 
                 return (
@@ -855,12 +855,12 @@ const fileInputRef = useRef<HTMLInputElement>(null);
 
             {/* Message Bubble Feed */}
             <div className="flex-1 overflow-y-auto p-4 space-y-3 relative">
-              {activeConv.messages.length === 0 ? (
+              {(activeConv?.messages || []).length === 0 ? (
                 <div className="h-full flex items-center justify-center text-slate-400 text-xs">
                   Inicia la conversación enviando un mensaje abajo.
                 </div>
               ) : (
-                activeConv.messages.map((msg) => {
+                (activeConv?.messages || []).map((msg) => {
                   const isOutbound =
                     msg.direction === 'outbound' ||
                     msg.sender === 'agent' ||
@@ -1107,14 +1107,14 @@ const fileInputRef = useRef<HTMLInputElement>(null);
                         </div>
 
                         {/* Reaction Badges */}
-                        {msg.reactions && msg.reactions.length > 0 && (
+                        {(msg.reactions || []).length > 0 && (
                           <div
                             className={`flex flex-wrap items-center gap-1 mt-1 ${
                               isOutbound ? 'justify-end' : 'justify-start'
                             }`}
                           >
-                            {msg.reactions.map((r, idx) => {
-                              const isMine = r.users.includes(currentUser.id);
+                            {(msg.reactions || []).map((r, idx) => {
+                              const isMine = (r.users || []).includes(currentUser?.id);
                               return (
                                 <button
                                   key={idx}
@@ -1125,10 +1125,10 @@ const fileInputRef = useRef<HTMLInputElement>(null);
                                       ? 'bg-emerald-100 border border-emerald-300 text-emerald-900 font-extrabold scale-105 shadow-xs'
                                       : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 shadow-xs'
                                   }`}
-                                  title={`Reacción de ${r.users.length} persona(s)`}
+                                  title={`Reacción de ${(r.users || []).length} persona(s)`}
                                 >
                                   <span>{r.emoji}</span>
-                                  <span className="text-[10px] font-bold">{r.users.length}</span>
+                                  <span className="text-[10px] font-bold">{(r.users || []).length}</span>
                                 </button>
                               );
                             })}

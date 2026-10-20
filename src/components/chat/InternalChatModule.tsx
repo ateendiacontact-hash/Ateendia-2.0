@@ -53,7 +53,7 @@ export const InternalChatModule: React.FC = () => {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const tenantUsers = users.filter((u) => u.tenantId === currentTenant.id);
+  const tenantUsers = (users || []).filter((u) => u.tenantId === currentTenant.id);
 
   const channels = [
     { id: '#general', name: 'general', description: 'Canal principal del equipo' },
@@ -61,7 +61,7 @@ export const InternalChatModule: React.FC = () => {
     { id: '#renovaciones', name: 'renovaciones', description: 'Seguimiento de pólizas por vencer' }
   ];
 
-  const filteredMessages = chatMessages.filter((m) => {
+  const filteredMessages = (chatMessages || []).filter((m) => {
     return m.channelId === activeChannel || m.channel === activeChannel;
   });
 
@@ -415,10 +415,10 @@ export const InternalChatModule: React.FC = () => {
                     </div>
 
                     {/* Reaction Badges Pill Container */}
-                    {msg.reactions && msg.reactions.length > 0 && (
+                    {(msg.reactions || []).length > 0 && (
                       <div className="flex flex-wrap items-center gap-1 mt-1">
-                        {msg.reactions.map((r, idx) => {
-                          const isMineReaction = r.users.includes(currentUser.id);
+                        {(msg.reactions || []).map((r, idx) => {
+                          const isMineReaction = (r.users || []).includes(currentUser?.id);
                           return (
                             <button
                               key={idx}
@@ -429,10 +429,10 @@ export const InternalChatModule: React.FC = () => {
                                   ? 'bg-purple-100 border border-purple-300 text-purple-900 font-extrabold scale-105 shadow-xs'
                                   : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 shadow-xs'
                               }`}
-                              title={`Reacción de ${r.users.length} personas`}
+                              title={`Reacción de ${(r.users || []).length} personas`}
                             >
                               <span>{r.emoji}</span>
-                              <span className="text-[10px] font-bold">{r.users.length}</span>
+                              <span className="text-[10px] font-bold">{(r.users || []).length}</span>
                             </button>
                           );
                         })}

@@ -55,15 +55,15 @@ export const CompanyPlanBillingTab: React.FC = () => {
   const [renewalSuccess, setRenewalSuccess] = useState(false);
 
   // Calculate consumption
-  const currentUsersCount = users.length;
+  const currentUsersCount = (users || []).length;
   const maxUsers = matchingPlan.maxUsers;
   const userUsagePercent = Math.min(Math.round((currentUsersCount / maxUsers) * 100), 100);
 
-  const currentClientsCount = clients.length;
+  const currentClientsCount = (clients || []).length;
   const maxClients = matchingPlan.maxClients;
   const clientUsagePercent = Math.min(Math.round((currentClientsCount / maxClients) * 100), 100);
 
-  const currentPoliciesCount = policies.length;
+  const currentPoliciesCount = (policies || []).length;
   const maxPolicies = matchingPlan.maxPolicies;
   const policyUsagePercent = Math.min(Math.round((currentPoliciesCount / maxPolicies) * 100), 100);
 

@@ -55,12 +55,12 @@ export const MultichannelInbox: React.FC<{
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const activeConv: WhatsAppConversation | undefined = conversations.find((c) => c.id === activeConversationId) || conversations[0];
+  const activeConv: WhatsAppConversation | undefined = (conversations || []).find((c) => c.id === activeConversationId) || (conversations || [])[0];
 
-  const activeClient = activeConv?.clientId ? clients.find((c) => c.id === activeConv.clientId) : null;
+  const activeClient = activeConv?.clientId ? (clients || []).find((c) => c.id === activeConv.clientId) : null;
 
   const filteredConversations = useMemo(() => {
-    return conversations.filter((c) => {
+    return (conversations || []).filter((c) => {
       if (selectedChannelFilter !== 'all' && (c.channelSource || 'whatsapp') !== selectedChannelFilter) {
         return false;
       }
@@ -75,14 +75,14 @@ export const MultichannelInbox: React.FC<{
 
   const channelStats = useMemo(() => {
     const stats: Record<ChannelSource, number> = { whatsapp: 0, instagram: 0, facebook: 0, landing: 0 };
-    conversations.forEach((c) => {
+    (conversations || []).forEach((c) => {
       const source = c.channelSource || 'whatsapp';
       stats[source] = (stats[source] || 0) + 1;
     });
     return stats;
   }, [conversations]);
 
-  const totalConversations = conversations.length;
+  const totalConversations = (conversations || []).length;
 
   const getChannelPercentage = (source: ChannelSource) => {
     if (totalConversations === 0) return 0;
@@ -222,7 +222,7 @@ export const MultichannelInbox: React.FC<{
             ) : (
               filteredConversations.map((conv) => {
                 const isSelected = activeConv?.id === conv.id;
-                const lastMsg = conv.messages[conv.messages.length - 1];
+                const lastMsg = conv.messages?.[(conv.messages?.length || 0) - 1];
                 const channelSource = conv.channelSource || 'whatsapp';
                 return (
                   <div
@@ -287,13 +287,13 @@ export const MultichannelInbox: React.FC<{
 
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-4 space-y-3 relative">
-              {activeConv.messages.length === 0 ? (
+              {(activeConv?.messages || []).length === 0 ? (
                 <div className="text-center py-16 text-slate-400 text-xs">
                   <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-30" />
                   Inicia la conversación aquí.
                 </div>
               ) : (
-                activeConv.messages.map((msg) => {
+                (activeConv?.messages || []).map((msg) => {
                   const isOutbound = msg.direction === 'outbound' || msg.sender === 'agent' || msg.sender === 'system';
                   const channelSource = msg.channelSource || activeConv.channelSource || 'whatsapp';
                   const channelColors: Record<ChannelSource, { bg: string; text: string }> = {

@@ -263,7 +263,7 @@ export const ClientFormModal: React.FC<ClientFormModalProps> = ({
                   onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                   className="w-full px-3 py-2 bg-slate-50 border rounded-xl text-xs font-semibold text-purple-700"
                 >
-                  {catalogs.clientCategories.map((cat) => (
+                  {(catalogs?.clientCategories || []).map((cat: any) => (
                     <option key={cat} value={cat}>
                       {cat}
                     </option>

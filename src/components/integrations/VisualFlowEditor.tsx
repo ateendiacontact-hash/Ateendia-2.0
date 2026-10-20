@@ -518,7 +518,7 @@ export const VisualFlowEditor: React.FC<VisualFlowEditorProps> = ({
         typeVersion: 1,
         position: [240 + idx * 220, 300]
       })),
-      connections: flowBlocks.reduce((acc, curr, idx) => {
+      connections: (flowBlocks || []).reduce((acc, curr, idx) => {
         if (idx < flowBlocks.length - 1) {
           const next = flowBlocks[idx + 1];
           acc[curr.title] = {

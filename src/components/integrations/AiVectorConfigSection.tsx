@@ -607,7 +607,7 @@ print("Respuesta:", response.json())`;
                 <span>Vectores Totales</span>
               </div>
               <div className="text-base font-black text-white mt-0.5">
-                {documents.reduce((acc, d) => acc + d.chunksCount, 0)} Chunks
+                {(documents || []).reduce((acc, d) => acc + d.chunksCount, 0)} Chunks
               </div>
             </div>
 

@@ -38,28 +38,31 @@ export const NotificationCenterPopover: React.FC<NotificationCenterPopoverProps>
   onNavigateToTab,
   onOpenClient
 }) => {
-  const {
-    appNotifications,
-    markAppNotificationRead,
-    markAllAppNotificationsRead,
-    deleteAppNotification,
-    browserNotificationPermission,
-    requestBrowserNotificationPermission,
-    simulateIncomingWhatsAppMessage,
-    simulatePolicyStatusChange,
-    simulateWebLeadQuoteRequest,
-    startWhatsAppConversation,
-    startCall,
-    setActiveConversationId,
-    currentTenant
-  } = useTenant();
+  const tenantContext = useTenant();
+
+  // Desestructuración segura del contexto
+  const appNotifications = Array.isArray(tenantContext?.appNotifications) ? tenantContext.appNotifications : [];
+  const markAppNotificationRead = tenantContext?.markAppNotificationRead || (() => {});
+  const markAllAppNotificationsRead = tenantContext?.markAllAppNotificationsRead || (() => {});
+  const deleteAppNotification = tenantContext?.deleteAppNotification || (() => {});
+  const browserNotificationPermission = tenantContext?.browserNotificationPermission || 'default';
+  const requestBrowserNotificationPermission = tenantContext?.requestBrowserNotificationPermission || (() => {});
+  const simulateIncomingWhatsAppMessage = tenantContext?.simulateIncomingWhatsAppMessage || (() => {});
+  const simulatePolicyStatusChange = tenantContext?.simulatePolicyStatusChange || (() => {});
+  const simulateWebLeadQuoteRequest = tenantContext?.simulateWebLeadQuoteRequest || (() => {});
+  const startWhatsAppConversation = tenantContext?.startWhatsAppConversation || (() => {});
+  const startCall = tenantContext?.startCall || (() => {});
+  const setActiveConversationId = tenantContext?.setActiveConversationId || (() => {});
+  const currentTenant = tenantContext?.currentTenant || { name: 'Ateendia Seguros' };
 
   const [activeFilter, setActiveFilter] = useState<'all' | 'leads' | 'whatsapp' | 'policy' | 'unread'>('all');
   const [isSimulating, setIsSimulating] = useState(false);
 
   if (!isOpen) return null;
 
+  // Filtrado defensivo de notificaciones
   const filteredNotifications = appNotifications.filter((n) => {
+    if (!n) return false;
     if (activeFilter === 'unread') return !n.read;
     if (activeFilter === 'leads') return n.type === 'web_lead';
     if (activeFilter === 'whatsapp') return n.type === 'whatsapp_message';
@@ -67,10 +70,11 @@ export const NotificationCenterPopover: React.FC<NotificationCenterPopoverProps>
     return true;
   });
 
-  const unreadCount = appNotifications.filter((n) => !n.read).length;
-  const leadCount = appNotifications.filter((n) => n.type === 'web_lead').length;
+  const unreadCount = appNotifications.filter((n) => n && !n.read).length;
+  const leadCount = appNotifications.filter((n) => n && n.type === 'web_lead').length;
 
   const handleNotificationClick = (notif: AppNotification) => {
+    if (!notif) return;
     markAppNotificationRead(notif.id);
 
     if (notif.type === 'web_lead') {
@@ -137,12 +141,21 @@ export const NotificationCenterPopover: React.FC<NotificationCenterPopoverProps>
 
   const handleDirectWhatsApp = (e: React.MouseEvent, notif: AppNotification) => {
     e.stopPropagation();
+    if (!notif) return;
     markAppNotificationRead(notif.id);
     if (notif.metadata?.clientPhone) {
-      const defaultGreeting = notif.type === 'web_lead'
-        ? `Hola ${notif.metadata.clientName || ''}, recibimos tu solicitud de cotización para ${notif.metadata.service || 'tu póliza'} en ${currentTenant.name}. ¿En qué momento podemos conversar para presentarte las mejores opciones?`
-        : `Hola ${notif.metadata.clientName || ''}, te contactamos de ${currentTenant.name}.`;
-      startWhatsAppConversation(notif.metadata.clientId || '', notif.metadata.clientPhone, notif.metadata.clientName || 'Prospecto', defaultGreeting);
+      const defaultGreeting =
+        notif.type === 'web_lead'
+          ? `Hola ${notif.metadata.clientName || ''}, recibimos tu solicitud de cotización para ${
+              notif.metadata.service || 'tu póliza'
+            } en ${currentTenant.name}. ¿En qué momento podemos conversar para presentarte las mejores opciones?`
+          : `Hola ${notif.metadata.clientName || ''}, te contactamos de ${currentTenant.name}.`;
+      startWhatsAppConversation(
+        notif.metadata.clientId || '',
+        notif.metadata.clientPhone,
+        notif.metadata.clientName || 'Prospecto',
+        defaultGreeting
+      );
       if (onNavigateToTab) {
         onNavigateToTab('whatsapp');
       }
@@ -152,6 +165,7 @@ export const NotificationCenterPopover: React.FC<NotificationCenterPopoverProps>
 
   const handleDirectCall = (e: React.MouseEvent, notif: AppNotification) => {
     e.stopPropagation();
+    if (!notif) return;
     markAppNotificationRead(notif.id);
     if (notif.metadata?.clientPhone) {
       startCall(notif.metadata.clientPhone, notif.metadata.clientName || 'Prospecto', notif.metadata.clientId);
@@ -161,7 +175,7 @@ export const NotificationCenterPopover: React.FC<NotificationCenterPopoverProps>
   return (
     <div className="fixed inset-0 z-50 overflow-hidden flex justify-end bg-slate-900/30 backdrop-blur-2xs animate-in fade-in">
       <div className="w-full max-w-lg bg-white h-full shadow-2xl flex flex-col border-l border-slate-200 animate-in slide-in-from-right duration-200">
-        {/* Header */}
+        {/* Cabecera */}
         <div className="p-5 border-b border-slate-100 bg-slate-50/70">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2.5">
@@ -189,7 +203,7 @@ export const NotificationCenterPopover: React.FC<NotificationCenterPopoverProps>
             </button>
           </div>
 
-          {/* Native Browser Notification Permission Banner */}
+          {/* Permiso del Navegador */}
           <div className="mt-3 p-3 rounded-xl border bg-white flex items-center justify-between gap-3 shadow-2xs">
             <div className="flex items-center gap-2 text-xs">
               <Laptop className="w-4 h-4 text-slate-500 shrink-0" />
@@ -221,7 +235,7 @@ export const NotificationCenterPopover: React.FC<NotificationCenterPopoverProps>
             )}
           </div>
 
-          {/* Quick Simulation Bar (For easy testing of live events) */}
+          {/* Barra de Pruebas / Simulador */}
           <div className="mt-3 p-2.5 rounded-xl bg-slate-100/90 border border-slate-200/80">
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1">
@@ -267,7 +281,7 @@ export const NotificationCenterPopover: React.FC<NotificationCenterPopoverProps>
             </div>
           </div>
 
-          {/* Filter Pills & Bulk Actions */}
+          {/* Filtros */}
           <div className="flex items-center justify-between mt-3 pt-2 border-t border-slate-200/60">
             <div className="flex items-center gap-1 overflow-x-auto pb-1 max-w-xs sm:max-w-none">
               <button
@@ -335,7 +349,7 @@ export const NotificationCenterPopover: React.FC<NotificationCenterPopoverProps>
           </div>
         </div>
 
-        {/* Notifications List */}
+        {/* Lista de Notificaciones */}
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
           {filteredNotifications.length === 0 ? (
             <div className="h-64 flex flex-col items-center justify-center text-center p-6">
@@ -355,7 +369,7 @@ export const NotificationCenterPopover: React.FC<NotificationCenterPopoverProps>
 
               return (
                 <div
-                  key={notif.id}
+                  key={notif.id || Math.random()}
                   onClick={() => handleNotificationClick(notif)}
                   className={`p-3.5 rounded-2xl border transition-all cursor-pointer group relative ${
                     notif.read
@@ -368,7 +382,6 @@ export const NotificationCenterPopover: React.FC<NotificationCenterPopoverProps>
                   }`}
                 >
                   <div className="flex items-start gap-3">
-                    {/* Icon Column */}
                     <div
                       className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 font-bold ${
                         isWebLead
@@ -395,18 +408,14 @@ export const NotificationCenterPopover: React.FC<NotificationCenterPopoverProps>
                       <div className="flex items-center justify-between gap-1 mb-1">
                         <div className="flex items-center gap-1.5 min-w-0">
                           <span className="text-xs font-bold text-slate-900 truncate">{notif.title}</span>
-                          {!notif.read && (
-                            <span className="w-2 h-2 rounded-full bg-blue-600 shrink-0"></span>
-                          )}
+                          {!notif.read && <span className="w-2 h-2 rounded-full bg-blue-600 shrink-0"></span>}
                         </div>
                         <span className="text-[10px] text-slate-400 whitespace-nowrap shrink-0">{notif.timestamp}</span>
                       </div>
 
-                      <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">
-                        {notif.message}
-                      </p>
+                      <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">{notif.message}</p>
 
-                      {/* Lead Specific Rich Metadata Preview */}
+                      {/* Vista previa de metadatos de Lead */}
                       {isWebLead && notif.metadata && (
                         <div className="mt-2.5 p-2 rounded-xl bg-white/80 border border-blue-100 text-xs space-y-1.5">
                           <div className="flex items-center justify-between flex-wrap gap-1">
@@ -419,7 +428,7 @@ export const NotificationCenterPopover: React.FC<NotificationCenterPopoverProps>
                               </span>
                             )}
                           </div>
-                          
+
                           <div className="flex items-center gap-1.5 flex-wrap">
                             {notif.metadata.service && (
                               <span className="px-2 py-0.5 rounded-md bg-blue-100 text-blue-800 text-[10px] font-bold">
@@ -431,7 +440,7 @@ export const NotificationCenterPopover: React.FC<NotificationCenterPopoverProps>
                                 📍 {notif.metadata.state}
                               </span>
                             )}
-                            {notif.metadata.estimatedIncome && (
+                            {typeof notif.metadata.estimatedIncome === 'number' && (
                               <span className="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 text-[10px] font-semibold">
                                 💵 ${notif.metadata.estimatedIncome.toLocaleString()}/año
                               </span>
@@ -451,7 +460,7 @@ export const NotificationCenterPopover: React.FC<NotificationCenterPopoverProps>
                         </div>
                       )}
 
-                      {/* General Metadata Badges */}
+                      {/* Insignias de Metadatos Generales */}
                       <div className="flex items-center gap-2 mt-2.5 flex-wrap">
                         {isWhatsApp && notif.metadata?.account && (
                           <span
@@ -471,7 +480,7 @@ export const NotificationCenterPopover: React.FC<NotificationCenterPopoverProps>
                           </span>
                         )}
 
-                        {/* Quick Conversion Action Buttons */}
+                        {/* Botones de Acción */}
                         <div className="flex items-center gap-1.5 ml-auto">
                           {isWebLead && notif.metadata?.clientPhone && (
                             <>
@@ -526,7 +535,7 @@ export const NotificationCenterPopover: React.FC<NotificationCenterPopoverProps>
           )}
         </div>
 
-        {/* Footer */}
+        {/* Pie de página */}
         <div className="p-3 border-t border-slate-100 bg-slate-50 flex items-center justify-between text-xs text-slate-500">
           <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
             <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
@@ -543,4 +552,3 @@ export const NotificationCenterPopover: React.FC<NotificationCenterPopoverProps>
     </div>
   );
 };
-

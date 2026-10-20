@@ -38,10 +38,10 @@ export const PoliciesListView: React.FC<PoliciesListViewProps> = ({
   const [statusFilter, setStatusFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
 
-  const carriers = Array.from(new Set(policies.map((p) => p.carrier).filter(Boolean)));
-  const policyTypes = Array.from(new Set(policies.map((p) => p.type).filter(Boolean)));
+  const carriers = Array.from(new Set((policies || []).map((p) => p.carrier).filter(Boolean)));
+  const policyTypes = Array.from(new Set((policies || []).map((p) => p.type).filter(Boolean)));
 
-  const filteredPolicies = policies.filter((p) => {
+  const filteredPolicies = (policies || []).filter((p) => {
     const matchesSearch =
       p.policyNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
       p.carrier.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -55,9 +55,9 @@ export const PoliciesListView: React.FC<PoliciesListViewProps> = ({
     return matchesSearch && matchesCarrier && matchesStatus && matchesType;
   });
 
-  const totalActive = policies.filter((p) => p.status === 'Activa').length;
-  const totalVolume = policies.reduce((acc, p) => acc + (Number(p.monthlyPremium) || 0), 0);
-  const totalSubsidies = policies.reduce((acc, p) => acc + (Number(p.subsidyAptc) || 0), 0);
+  const totalActive = (policies || []).filter((p) => p.status === 'Activa').length;
+  const totalVolume = (policies || []).reduce((acc, p) => acc + (Number(p.monthlyPremium) || 0), 0);
+  const totalSubsidies = (policies || []).reduce((acc, p) => acc + (Number(p.subsidyAptc) || 0), 0);
 
   const statusColors: Record<string, string> = {
     'Activa': 'bg-emerald-50 text-emerald-700 border-emerald-200',

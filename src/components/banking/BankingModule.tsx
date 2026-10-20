@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   CreditCard,
   Search,
@@ -30,6 +30,7 @@ interface BankingModuleProps {
 export const BankingModule: React.FC<BankingModuleProps> = ({ onOpenClient }) => {
   const {
     bankAccounts,
+    fetchBankAccounts,
     deleteBankAccount,
     addBankAccount,
     setDefaultPaymentMethod,
@@ -43,6 +44,11 @@ export const BankingModule: React.FC<BankingModuleProps> = ({ onOpenClient }) =>
   const [filterType, setFilterType] = useState<'all' | 'bank_account' | 'credit_card'>('all');
   const [unmaskedAccounts, setUnmaskedAccounts] = useState<Record<string, boolean>>({});
   const [permissionWarning, setPermissionWarning] = useState<string | null>(null);
+
+  // Fetch bank accounts on mount and when tenant changes
+  useEffect(() => {
+    fetchBankAccounts?.();
+  }, [currentTenant.id, fetchBankAccounts]);
 
   // New Payment Method Modal State
   const [showAddModal, setShowAddModal] = useState(false);
@@ -134,7 +140,7 @@ export const BankingModule: React.FC<BankingModuleProps> = ({ onOpenClient }) =>
     setBankHolder('');
   };
 
-  const filteredAccounts = bankAccounts.filter((acc) => {
+  const filteredAccounts = (bankAccounts || []).filter((acc) => {
     // Filter by type
     if (filterType === 'bank_account' && (acc.type === 'credit_card' || acc.accountType === 'Tarjeta Débito/Crédito')) {
       return false;
@@ -184,7 +190,7 @@ export const BankingModule: React.FC<BankingModuleProps> = ({ onOpenClient }) =>
           <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
             <span>Gestión Central de Métodos de Pago</span>
             <span className="px-2.5 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs font-bold">
-              {bankAccounts.length} registrados
+              {(bankAccounts || []).length} registrados
             </span>
           </h1>
           <p className="text-xs text-slate-500">
@@ -232,7 +238,7 @@ export const BankingModule: React.FC<BankingModuleProps> = ({ onOpenClient }) =>
               filterType === 'all' ? 'bg-white text-purple-700 shadow-xs' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            Todos ({bankAccounts.length})
+            Todos ({(bankAccounts || []).length})
           </button>
           <button
             onClick={() => setFilterType('bank_account')}

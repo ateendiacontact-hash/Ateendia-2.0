@@ -119,7 +119,7 @@ export const TemplatesModule: React.FC = () => {
           <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
             <span>Plantillas de Mensajes Multicanal</span>
             <span className="px-2.5 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs font-bold">
-              {templates.length} plantillas
+              {(templates || []).length} plantillas
             </span>
           </h1>
           <p className="text-xs text-slate-500">
@@ -370,9 +370,9 @@ export const TemplatesModule: React.FC = () => {
                     <Sparkles className="w-4 h-4 text-purple-600" />
                     <span>Simulación en Vivo con Datos Reales de Cliente</span>
                   </div>
-                  {clients.length > 1 && (
+                  {(clients || []).length > 1 && (
                     <button
-                      onClick={() => setTestClientIndex((i) => (i + 1) % clients.length)}
+                      onClick={() => setTestClientIndex((i) => (i + 1) % (clients || []).length)}
                       className="text-[11px] font-bold text-purple-700 hover:underline"
                     >
                       Probar con otro cliente ({testClient?.firstName})

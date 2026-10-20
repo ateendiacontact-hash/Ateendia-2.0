@@ -52,14 +52,14 @@ export const PipelineView: React.FC<PipelineViewProps> = ({
     can
   } = useTenant();
 
-  const [activePipelineId, setActivePipelineId] = useState<string>(pipelines[0]?.id || 'pipe-01');
+  const [activePipelineId, setActivePipelineId] = useState<string>((pipelines || [])[0]?.id || 'pipe-01');
   const [selectedSourceFilter, setSelectedSourceFilter] = useState<string>('all');
   const [selectedAgentFilter, setSelectedAgentFilter] = useState<string>('all');
   const [draggedClientId, setDraggedClientId] = useState<string | null>(null);
   const [dragOverStageId, setDragOverStageId] = useState<string | null>(null);
   const [assigningClientId, setAssigningClientId] = useState<string | null>(null);
 
-  const currentPipeline = pipelines.find((p) => p.id === activePipelineId) || pipelines[0];
+  const currentPipeline = (pipelines || []).find((p) => p.id === activePipelineId) || (pipelines || [])[0];
 
   const getLeadSourceInfo = (source?: string, tags?: string[]) => {
     const src = (source || tags?.find((t) => t.toLowerCase().includes('landing') || t.toLowerCase().includes('whatsapp')) || '').toLowerCase();
@@ -135,7 +135,7 @@ export const PipelineView: React.FC<PipelineViewProps> = ({
   };
 
   // Filter clients
-  const filteredClients = clients.filter((c) => {
+  const filteredClients = (clients || []).filter((c) => {
     // Source filter
     if (selectedSourceFilter !== 'all') {
       const srcInfo = getLeadSourceInfo(c.leadSource, c.tags);
@@ -154,7 +154,7 @@ export const PipelineView: React.FC<PipelineViewProps> = ({
     return true;
   });
 
-  const totalPipelineValue = filteredClients.reduce((acc, c) => acc + (c.dealValue || 0), 0);
+  const totalPipelineValue = (filteredClients || []).reduce((acc, c) => acc + (c.dealValue || 0), 0);
 
   const handleDragStart = (e: React.DragEvent, clientId: string) => {
     e.dataTransfer.setData('text/plain', clientId);
@@ -289,7 +289,7 @@ export const PipelineView: React.FC<PipelineViewProps> = ({
             >
               <option value="all">Todos los Asesores</option>
               <option value="unassigned">⚠️ Sin Asesor Asignado</option>
-              {users
+              {(users || [])
                 .filter((u) => u.tenantId === currentTenant.id)
                 .map((u) => (
                   <option key={u.id} value={u.id}>
@@ -319,7 +319,7 @@ export const PipelineView: React.FC<PipelineViewProps> = ({
           const stageClients = filteredClients.filter(
             (c) => (c.stageId || currentPipeline.stages[0].id) === stage.id
           );
-          const stageTotalValue = stageClients.reduce((acc, c) => acc + (c.dealValue || 0), 0);
+          const stageTotalValue = (stageClients || []).reduce((acc, c) => acc + (c.dealValue || 0), 0);
           const isDragOver = dragOverStageId === stage.id;
 
           return (
@@ -523,7 +523,7 @@ export const PipelineView: React.FC<PipelineViewProps> = ({
 
                         {/* Card Stage Mover */}
                         <div className="flex items-center justify-between pt-1">
-                          {sIdx < currentPipeline.stages.length - 1 ? (
+                          {sIdx < (currentPipeline?.stages || []).length - 1 ? (
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();

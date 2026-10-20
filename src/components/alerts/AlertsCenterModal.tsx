@@ -34,7 +34,7 @@ export const AlertsCenterModal: React.FC<AlertsCenterModalProps> = ({
 
   if (!isOpen) return null;
 
-  const filteredAlerts = alerts.filter((alert) => {
+  const filteredAlerts = (alerts || []).filter((alert) => {
     if (activeFilter === 'birthday') return alert.type.includes('birthday');
     if (activeFilter === 'document') return alert.type === 'expiring_document';
     if (activeFilter === 'payment') return alert.type === 'upcoming_payment';
@@ -82,7 +82,7 @@ export const AlertsCenterModal: React.FC<AlertsCenterModalProps> = ({
               <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
                 <span>Centro de Alertas Automáticas</span>
                 <span className="px-2.5 py-0.5 rounded-full bg-purple-600 text-white text-xs font-bold">
-                  {alerts.length}
+                  {(alerts || []).length}
                 </span>
               </h2>
               <p className="text-xs text-slate-500">
@@ -108,7 +108,7 @@ export const AlertsCenterModal: React.FC<AlertsCenterModalProps> = ({
                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
           >
-            Todas ({alerts.length})
+            Todas ({(alerts || []).length})
           </button>
           <button
             onClick={() => setActiveFilter('birthday')}
@@ -119,7 +119,7 @@ export const AlertsCenterModal: React.FC<AlertsCenterModalProps> = ({
             }`}
           >
             <Cake className="w-3.5 h-3.5" />
-            <span>Cumpleaños ({alerts.filter((a) => a.type.includes('birthday')).length})</span>
+            <span>Cumpleaños ({(alerts || []).filter((a) => a.type.includes('birthday')).length})</span>
           </button>
           <button
             onClick={() => setActiveFilter('document')}
@@ -130,7 +130,7 @@ export const AlertsCenterModal: React.FC<AlertsCenterModalProps> = ({
             }`}
           >
             <FileWarning className="w-3.5 h-3.5" />
-            <span>Documentos ({alerts.filter((a) => a.type === 'expiring_document').length})</span>
+            <span>Documentos ({(alerts || []).filter((a) => a.type === 'expiring_document').length})</span>
           </button>
           <button
             onClick={() => setActiveFilter('payment')}
@@ -141,7 +141,7 @@ export const AlertsCenterModal: React.FC<AlertsCenterModalProps> = ({
             }`}
           >
             <CreditCard className="w-3.5 h-3.5" />
-            <span>Pagos Próximos ({alerts.filter((a) => a.type === 'upcoming_payment').length})</span>
+            <span>Pagos Próximos ({(alerts || []).filter((a) => a.type === 'upcoming_payment').length})</span>
           </button>
         </div>
 

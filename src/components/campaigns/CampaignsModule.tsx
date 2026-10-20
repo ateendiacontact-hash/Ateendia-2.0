@@ -36,8 +36,8 @@ export const CampaignsModule: React.FC = () => {
     if (!name) return;
 
     const targetAudience = segmentCategory === 'all'
-      ? clients.length
-      : clients.filter((c) => c.category === segmentCategory).length;
+      ? (clients || []).length
+      : (clients || []).filter((c) => c.category === segmentCategory).length;
 
     createCampaign({
       name,
@@ -55,12 +55,12 @@ export const CampaignsModule: React.FC = () => {
   };
 
   // Report Metrics
-  const agentSales = users
+  const agentSales = (users || [])
     .filter((u) => u.tenantId === currentTenant.id && u.role === 'agent')
     .map((agent) => {
-      const agentClients = clients.filter((c) => c.assignedAgentId === agent.id);
-      const agentPolicies = policies.filter((p) => agentClients.some((c) => c.id === p.clientId));
-      const totalVolume = agentPolicies.reduce((acc, p) => acc + (p.monthlyPremium || 0), 0);
+      const agentClients = (clients || []).filter((c) => c.assignedAgentId === agent.id);
+      const agentPolicies = (policies || []).filter((p) => agentClients.some((c) => c.id === p.clientId));
+      const totalVolume = (agentPolicies || []).reduce((acc, p) => acc + (p.monthlyPremium || 0), 0);
       return {
         agent,
         clientsCount: agentClients.length,
@@ -77,7 +77,7 @@ export const CampaignsModule: React.FC = () => {
           <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
             <span>Campañas Masivas & Reportes Analíticos</span>
             <span className="px-2.5 py-0.5 bg-purple-100 text-purple-700 rounded-full text-xs font-bold">
-              {campaigns.length} campañas
+              {(campaigns || []).length} campañas
             </span>
           </h1>
           <p className="text-xs text-slate-500">
@@ -165,7 +165,7 @@ export const CampaignsModule: React.FC = () => {
                         onChange={(e) => setSegmentCategory(e.target.value)}
                         className="w-full px-3 py-2 bg-slate-50 border rounded-xl text-xs font-semibold"
                       >
-                        <option value="all">Todos los clientes ({clients.length})</option>
+                        <option value="all">Todos los clientes ({(clients || []).length})</option>
                         <option value="Seguro de Salud / ACA">Seguro de Salud / ACA</option>
                         <option value="Seguro de Vida">Seguro de Vida</option>
                       </select>

@@ -47,7 +47,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
 
   const q = (query || '').toLowerCase().trim();
 
-  const matchedClients = clients.filter(
+  const matchedClients = (clients || []).filter(
     (c) =>
       (c.firstName || '').toLowerCase().includes(q) ||
       (c.lastName || '').toLowerCase().includes(q) ||
@@ -56,14 +56,14 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({
       (c.idNumber && c.idNumber.toLowerCase().includes(q))
   );
 
-  const matchedPolicies = policies.filter(
+  const matchedPolicies = (policies || []).filter(
     (p) =>
       (p.policyNumber || '').toLowerCase().includes(q) ||
       (p.carrier || '').toLowerCase().includes(q) ||
       (p.clientName || '').toLowerCase().includes(q)
   );
 
-  const matchedAccounts = bankAccounts.filter(
+  const matchedAccounts = (bankAccounts || []).filter(
     (b) =>
       (b.accountHolder || '').toLowerCase().includes(q) ||
       (b.bankName || '').toLowerCase().includes(q) ||

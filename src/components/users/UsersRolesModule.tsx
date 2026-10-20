@@ -28,7 +28,7 @@ export const UsersRolesModule: React.FC = () => {
   const [inviteRole, setInviteRole] = useState<UserRole>('agent');
   const [inviteExt, setInviteExt] = useState('105');
 
-  const tenantUsers = users.filter((u) => u.tenantId === currentTenant.id);
+  const tenantUsers = (users || []).filter((u) => u.tenantId === currentTenant.id);
 
   const selectedRole = roles.find((r) => r.key === selectedRoleKey) || roles[0];
 

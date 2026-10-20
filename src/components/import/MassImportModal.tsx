@@ -1074,7 +1074,7 @@ export const MassImportModal: React.FC<MassImportModalProps> = ({ isOpen, onClos
                       }
                       className="w-full text-xs px-2.5 py-2 bg-slate-50 border border-slate-200 rounded-xl font-semibold text-slate-800"
                     >
-                      {catalogs?.clientCategories?.map((cat) => (
+                      {(catalogs?.clientCategories || []).map((cat: any) => (
                         <option key={cat} value={cat}>
                           {cat}
                         </option>
