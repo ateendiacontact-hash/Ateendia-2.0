@@ -276,7 +276,7 @@ model users {
   password_hash          String                   @db.VarChar(255)
   must_reset_password    Boolean                  @default(false)
   role                   String                   @default("agent") @db.VarChar(32)
-  avatar                 String?                  @db.Text
+  avatar                 String?                  @db.LongText
   phone                  String?                  @db.VarChar(32)
   extension              String?                  @db.VarChar(16)
   status                 String                   @default("active") @db.VarChar(16)

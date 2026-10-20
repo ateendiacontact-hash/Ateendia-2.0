@@ -12,6 +12,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { login, getCurrentUser, changeInitialPassword } from '../services/authService.js';
 import { requireAuth, requireTenant, getPermissionsForRole, auditLog } from '../middleware/index.js';
+import { prisma } from '../db.js';
 
 export const authRouter = Router();
 
@@ -217,6 +218,57 @@ authRouter.post(
       }
 
       next(err);
+    }
+  }
+);
+
+/**
+ * PATCH /api/auth/me
+ * Actualiza el perfil del usuario autenticado (nombre y avatar).
+ * Requiere JWT válido.
+ */
+authRouter.patch( // <-- CAMBIO AQUÍ: era 'router', ahora es 'authRouter'
+  '/me',
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const { name, avatar } = req.body;
+      const userId = req.user?.userId; // Viene del JWT
+
+      if (!userId) {
+        res.status(401).json({ success: false, error: 'No autenticado' });
+        return;
+      }
+
+      // Validar que al menos uno de los campos esté presente
+      if (name === undefined && avatar === undefined) {
+        res.status(400).json({ success: false, error: 'No hay campos para actualizar' });
+        return;
+      }
+
+      const updatedUser = await prisma.users.update({
+        where: { id: userId },
+        data: {
+          ...(name !== undefined && { name }),
+          ...(avatar !== undefined && { avatar }),
+          updated_at: new Date(),
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          avatar: true,
+          tenant_id: true,
+        },
+      });
+
+      res.json({
+        success: true,
+        data: updatedUser,
+      });
+    } catch (error) {
+      next(error);
     }
   }
 );

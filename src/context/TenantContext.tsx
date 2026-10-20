@@ -73,6 +73,7 @@ import {
   // ═══════════════════════════════════════════════════════════════
   SaasTenantDTO,
 } from '../types';
+import { authService } from '../services/authService';
 
 // ═══════════════════════════════════════════════════════════════════
 // TIPOS DEL CONTEXTO
@@ -81,25 +82,6 @@ import {
 // ═══════════════════════════════════════════════════════════════════
 // HELPERS GLOBALES
 // ═══════════════════════════════════════════════════════════════════
-
-/**
- * Lee el JWT del usuario desde localStorage.
- *
- * Prueba 3 nombres posibles porque históricamente el proyecto usó
- * varios (deuda técnica). El nombre canónico actual es `'auth_token'`
- * (ver src/services/authService.ts línea 191), pero mantenemos los
- * otros dos como fallback defensivo.
- *
- * @returns El token JWT como string, o null si no hay ninguno.
- */
-function getAuthToken(): string | null {
-  return (
-    localStorage.getItem('ateendia_auth_token') ||
-    localStorage.getItem('auth_token') ||
-    localStorage.getItem('token') ||
-    null
-  );
-}
 
 interface TenantContextType {
   // ─── Datos principales ───
@@ -1006,23 +988,11 @@ const [preImpersonationState, setPreImpersonationState] = useState<{
    * Endpoint: GET /api/saas/tenants (requirePlatformUser).
    */
     const refreshSaasTenants = useCallback(async () => {
-    const token = localStorage.getItem('ateendia_auth_token')
-      || localStorage.getItem('auth_token')
-      || localStorage.getItem('token');
-
-    if (!token) {
-      console.warn('[TenantContext] refreshSaasTenants: no hay JWT en localStorage');
-      return;
-    }
-
     setSaasTenantsLoading(true);
     try {
-      const res = await fetch('/api/saas/tenants', {
+      // ✅ Usamos authService.fetchWithAuth para manejar el token y el 401
+      const res = await authService.fetchWithAuth('/api/saas/tenants', {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
       });
 
       if (!res.ok) {
@@ -1046,8 +1016,13 @@ const [preImpersonationState, setPreImpersonationState] = useState<{
       } else {
         console.warn('[TenantContext] refreshSaasTenants: respuesta inesperada', body);
       }
-    } catch (error) {
-      console.error('[TenantContext] refreshSaasTenants: error de red', error);
+    } catch (error: any) {
+      if (error.message === 'SESSION_EXPIRED') {
+        console.warn('[TenantContext] refreshSaasTenants: sesión expirada.');
+        // El logout ya se disparó en authService.
+      } else {
+        console.error('[TenantContext] refreshSaasTenants: error de red', error);
+      }
     } finally {
       setSaasTenantsLoading(false);
     }
@@ -1712,49 +1687,23 @@ const exitTenantInstance = useCallback(() => {
   /**
  * Carga los clientes del tenant activo.
  *
- * ─── Lógica de resolución del tenant ───
- * 1. Si `activeTenantId` está seteado (Super Admin impersonando) → usarlo.
- * 2. Si no → usar `currentUser.tenantId` (del JWT).
- * 3. Si no hay ninguno → usar el fallback del ref (compatibilidad).
- *
- * ─── Headers ───
- * Siempre envía el JWT en `Authorization: Bearer <token>`. Sin esto,
- * `requireAuth` en el backend responde 401 y los datos no se recargan.
+ * [REFACTORIZADO] Usa `authService.fetchWithAuth` para centralizar
+ * el manejo del token y el 401.
  */
 const fetchClients = useCallback(async () => {
   try {
     setLoadingClients(true);
 
-    // Fuente del tenant: activeTenantId > currentUser.tenantId > ref
     const tenantId = activeTenantId ?? currentUser?.tenantId ?? currentTenantIdRef.current;
 
-    // Token JWT (para requireAuth)
-    const token = getAuthToken();
+    // ✅ Usamos el nuevo helper. Él añade el token y maneja el 401.
+    const res = await authService.fetchWithAuth(`/api/clients?tenantId=${encodeURIComponent(tenantId)}`);
 
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-    if (token) {
-      headers.Authorization = `Bearer ${token}`;
-    }
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s (más realista que 1.5s)
-
-    const res = await fetch(`/api/clients?tenantId=${encodeURIComponent(tenantId)}`, {
-      method: 'GET',
-      headers,
-      signal: controller.signal,
-    }).catch(() => null);
-
-    clearTimeout(timeoutId);
-
-    if (res && res.ok) {
+    if (res.ok) {
       const contentType = res.headers.get('content-type');
       if (contentType && contentType.includes('application/json')) {
         const body: unknown = await res.json();
 
-        // Type guard (Regla 29): validar shape antes de acceder a .data
         if (
           typeof body === 'object' &&
           body !== null &&
@@ -1766,14 +1715,16 @@ const fetchClients = useCallback(async () => {
           const data = (body as { data: any[] }).data;
           setClients(data);
         } else if (Array.isArray(body)) {
-          // Fallback: algunos endpoints devuelven array directo
           setClients(body);
         }
       }
     }
-  } catch (error) {
-    console.warn('[TenantContext] fetchClients error:', error);
-    // No hacemos fallback a mock (Regla 28). El array queda como estaba.
+  } catch (error: any) {
+    if (error.message === 'SESSION_EXPIRED') {
+      console.warn('[TenantContext] fetchClients: sesión expirada. Redirigiendo...');
+    } else {
+      console.warn('[TenantContext] fetchClients error:', error);
+    }
   } finally {
     setLoadingClients(false);
   }
@@ -1781,32 +1732,16 @@ const fetchClients = useCallback(async () => {
 
   /**
  * Carga las pólizas del tenant activo.
- * Misma lógica que `fetchClients` (ver comentarios arriba).
+ * Misma lógica que `fetchClients`.
  */
 const fetchPolicies = useCallback(async () => {
   try {
     const tenantId = activeTenantId ?? currentUser?.tenantId ?? currentTenantIdRef.current;
-    const token = getAuthToken();
 
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-    if (token) {
-      headers.Authorization = `Bearer ${token}`;
-    }
+    // ✅ Usamos el nuevo helper.
+    const res = await authService.fetchWithAuth(`/api/policies?tenantId=${encodeURIComponent(tenantId)}`);
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
-
-    const res = await fetch(`/api/policies?tenantId=${encodeURIComponent(tenantId)}`, {
-      method: 'GET',
-      headers,
-      signal: controller.signal,
-    }).catch(() => null);
-
-    clearTimeout(timeoutId);
-
-    if (res && res.ok) {
+    if (res.ok) {
       const contentType = res.headers.get('content-type');
       if (contentType && contentType.includes('application/json')) {
         const body: unknown = await res.json();
@@ -1825,8 +1760,12 @@ const fetchPolicies = useCallback(async () => {
         }
       }
     }
-  } catch (error) {
-    console.warn('[TenantContext] fetchPolicies error:', error);
+  } catch (error: any) {
+    if (error.message === 'SESSION_EXPIRED') {
+      console.warn('[TenantContext] fetchPolicies: sesión expirada.');
+    } else {
+      console.warn('[TenantContext] fetchPolicies error:', error);
+    }
   }
 }, [activeTenantId, currentUser?.tenantId]);
 
@@ -1884,16 +1823,16 @@ const fetchPolicies = useCallback(async () => {
         body: JSON.stringify({ ...accountData, tenant_id: currentTenant.id }),
       }).catch(() => null);
 
-      if (res && res.ok) {
-        const newAccount = await res.json();
-        setBankAccounts((prev) => [newAccount, ...(Array.isArray(prev) ? prev : [])]);
+                  if (res && res.ok) {
+        const newAccount = (await res.json()) as BankAccount;
+        setBankAccounts((prev: BankAccount[]) => [newAccount, ...(Array.isArray(prev) ? prev : [])]);
         return newAccount;
       }
     } catch (error) {
       console.error('Error adding bank account:', error);
     }
-    const newAccount = { ...accountData, id: `bank-${Date.now()}`, tenant_id: currentTenant.id };
-    setBankAccounts((prev) => [newAccount, ...(Array.isArray(prev) ? prev : [])]);
+        const newAccount = { ...accountData, id: `bank-${Date.now()}`, tenant_id: currentTenant.id };
+    setBankAccounts((prev: BankAccount[]) => [newAccount, ...(Array.isArray(prev) ? prev : [])]);
     return newAccount;
   };
 
@@ -1905,9 +1844,9 @@ const fetchPolicies = useCallback(async () => {
         body: JSON.stringify({ ...accountData, id }),
       }).catch(() => null);
 
-      if (res && res.ok) {
-        const updatedAccount = await res.json();
-        setBankAccounts((prev) =>
+                  if (res && res.ok) {
+        const updatedAccount = (await res.json()) as Partial<BankAccount>;
+        setBankAccounts((prev: BankAccount[]) =>
           (Array.isArray(prev) ? prev : []).map((a) => (a.id === id ? { ...a, ...updatedAccount } : a))
         );
         return updatedAccount;
@@ -1915,7 +1854,7 @@ const fetchPolicies = useCallback(async () => {
     } catch (error) {
       console.error('Error updating bank account:', error);
     }
-    setBankAccounts((prev) =>
+        setBankAccounts((prev: BankAccount[]) =>
       (Array.isArray(prev) ? prev : []).map((a) => (a.id === id ? { ...a, ...accountData } : a))
     );
     return { id, ...accountData };
@@ -1927,14 +1866,14 @@ const fetchPolicies = useCallback(async () => {
         method: 'DELETE',
       }).catch(() => null);
 
-      if (res && res.ok) {
-        setBankAccounts((prev) => (Array.isArray(prev) ? prev : []).filter((a) => a.id !== id));
+            if (res && res.ok) {
+        setBankAccounts((prev: BankAccount[]) => (Array.isArray(prev) ? prev : []).filter((a) => a.id !== id));
         return;
       }
     } catch (error) {
       console.error('Error deleting bank account:', error);
     }
-    setBankAccounts((prev) => (Array.isArray(prev) ? prev : []).filter((a) => a.id !== id));
+        setBankAccounts((prev: BankAccount[]) => (Array.isArray(prev) ? prev : []).filter((a) => a.id !== id));
   };
 
   const setDefaultPaymentMethod = async (clientId: string, accountId: string) => {
@@ -1945,8 +1884,8 @@ const fetchPolicies = useCallback(async () => {
         body: JSON.stringify({ id: accountId, clientId, isDefault: true }),
       }).catch(() => null);
 
-      if (res && res.ok) {
-        setBankAccounts((prev) =>
+            if (res && res.ok) {
+        setBankAccounts((prev: BankAccount[]) =>
           (Array.isArray(prev) ? prev : []).map((a) =>
             a.clientId === clientId ? { ...a, isDefault: a.id === accountId } : a
           )
@@ -1956,14 +1895,41 @@ const fetchPolicies = useCallback(async () => {
     } catch (error) {
       console.error('Error setting default payment method:', error);
     }
-    setBankAccounts((prev) =>
+        setBankAccounts((prev: BankAccount[]) =>
       (Array.isArray(prev) ? prev : []).map((a) =>
         a.clientId === clientId ? { ...a, isDefault: a.id === accountId } : a
       )
     );
   };
 
+    /**
+   * [REFACTORIZADO - BUG-PERFIL-1]
+   * Actualiza el perfil del usuario.
+   * Si se envían `name` o `avatar`, los persiste en el backend llamando
+   * a authService.updateProfile(). Luego actualiza el estado local.
+   */
   const updateUser = async (userData: any) => {
+    // Si estamos actualizando el perfil (nombre o avatar), persistimos en el backend
+    if (userData.name !== undefined || userData.avatar !== undefined) {
+      try {
+        const nameToSave = userData.name !== undefined ? userData.name : (currentUser?.name || '');
+        const avatarToSave = userData.avatar !== undefined ? userData.avatar : (currentUser?.avatar || '');
+        
+        // authService.updateProfile se encarga de actualizar el localStorage.ateendia_session
+        const result = await authService.updateProfile(nameToSave, avatarToSave);
+        
+        if (!result.success) {
+          console.error('Error al persistir el perfil:', result.error);
+          // Opcional: lanzar el error para que el ProfileModal lo muestre
+          throw new Error(result.error || 'Error al guardar el perfil');
+        }
+      } catch (error) {
+        console.error('[TenantContext] updateUser error:', error);
+        throw error; // Re-lanzamos para que el modal sepa que falló
+      }
+    }
+
+    // Actualizamos el estado local (en memoria) para que la UI reaccione inmediatamente
     setCurrentUserState((prev) => (prev ? { ...prev, ...userData } : null));
     return userData;
   };

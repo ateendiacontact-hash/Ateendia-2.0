@@ -3,6 +3,7 @@
 > **Última actualización:** 2026-10-19 (Sesión #28)
 > **Progreso global:** ~66%
 > **Sesiones completadas:** 28
+> **Último commit:** 35cca1d — feat(saas): fix BUG-DEMO-PERMISSIONS-FIX + SMTP transaccional (3.5.B.4.g)
 
 ---
 
@@ -757,7 +758,9 @@ Placeholders <67118c3> y <hash_corto> en AGENTS.md.
 9. HISTORIAL DE SESIONES
 ### Sesión #28 — Fix permisos DEMO + SMTP transaccional (3.5.B.4.g)
 **Fecha:** 2026-10-19
-**Commit:** <pendiente de hacer al cierre>
+**Commit:** 35cca1d
+**Push:** origin/main (009f164..35cca1d)
+**Archivos commiteados:** 6 (650 insertions, 92 deletions)
 
 **Objetivo cumplido:**
 - Resuelta deuda técnica ALTA `BUG-DEMO-PERMISSIONS-FIX`.
@@ -796,6 +799,19 @@ Placeholders <67118c3> y <hash_corto> en AGENTS.md.
   NO enviado... SMTP_NOT_CONFIGURED` (fallback esperado).
 
 **Deuda técnica registrada:** ver sección 8.
+
+**Estado al cierre:** ✅ Sesión cerrada.
+
+`git log --oneline -3` confirma 35cca1d como HEAD y origin/main.
+
+`git status --short` muestra 0 archivos del commit pendientes
+(solo queda deuda técnica preexistente de Sesión #29).
+
+Fase 3.5.B al 100% (todas las sub-fases B.1 a B.4.g completadas).
+
+Los ~28 archivos M en src/ + 9 legacy sin trackear + tsconfig.json
+.kilo/kilo.jsonc quedan FUERA de este commit intencionalmente.
+Serán atendidos en Sesión #29 (3.5.F Cleanup).
 
 ### Sesión #27 — Middleware verificación de límites + Fix auto-aprobación DEMO (3.5.B.4.f)
 **Fecha:** 2026-10-19
@@ -1116,9 +1132,37 @@ No todos los datos vienen de la DB: las stats agregadas (usersCount, clientsCoun
 
 Type guard para response.json(): con TS estricto, hay que validar 'success' in body antes de acceder (Regla 29).
 
+### Rama / Release (Sesión #28)
+
+Al verificar un commit, correr git log --oneline -3 Y git status --short
+en el mismo bloque. El log confirma que el commit entró; el status confirma
+que no quedaron archivos del commit sin stagear.
+
+El formato de git commit multilínea en PowerShell funciona bien con
+comillas dobles + salto de línea real (Enter). Evitar tildes en el
+mensaje del commit para prevenir problemas de encoding (Regla 15).
+
+git restore --staged <archivo> es la herramienta correcta para
+desstagear sin tocar el archivo en disco. git reset HEAD <archivo>
+funciona pero es más ruidoso en la salida.
+
+git diff --cached --stat (no git diff --stat) es el comando correcto
+para ver el resumen de lo que está en staging ANTES del commit.
+
 11. PRÓXIMOS PASOS
 Sub-fase inmediata
-3.5.F — Cleanup y Estabilización (consolidar ~28 archivos M pendientes en src/, atacar BUG-AUTH-1 y BUG-PERFIL-1) o 3.5.C — Pagos y Suspensión (a definir en sesión #29).
+Sesión #29 — 3.5.F Cleanup y Estabilización.
+Objetivo: consolidar deuda técnica de src/ antes de Fase 3.5.C.
+Prioridades:
+
+BUG-AUTH-1 (MEDIA): JWT expirado sin redirect a login.
+
+BUG-PERFIL-1 (MEDIA): avatar del usuario no persiste.
+
+Revisar y consolidar ~28 archivos M en src/.
+
+Decidir qué hacer con 9 archivos legacy sin trackear
+(functions/, prisma.old/, src/index.ts, src/lib/, etc.).
 
 Sub-fases de 3.5.B pendientes
 *Ninguna — Fase 3.5.B completa (B.1 a B.4.g todas ✅).*
@@ -1140,7 +1184,11 @@ Fase 3.5.F — Cleanup y Estabilización (agendada).
 FIN DEL AGENTS.md
 Última actualización: 2026-10-19 (Sesión #28)
 Progreso global: ~66%
+Último commit: 35cca1d
 Siguiente sub-fase: 3.5.F — Cleanup y Estabilización
-(consolidar ~28 archivos M pendientes en src/, atacar BUG-AUTH-1
-y BUG-PERFIL-1) o 3.5.C — Pagos y Suspensión (a definir en sesión #29).
-══════════════════════════════════════════════════════════════════
+Siguiente sesión: #29 — Atacar BUG-AUTH-1, BUG-PERFIL-1 y deuda de src/
+═══════════════════════════════════════════════════════════════════
+
+
+
+

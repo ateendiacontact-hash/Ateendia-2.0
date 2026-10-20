@@ -5,6 +5,7 @@
 // - Prioriza el backend Express (/api/auth/login).
 // - Fallback a usuarios demo si el backend no responde.
 // - Maneja must_reset_password (Sesión 3.5.B.4.c).
+// - [NUEVO] fetchWithAuth: interceptor global de 401 (BUG-AUTH-1).
 // ===========================================
 
 import { User, TenantBranding } from '../types';
@@ -26,34 +27,13 @@ export interface LoginCredentials {
   twoFactorCode?: string;
 }
 
-/**
- * Resultado del login. Discriminated union para type-narrowing seguro.
- * - success=true, requires2FA=false → login completo, revisar mustResetPassword
- * - success=true, requires2FA=true  → falta verificar OTP
- * - success=false                   → error de credenciales/red
- */
 export type LoginResult =
   | { success: true; requires2FA: false; mustResetPassword: boolean }
   | { success: true; requires2FA: true; mustResetPassword: false }
   | { success: false; error: string };
 
-export interface RegisterTenantData {
-  companyName: string;
-  subdomain: string;
-  adminName: string;
-  adminEmail: string;
-  adminPhone: string;
-  planId: string;
-  billingCycle: 'monthly' | 'annual';
-  paymentMethod: 'stripe' | 'paypal' | 'bank_transfer' | 'crypto_usdt' | 'zelle';
-  amount: number;
-}
-
-// URL base del backend. Si VITE_WORKER_URL está vacío, usa rutas relativas
-// (Vite proxy → Express en 4000 en desarrollo).
 const WORKER_URL = import.meta.env.VITE_WORKER_URL || '';
 
-// Demo users para fallback offline
 const DEMO_USERS = [
   { email: 'victoraray8@gmail.com', password: 'Aray-vic842867', name: 'Víctor Medina', role: 'admin', tenantId: 'tenant-demo', isSuperAdmin: true },
   { email: 'gabriel@solnacienteseguros.com', password: 'demo123', name: 'Gabriel', role: 'admin', tenantId: 'tenant-ateendia', isSuperAdmin: false },
@@ -72,6 +52,13 @@ const MOCK_TENANTS: Record<string, TenantBranding> = {
     isActive: true,
   } as TenantBranding,
 };
+
+// ✅ Tipo para las opciones de fetchWithAuth
+interface FetchWithAuthOptions {
+  method?: string;
+  body?: any; // Acepta objetos o strings, los serializa internamente
+  headers?: Record<string, string>;
+}
 
 class AuthService {
   private listeners: Set<(state: AuthState) => void> = new Set();
@@ -131,6 +118,8 @@ class AuthService {
     if (typeof window === 'undefined') return;
     localStorage.removeItem('ateendia_session');
     localStorage.removeItem('auth_token');
+    localStorage.removeItem('ateendia_auth_token');
+    localStorage.removeItem('token');
   }
 
   private updateState(partial: Partial<AuthState>) {
@@ -152,16 +141,67 @@ class AuthService {
     return { ...this.state };
   }
 
+  private getToken(): string | null {
+    if (typeof window === 'undefined') return null;
+    return (
+      localStorage.getItem('auth_token') ||
+      localStorage.getItem('ateendia_auth_token') ||
+      localStorage.getItem('token') ||
+      null
+    );
+  }
+
   /**
-   * Login con email + password.
+   * [NUEVO] Wrapper de fetch que maneja el 401 globalmente.
    *
-   * Flujo:
-   * 1. Intenta POST /api/auth/login en el backend Express.
-   * 2. Si responde 200: guarda token, user, tenant (o mock si no viene),
-   *    y mustResetPassword.
-   * 3. Si falla con 401: error de credenciales.
-   * 4. Si falla por red: fallback a DEMO_USERS.
+   * - Añade el header Authorization.
+   * - Si la respuesta es 401 (token expirado/inválido), llama a logout()
+   *   y lanza un error para que el componente sepa que la sesión terminó.
+   * - Si hay un error de red, lo propaga.
+   *
+   * @param endpoint Ruta relativa (ej: '/api/clients') o absoluta.
+   * @param options Opciones estándar de fetch. El `body` se serializa a JSON si es un objeto.
+   * @returns La respuesta (Response) si es exitosa.
+   * @throws Error si la sesión expiró o hay error de red.
    */
+  async fetchWithAuth(endpoint: string, options: FetchWithAuthOptions = {}): Promise<Response> {
+    const token = this.getToken();
+    const headers = new Headers(options.headers || {});
+
+    if (token) {
+      headers.set('Authorization', `Bearer ${token}`);
+    }
+
+    // ✅ CORRECCIÓN: Serializamos el body a JSON aquí, de forma centralizada.
+    let body: BodyInit | null = null;
+    if (options.body !== undefined && options.body !== null) {
+      if (typeof options.body === 'object' && !(options.body instanceof FormData)) {
+        headers.set('Content-Type', 'application/json');
+        body = JSON.stringify(options.body);
+      } else {
+        body = options.body as BodyInit;
+      }
+    }
+
+    const response = await fetch(`${WORKER_URL}${endpoint}`, {
+      ...options,
+      headers,
+      body,
+    });
+
+    // Manejo global de 401 / 403
+    if (response.status === 401 || response.status === 403) {
+      console.warn('[AuthService] Sesión expirada o inválida. Redirigiendo a login.');
+      this.logout();
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('auth:session-expired'));
+      }
+      throw new Error('SESSION_EXPIRED');
+    }
+
+    return response;
+  }
+
   async login(credentials: LoginCredentials): Promise<LoginResult> {
     this.updateState({ isLoading: true, error: null });
 
@@ -175,7 +215,7 @@ class AuthService {
         }),
       });
 
-            if (response.ok) {
+      if (response.ok) {
         const data = (await response.json()) as {
           user: User;
           tenant?: TenantBranding;
@@ -203,7 +243,7 @@ class AuthService {
         });
 
         return { success: true, requires2FA: false, mustResetPassword };
-            } else {
+      } else {
         const errorData = (await response.json().catch(() => ({}))) as {
           error?: string;
         };
@@ -248,37 +288,24 @@ class AuthService {
     }
   }
 
-  /**
-   * Cambia la contraseña en el primer login (must_reset_password = true).
-   * Requiere que el usuario esté autenticado (token en localStorage).
-   */
   async changeInitialPassword(
     currentPassword: string,
     newPassword: string,
     confirmPassword: string
   ): Promise<{ success: boolean; error?: string; code?: string }> {
     try {
-      const token = localStorage.getItem('auth_token');
-      if (!token) {
-        return { success: false, error: 'No hay sesión activa', code: 'AUTH_TOKEN_MISSING' };
-      }
-
-      const response = await fetch(`${WORKER_URL}/api/auth/change-initial-password`, {
+      // ✅ Usamos authService.fetchWithAuth, que ahora serializa el body correctamente
+      const response = await this.fetchWithAuth('/api/auth/change-initial-password', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ currentPassword, newPassword, confirmPassword }),
+        body: { currentPassword, newPassword, confirmPassword },
       });
 
-            const data = (await response.json().catch(() => ({}))) as {
+      const data = (await response.json().catch(() => ({}))) as {
         error?: string;
         code?: string;
       };
 
       if (response.ok) {
-        // Limpiar el flag en el estado y en localStorage
         if (this.state.user && this.state.tenant) {
           this.saveSession(this.state.user, this.state.tenant, this.state.isMockMode, false);
         }
@@ -292,24 +319,21 @@ class AuthService {
         code: data.code,
       };
     } catch (err: any) {
+      if (err.message === 'SESSION_EXPIRED') {
+        return { success: false, error: 'La sesión expiró. Por favor, iniciá sesión de nuevo.', code: 'SESSION_EXPIRED' };
+      }
       return { success: false, error: err.message || 'Error de red' };
     }
   }
 
-  /**
-   * Guarda cambios en el perfil del usuario (nombre, avatar).
-   * NOTA: endpoint legacy (/api/user/profile), pendiente migrar a Express.
-   */
   async updateProfile(name: string, avatar: string): Promise<{ success: boolean; error?: string }> {
     if (!this.state.user) return { success: false, error: 'No hay usuario autenticado' };
 
-    const email = this.state.user.email;
-
     try {
-      const response = await fetch(`${WORKER_URL}/api/user/profile`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, name, avatar }),
+      // ✅ Usamos authService.fetchWithAuth
+      const response = await this.fetchWithAuth('/api/auth/me', {
+        method: 'PATCH',
+        body: { name, avatar },
       });
 
       if (!response.ok) {
@@ -325,6 +349,9 @@ class AuthService {
       this.updateState({ user: updatedUser });
       return { success: true };
     } catch (err: any) {
+      if (err.message === 'SESSION_EXPIRED') {
+        return { success: false, error: 'La sesión expiró.' };
+      }
       console.error('Error al actualizar perfil:', err);
       return { success: false, error: err.message || 'Fallo de red al actualizar perfil' };
     }
@@ -342,10 +369,6 @@ class AuthService {
     });
   }
 
-  /**
-   * Verifica si el usuario tiene permiso para un módulo/acción.
-   * TODO: implementar con la matriz real de permisos del backend.
-   */
   can(_module: string, _action: string): boolean {
     if (!this.state.user) return false;
     if (this.state.user.isSuperAdmin) return true;

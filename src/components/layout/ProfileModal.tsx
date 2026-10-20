@@ -22,7 +22,7 @@ const DEFAULT_AVATARS = [
 ];
 
 export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) => {
-  const { currentUser, currentTenant } = useTenant();
+  const { currentUser, currentTenant, updateUser } = useTenant();
   const [formData, setFormData] = useState<Partial<UserType>>({
     name: '',
     avatar: '',
@@ -90,9 +90,11 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
     setAvatarPreview(selectedAvatar || '');
   };
 
-  const handleSave = async (e: React.FormEvent) => {
+    const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name.trim()) {
+    
+    const nameValue = (formData.name || '').trim();
+    if (!nameValue) {
       setError('El nombre es obligatorio');
       return;
     }
@@ -101,50 +103,66 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
     setError(null);
 
     try {
-      const updates: Partial<UserType> = { name: formData.name.trim() };
+      const updates: Partial<UserType> = { name: nameValue };
 
-      // Si hay avatar personalizado nuevo, subirlo (simulado con base64 para demo)
       if (customAvatarFile) {
-        // En producción, aquí subirías a tu storage (S3, PocketBase files, etc.)
-        // Por ahora usamos base64 como ejemplo
-        const reader = new FileReader();
-        reader.onload = async () => {
-          const base64 = reader.result as string;
-          updates.avatar = base64;
-          await saveProfile(updates);
-        };
-        reader.readAsDataURL(customAvatarFile);
-      } else if (selectedAvatar !== currentUser?.avatar) {
-        updates.avatar = selectedAvatar;
-        await saveProfile(updates);
-      } else {
-        await saveProfile(updates);
-      }
-    } catch (err: any) {
-      setError(err.message || 'Error al guardar el perfil');
-      setIsSaving(false);
-    }
-  };
+        // ✅ NUEVO: Redimensionar la imagen antes de convertirla a Base64
+        const resizeImage = (file: File): Promise<string> => {
+          return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+              const img = new Image();
+              img.onload = () => {
+                const canvas = document.createElement('canvas');
+                const MAX_SIZE = 256; // Tamaño máximo (256x256)
+                let width = img.width;
+                let height = img.height;
 
-  const saveProfile = async (updates: Partial<UserType>) => {
-    try {
-      if (!currentUser) throw new Error('No hay usuario actual');
-      
-      // Usar el contexto para actualizar
-      // Como el contexto no expone updateUser directamente en la interfaz,
-      // usamos una aproximación directa a PocketBase si está disponible
-      // o actualizamos localmente
-      
-      // Para demo, actualizamos localmente y mostramos éxito
-      await new Promise(resolve => setTimeout(resolve, 500)); // Simular API call
+                if (width > height) {
+                  if (width > MAX_SIZE) {
+                    height *= MAX_SIZE / width;
+                    width = MAX_SIZE;
+                  }
+                } else {
+                  if (height > MAX_SIZE) {
+                    width *= MAX_SIZE / height;
+                    height = MAX_SIZE;
+                  }
+                }
+
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx?.drawImage(img, 0, 0, width, height);
+                
+                // Calidad 0.8 (JPEG) para que pese menos
+                resolve(canvas.toDataURL('image/jpeg', 0.8));
+              };
+              img.onerror = reject;
+              img.src = event.target?.result as string;
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          });
+        };
+
+        const compressedBase64 = await resizeImage(customAvatarFile);
+        updates.avatar = compressedBase64;
+      } else {
+        updates.avatar = selectedAvatar;
+      }
+
+      // Llamamos a updateUser (que ahora sí persistirá en el backend)
+      await updateUser(updates);
       
       setSaveSuccess(true);
       setTimeout(() => {
         onClose();
+        setIsSaving(false); // ✅ Aseguramos que el botón se resetee
       }, 1500);
+      
     } catch (err: any) {
-      setError(err.message || 'Error al guardar');
-    } finally {
+      setError(err.message || 'Error al guardar el perfil');
       setIsSaving(false);
     }
   };
