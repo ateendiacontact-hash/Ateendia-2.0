@@ -1,7 +1,7 @@
 import PocketBase from 'pocketbase';
 import { TenantBranding, User, Client, Policy, BankAccount, ClientDocument, ClientNote, ClientActivity, Pipeline, WhatsAppConfig, WhatsAppConversation, WhatsAppMessage, SmtpConfig, MessageTemplate, ChatChannel, ChatMessage, IssabelConfig, CallRecord, Campaign, AuditLogEntry, CustomFieldDefinition, MasterCatalogs, N8nConfig, AiIntegrationConfig, ScheduledRule, AntiSpamSettings, AppNotification, SaasDelegatedAdmin, SaasLandingConfig, TenantLandingConfig, TenantSubscription, SaasPaymentReceipt, SaasPlanFeatureLimit, SaasSmtpConfig, SaasNotificationTemplates, SaasWhatsAppCentralConfig, SaasDatabaseConfig, SaasVpsDeploymentConfig } from '../types';
 
-const PB_URL = import.meta.env.VITE_POCKETBASE_URL || 'https://pb.ateendia.cloud';
+const PB_URL = import.meta.env.VITE_POCKETBASE_URL || 'http://13.140.37.155:8080';
 
 export const pb = new PocketBase(PB_URL);
 

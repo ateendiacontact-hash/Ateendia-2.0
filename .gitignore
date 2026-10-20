@@ -26,5 +26,23 @@ mariadb_data/
 # ─── Archivos temporales del sistema ───
 .DS_Store
 Thumbs.db
+
 # Backups de base de datos
 backups/
+
+# ─── Configuraciones de IDE (VS Code / Kilo) ───
+.vscode/
+.kilo/
+
+# ─── Archivos Legacy / Migraciones completadas ───
+MIGRATION_GUIDE.md
+functions/
+prisma.old/
+schema.sql.old
+seed.sql
+src/index.ts
+src/lib/
+src/services/databaseService.ts
+
+# ─── Configuración de TS (deuda Fase 7) ───
+tsconfig.json
