@@ -38,6 +38,8 @@ export const SaasSmtpConfigSection: React.FC = () => {
   const [savedSuccessAlert, setSavedSuccessAlert] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [toastVisible, setToastVisible] = useState<boolean>(false);
 
   // Active Template Tab for editing
   const [selectedTemplateKey, setSelectedTemplateKey] = useState<keyof SaasNotificationTemplates>('paymentPending');
@@ -70,6 +72,9 @@ export const SaasSmtpConfigSection: React.FC = () => {
       const result = await smtpService.updateSaasConfig(smtpForm);
       if (result.success) {
         setSavedSuccessAlert(true);
+        setToastMessage('Configuración SMTP Central sincronizada exitosamente con PocketBase');
+        setToastVisible(true);
+        setTimeout(() => setToastVisible(false), 4000);
       } else {
         setError(`Error al guardar: ${result.error}`);
       }
@@ -113,6 +118,14 @@ export const SaasSmtpConfigSection: React.FC = () => {
 
   return (
     <div className="space-y-8 animate-in fade-in">
+      {/* Toast notification */}
+      {toastVisible && (
+        <div className="fixed top-4 right-4 z-50 bg-emerald-600 text-white px-4 py-3 rounded-xl shadow-xl text-xs font-bold flex items-center gap-2 animate-in fade-in slide-in-from-right-4">
+          <CheckCircle2 className="w-4 h-4" />
+          <span>{toastMessage}</span>
+          <button onClick={() => setToastVisible(false)} className="ml-2 hover:text-emerald-200">✕</button>
+        </div>
+      )}
       {/* Top Banner */}
       <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-slate-800">
         <div className="max-w-3xl">

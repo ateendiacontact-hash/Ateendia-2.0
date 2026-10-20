@@ -113,10 +113,10 @@ export const DEFAULT_SAAS_SMTP_CONFIG: SaasSmtpConfig = {
   protocol: 'ssl',
   senderEmail: 'soporte.saas@ateendiacloudcrm.com',
   senderName: 'Ateendia Cloud CRM - Facturación Central',
-  appPassword: 'hkmz fqtx jbvy plso',
-  isConfigured: true,
-  lastTestStatus: 'success',
-  lastTestDate: '2026-09-01 08:30'
+  appPassword: '',
+  isConfigured: false,
+  lastTestStatus: null,
+  lastTestDate: ''
 };
 
 export const DEFAULT_SAAS_EMAIL_TEMPLATES: SaasNotificationTemplates = {

@@ -7,27 +7,31 @@ import {
   EyeOff,
   CheckCircle2,
   AlertCircle,
-  HelpCircle,
-  ShieldCheck,
   Server,
-  Lock,
-  ExternalLink
+  Loader2,
+  Shield,
+  User,
+  Key,
+  Globe,
 } from 'lucide-react';
 import { useTenant } from '../../context/TenantContext';
 import { smtpService } from '../../services/smtpService';
+import type { SmtpConfig } from '../../types';
 
 export const SmtpConfigModule: React.FC = () => {
   const { currentTenant } = useTenant();
-  const [formData, setFormData] = useState({
+
+  const [formData, setFormData] = useState<Partial<SmtpConfig>>({
     host: '',
     port: 465,
-    protocol: 'ssl',
+    protocol: 'smtp',
     senderEmail: '',
     senderName: '',
     appPassword: '',
     isConfigured: false,
-    tenantId: currentTenant?.id || '',
+    tenantId: '',
   });
+
   const [showPassword, setShowPassword] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [testSuccess, setTestSuccess] = useState(false);
@@ -35,19 +39,35 @@ export const SmtpConfigModule: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [isTestInProgress, setIsTestInProgress] = useState(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [toastVisible, setToastVisible] = useState(false);
 
-  // Load existing SMTP config from PocketBase on component mount
+  const [testRecipient, setTestRecipient] = useState('supervisor.crm@atomscloud.com');
+  const [testSubject, setTestSubject] = useState('Correo de prueba - CRM Atoms Seguros');
+  const [testBody, setTestBody] = useState(
+    'Hola,\n\nEste es un mensaje de prueba enviado exitosamente desde el servidor SMTP de Atoms Cloud CRM.\n\nSaludos,\nEquipo de Soporte.'
+  );
+
   useEffect(() => {
+    if (!currentTenant?.id) return;
+
+    setFormData((prev) => ({
+      ...prev,
+      tenantId: currentTenant.id,
+    }));
+
     const loadConfig = async () => {
       setIsLoading(true);
       setError(null);
       try {
-        const result = await smtpService.getConfig();
+        const result = await smtpService.getConfig(currentTenant.id);
         if (result.success && result.data) {
-          setFormData(prev => ({
+          setFormData({
             ...result.data,
-            tenantId: currentTenant?.id || prev.tenantId,
-          }));
+            tenantId: currentTenant.id,
+          });
+        } else if (result.error) {
+          setError(result.error);
         }
       } catch (err) {
         console.error('Error loading SMTP config:', err);
@@ -60,29 +80,41 @@ export const SmtpConfigModule: React.FC = () => {
     loadConfig();
   }, [currentTenant?.id]);
 
-  // Test Email State
-  const [testRecipient, setTestRecipient] = useState('supervisor.crm@atomscloud.com');
-  const [testSubject, setTestSubject] = useState('Correo de prueba - CRM Atoms Seguros');
-  const [testBody, setTestBody] = useState(
-    'Hola,\n\nEste es un mensaje de prueba enviado exitosamente desde el servidor SMTP de Atoms Cloud CRM.\n\nSaludos,\nEquipo de Soporte.'
-  );
-
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const activeTenantId = formData.tenantId || currentTenant?.id;
+    if (!activeTenantId) {
+      setError('No hay un Tenant ID activo disponible para guardar la configuración.');
+      return;
+    }
+
     setError(null);
     setSaveSuccess(false);
     setIsLoading(true);
 
     try {
-      const result = await smtpService.updateConfig(formData);
+      const payload = { ...formData, tenantId: activeTenantId } as Partial<SmtpConfig>;
+      const result = await smtpService.updateConfig(payload);
       if (result.success) {
         setSaveSuccess(true);
+        setFormData((prev) => ({ ...prev, isConfigured: true }));
         setError(null);
+        setToastMessage('Configuración SMTP guardada exitosamente');
+        setToastVisible(true);
+        setTimeout(() => setToastVisible(false), 4000);
       } else {
         setError(`Error al guardar la configuración: ${result.error}`);
+        setToastMessage(`Error al guardar: ${result.error}`);
+        setToastVisible(true);
+        setTimeout(() => setToastVisible(false), 4000);
       }
     } catch (err) {
-      setError(`Error inesperado al guardar la configuración: ${err instanceof Error ? err.message : 'Error desconocido'}`);
+      const message = `Error inesperado al guardar la configuración: ${err instanceof Error ? err.message : 'Error desconocido'}`;
+      setError(message);
+      setToastMessage(message);
+      setToastVisible(true);
+      setTimeout(() => setToastVisible(false), 4000);
     } finally {
       setIsLoading(false);
     }
@@ -94,328 +126,303 @@ export const SmtpConfigModule: React.FC = () => {
       setTestResult({ success: false, message: 'Faltan campos requeridos para la prueba' });
       return;
     }
-    
+
     setIsTestInProgress(true);
     setTestResult(null);
     setError(null);
 
     try {
-      const testData = {
+      const result = await smtpService.testConnection({
         toEmail: testRecipient,
-        config: formData,
-        isSaas: false,
-      };
-      
-      const apiUrl = import.meta.env.VITE_API_URL;
-      if (apiUrl) {
-        const response = await fetch(`${apiUrl}/email/test`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(testData)
-        });
-        
-        if (response.ok) {
-          const result = await response.json();
-          setTestResult({ success: true, message: result.message || 'Correo de prueba enviado exitosamente' });
-          setTestSuccess(true);
-        } else {
-          const errorData = await response.json();
-          setTestResult({ success: false, message: errorData.message || errorData.error || 'Error al enviar correo de prueba' });
-        }
+        config: formData as SmtpConfig,
+      });
+
+      setTestResult(result);
+      if (result.success) {
+        setTestSuccess(true);
+        setFormData((prev) => ({ ...prev, lastTestedAt: new Date().toISOString(), testStatus: 'success' }));
       } else {
-        setTestResult({ 
-          success: false, 
-          message: '⚠️ No se ha detectado la URL de API backend (VITE_API_URL) ni el servicio activo para procesar el envío SMTP real.' 
-        });
+        setFormData((prev) => ({ ...prev, lastTestedAt: new Date().toISOString(), testStatus: 'failed' }));
       }
     } catch (err) {
-      setTestResult({ success: false, message: `Error al enviar correo de prueba: ${err instanceof Error ? err.message : 'Error de conexión'}` });
+      const message = `Error al enviar correo de prueba: ${err instanceof Error ? err.message : 'Error de conexión'}`;
+      setTestResult({ success: false, message });
     } finally {
       setIsTestInProgress(false);
     }
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in max-w-5xl mx-auto">
-      {/* Top Header matching Screenshot 1 */}
-      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center font-bold">
-            <Mail className="w-5 h-5" />
-          </div>
-          <div>
-            <h1 className="text-xl font-black text-slate-900">Configuración SMTP</h1>
-            <p className="text-xs text-slate-500">
-              Configura el servidor SMTP para el envío de correos electrónicos desde la plataforma.
-            </p>
-          </div>
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6">
+      {toastVisible && toastMessage && (
+        <div
+          className={`fixed top-4 right-4 z-50 px-6 py-4 rounded-lg shadow-lg text-white font-medium animate-slide-in ${
+            saveSuccess || testSuccess ? 'bg-green-600' : 'bg-red-600'
+          }`}
+          role="alert"
+        >
+          {toastMessage}
+        </div>
+      )}
+
+      <div className="max-w-7xl mx-auto">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
+            <Server className="w-8 h-8 text-indigo-600" />
+            Configuración SMTP
+          </h1>
+          <p className="text-gray-600 dark:text-gray-400 mt-2">
+            Configura tu servidor de correo saliente para el envío de notificaciones y comunicaciones.
+          </p>
         </div>
 
-        {formData.senderEmail && (
-          <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-800 rounded-xl border border-emerald-200 text-xs font-bold">
-            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-            <span>SMTP configurado: {formData.senderEmail}</span>
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-center gap-3 text-red-700 dark:text-red-300">
+            <AlertCircle className="w-5 h-5 flex-shrink-0" />
+            <span>{error}</span>
           </div>
         )}
-      </div>
 
-      {/* Main Grid: Form Left, Guide & Test Right */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Left Card: Credenciales de Gmail (Matching Screenshot 1) */}
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-5">
-          <div className="pb-3 border-b border-slate-100 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Server className="w-4 h-4 text-purple-600" />
-              <h2 className="text-sm font-extrabold text-slate-900 uppercase tracking-wide">
-                Credenciales de Gmail / Servidor SMTP
-              </h2>
-            </div>
-            <span className="text-[10px] px-2 py-0.5 bg-purple-100 text-purple-700 rounded-full font-bold">
-              SSL / Port 465
-            </span>
-          </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
+              <Shield className="w-5 h-5 text-indigo-600" />
+              Credenciales del Servidor
+            </h2>
 
-          {isLoading && (
-            <div className="flex items-center justify-center py-4">
-              <div className="w-6 h-6 border-2 border-purple-600 border-t-transparent rounded-full animate-spin"></div>
-              <span className="ml-2 text-sm text-slate-600">Cargando configuración...</span>
-            </div>
-          )}
-
-          {error && (
-            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-sm">
-              {error}
-            </div>
-          )}
-
-          <form onSubmit={handleSave} className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <form onSubmit={handleSave} className="space-y-5">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Protocolo</label>
-                <input
-                  type="text"
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
+                  <Globe className="w-4 h-4" />
+                  Protocolo
+                </label>
+                <select
                   value={formData.protocol || 'smtp'}
-                  onChange={(e) => setFormData({ ...formData, protocol: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-50 border rounded-xl text-xs font-mono font-semibold"
-                  required
-                />
+                  onChange={(e) => setFormData({ ...formData, protocol: e.target.value as 'smtp' })}
+                  className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
+                >
+                  <option value="smtp">SMTP (SSL/TLS)</option>
+                  <option value="smtps">SMTPS (SSL Implícito)</option>
+                </select>
               </div>
 
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-bold text-slate-700 mb-1">SMTP Host</label>
-                <input
-                  type="text"
-                  value={formData.host || ''}
-                  onChange={(e) => setFormData({ ...formData, host: e.target.value })}
-                  placeholder="ssl://smtp.gmail.com"
-                  className="w-full px-3 py-2 bg-slate-50 border rounded-xl text-xs font-mono font-semibold"
-                  required
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
+                    <Server className="w-4 h-4" />
+                    Host
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.host || ''}
+                    onChange={(e) => setFormData({ ...formData, host: e.target.value })}
+                    placeholder="ssl://smtp.gmail.com"
+                    className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
+                    <Key className="w-4 h-4" />
+                    Puerto
+                  </label>
+                  <input
+                    type="number"
+                    value={formData.port || 465}
+                    onChange={(e) => setFormData({ ...formData, port: parseInt(e.target.value) || 465 })}
+                    className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
+                  />
+                </div>
               </div>
-            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">SMTP Port</label>
-                <input
-                  type="number"
-                  value={formData.port ?? 465}
-                  onChange={(e) => setFormData({ ...formData, port: parseInt(e.target.value) || 465 })}
-                  placeholder="465"
-                  className="w-full px-3 py-2 bg-slate-50 border rounded-xl text-xs font-mono font-bold"
-                  required
-                />
-              </div>
-
-              <div className="sm:col-span-2">
-                <label className="block text-xs font-bold text-slate-700 mb-1">Correo de Envío</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
+                  <Mail className="w-4 h-4" />
+                  Correo del Remitente
+                </label>
                 <input
                   type="email"
                   value={formData.senderEmail || ''}
                   onChange={(e) => setFormData({ ...formData, senderEmail: e.target.value })}
                   placeholder="obamacare.support@gmail.com"
-                  className="w-full px-3 py-2 bg-slate-50 border rounded-xl text-xs font-medium"
-                  required
+                  className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
                 />
               </div>
-            </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Nombre del Remitente</label>
-              <input
-                type="text"
-                value={formData.senderName || ''}
-                onChange={(e) => setFormData({ ...formData, senderName: e.target.value })}
-                placeholder="Obamacare Support Team"
-                className="w-full px-3 py-2 bg-slate-50 border rounded-xl text-xs font-semibold"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Contraseña de Aplicación de Google
-              </label>
-              <div className="relative">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
+                  <User className="w-4 h-4" />
+                  Nombre del Remitente
+                </label>
                 <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={formData.appPassword || ''}
-                  onChange={(e) => setFormData({ ...formData, appPassword: e.target.value })}
-                  placeholder="xxxx xxxx xxxx xxxx"
-                  className="w-full px-3 py-2 pr-10 bg-slate-50 border rounded-xl text-xs font-mono"
-                  required
+                  type="text"
+                  value={formData.senderName || ''}
+                  onChange={(e) => setFormData({ ...formData, senderName: e.target.value })}
+                  placeholder="Obamacare / Ateendia"
+                  className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600"
-                >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
               </div>
-              <p className="text-[11px] text-slate-400 mt-1">
-                Usa una clave de aplicación de 16 dígitos generada en la consola de seguridad de Google.
-              </p>
-            </div>
 
-            <div className="pt-2 flex items-center justify-between">
-              {saveSuccess ? (
-                <div className="text-xs font-bold text-emerald-600 flex items-center gap-1">
-                  <CheckCircle2 className="w-4 h-4" />
-                  <span>¡Credenciales guardadas con éxito!</span>
+              <div className="relative">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
+                  <Key className="w-4 h-4" />
+                  Contraseña de Aplicación
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={formData.appPassword || ''}
+                    onChange={(e) => setFormData({ ...formData, appPassword: e.target.value })}
+                    placeholder="Contraseña de 16 caracteres"
+                    className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition pr-12"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                    aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                  >
+                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
                 </div>
-              ) : (
-                <div></div>
-              )}
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  Usa una contraseña de aplicación de Google (16 caracteres)
+                </p>
+              </div>
 
               <button
                 type="submit"
                 disabled={isLoading}
-                className="px-5 py-2.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-md transition-all active:scale-98 disabled:opacity-50"
+                className="w-full py-3 px-6 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-lg flex items-center justify-center gap-2 transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <Save className="w-4 h-4" />
-                <span>{isLoading ? 'Guardando...' : 'Guardar Cambios'}</span>
+                {isLoading ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Guardando...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-5 h-5" />
+                    Guardar Configuración
+                  </>
+                )}
               </button>
-            </div>
-          </form>
-        </div>
 
-        {/* Right Side: Guía Técnica Callout + Enviar Correo de Prueba (Screenshot 1) */}
-        <div className="space-y-6">
-          {/* Guía Técnica: ¿Cómo obtener la Contraseña de Aplicación de Google? */}
-          <div className="bg-amber-50/70 border border-amber-200 rounded-2xl p-5 shadow-xs space-y-3">
-            <div className="flex items-center gap-2 text-amber-900 font-bold text-xs uppercase tracking-wider">
-              <HelpCircle className="w-4 h-4 text-amber-700" />
-              <span>Guía Técnica: ¿Cómo obtener la Contraseña de Aplicación de Google?</span>
-            </div>
-
-            <ol className="text-xs text-amber-950 space-y-2 list-decimal list-inside leading-relaxed">
-              <li>
-                Ve a tu <strong>Cuenta de Google</strong> &gt; <strong>Seguridad</strong>.
-              </li>
-              <li>
-                Activa la <strong>Verificación en dos pasos</strong> si aún no está activa en tu cuenta.
-              </li>
-              <li>
-                En el apartado "Cómo accedes a Google", selecciona <strong>Contraseñas de aplicaciones</strong>.
-              </li>
-              <li>
-                Genera una nueva contraseña seleccionando "Otra aplicación" (ejemplo: <em>CRM Atoms Seguros</em>).
-              </li>
-              <li>
-                Copia la clave de <strong>16 caracteres</strong> generada y pégala en el campo de la izquierda (sin espacios).
-              </li>
-            </ol>
+              {saveSuccess && (
+                <p className="text-green-600 dark:text-green-400 text-sm text-center flex items-center justify-center gap-1">
+                  <CheckCircle2 className="w-4 h-4" />
+                  Configuración guardada correctamente
+                </p>
+              )}
+            </form>
           </div>
 
-          {/* Enviar Correo de Prueba Card */}
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
-            <div className="pb-3 border-b border-slate-100 flex items-center justify-between">
-              <div>
-                <h2 className="text-sm font-extrabold text-slate-900">Enviar Correo de Prueba</h2>
-                <p className="text-xs text-slate-400">Verifica la entrega SMTP antes de enviar a clientes reales.</p>
-              </div>
-              <Send className="w-4 h-4 text-purple-600" />
-            </div>
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-6 flex items-center gap-2">
+              <Send className="w-5 h-5 text-indigo-600" />
+              Prueba de Envío
+            </h2>
 
-            {testResult && (
-              <div
-                className={`p-3 rounded-xl text-xs flex items-start gap-2 ${
-                  testResult.success
-                    ? 'bg-emerald-50 border border-emerald-200 text-emerald-800'
-                    : 'bg-rose-50 border border-rose-200 text-rose-800'
-                }`}
-              >
-                {testResult.success ? (
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                ) : (
-                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                )}
-                <span>{testResult.message}</span>
-              </div>
-            )}
-
-            <form onSubmit={handleSendTest} className="space-y-3">
+            <form onSubmit={handleSendTest} className="space-y-5">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Correo Destinatario</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
+                  <Mail className="w-4 h-4" />
+                  Destinatario
+                </label>
                 <input
                   type="email"
                   value={testRecipient}
                   onChange={(e) => setTestRecipient(e.target.value)}
-                  placeholder="destinatario@ejemplo.com"
-                  className="w-full px-3 py-2 bg-slate-50 border rounded-xl text-xs font-medium"
-                  required
-                  disabled={isTestInProgress}
+                  placeholder="correo@destino.com"
+                  className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Asunto</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
+                  <Mail className="w-4 h-4" />
+                  Asunto
+                </label>
                 <input
                   type="text"
                   value={testSubject}
                   onChange={(e) => setTestSubject(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border rounded-xl text-xs font-semibold"
-                  required
-                  disabled={isTestInProgress}
+                  placeholder="Asunto del correo de prueba"
+                  className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Mensaje</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
+                  <Mail className="w-4 h-4" />
+                  Mensaje
+                </label>
                 <textarea
                   value={testBody}
                   onChange={(e) => setTestBody(e.target.value)}
-                  rows={3}
-                  className="w-full p-2.5 bg-slate-50 border rounded-xl text-xs"
-                  required
-                  disabled={isTestInProgress}
-                ></textarea>
+                  rows={6}
+                  className="w-full px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition font-mono text-sm resize-y min-h-[120px]"
+                />
               </div>
 
-              <div className="pt-2 flex items-center justify-between">
-                {testSuccess ? (
-                  <div className="text-xs font-bold text-emerald-600 flex items-center gap-1 animate-in fade-in">
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>¡Correo de prueba enviado con éxito!</span>
-                  </div>
+              <button
+                type="submit"
+                disabled={isTestInProgress || isLoading}
+                className="w-full py-3 px-6 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg flex items-center justify-center gap-2 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isTestInProgress ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Enviando prueba...
+                  </>
                 ) : (
-                  <div></div>
+                  <>
+                    <Send className="w-5 h-5" />
+                    Enviar Correo de Prueba
+                  </>
                 )}
+              </button>
 
-                <button
-                  type="submit"
-                  disabled={isTestInProgress || !testRecipient || !testSubject || !testBody}
-                  className="px-4 py-2 bg-slate-900 hover:bg-black text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-xs transition-all active:scale-98 disabled:opacity-50"
+              {testResult && (
+                <div
+                  className={`p-4 rounded-lg border flex items-start gap-3 ${
+                    testResult.success
+                      ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800 text-green-700 dark:text-green-300'
+                      : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800 text-red-700 dark:text-red-300'
+                  }`}
                 >
-                  <Send className="w-3.5 h-3.5" />
-                  <span>{isTestInProgress ? 'Enviando...' : 'Enviar Correo de Prueba'}</span>
-                </button>
-              </div>
+                  {testResult.success ? (
+                    <CheckCircle2 className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                  ) : (
+                    <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                  )}
+                  <div>
+                    <p className="font-medium">
+                      {testResult.success ? 'Prueba exitosa' : 'Error en la prueba'}
+                    </p>
+                    <p className="text-sm mt-1">{testResult.message}</p>
+                  </div>
+                </div>
+              )}
             </form>
           </div>
         </div>
       </div>
+
+      <style jsx>{`
+        @keyframes slide-in {
+          from {
+            opacity: 0;
+            transform: translateX(100%);
+          }
+          to {
+            opacity: 1;
+            transform: translateX(0);
+          }
+        }
+        .animate-slide-in {
+          animation: slide-in 0.3s ease-out;
+        }
+      `}</style>
     </div>
   );
 };
