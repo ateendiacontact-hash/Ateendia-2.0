@@ -31,7 +31,9 @@ Thumbs.db
 backups/
 
 # ─── Configuraciones de IDE (VS Code / Kilo) ───
-.vscode/
+.vscode
+.vscode/*
+!.vscode/extensions.json
 .kilo/
 
 # ─── Archivos Legacy / Migraciones completadas ───
