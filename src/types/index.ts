@@ -2009,3 +2009,32 @@ export interface SaasTenantsErrorResponse {
   error: string;
   code: string;
 }
+
+// ────────────────────────────────────────────────────────────────────
+// Tipos de Suscripciones SaaS (Sesión #30 — Fase 3.5.C)
+// ────────────────────────────────────────────────────────────────────
+
+/**
+ * DTO de una suscripción. Espejo exacto del backend
+ * (`server/services/saasSubscriptionService.ts`).
+ */
+export interface SubscriptionDTO {
+  id: string;
+  tenantId: string;
+  tenantName: string;
+  tenantStatus: string;
+  planId: string | null;
+  planName: string;
+  planKey: string | null;
+  status: string;
+  monthlyPrice: number;
+  billingCycle: string;
+  startDate: string;
+  renewalDate: string | null;
+  lastPaymentDate: string | null;
+  gracePeriodDays: number;
+  isAutoSuspended: boolean;
+  userQuota: number;
+  whatsappLinesQuota: number;
+  storageGb: number;
+}

@@ -67,12 +67,22 @@ import {
   SaasTenantDTO,
 } from '../../types';
 import { SaasLandingPreviewModal } from './SaasLandingPreviewModal';
-import { SaasPlansManagementSection } from './SaasPlansManagementSection';
-import { SaasSmtpConfigSection } from './SaasSmtpConfigSection';
-import { SaasWhatsAppCentralSection } from './SaasWhatsAppCentralSection';
-import { SaasVpsDatabaseSection } from './SaasVpsDatabaseSection';
 import { PaymentReceiptViewerModal } from './PaymentReceiptViewerModal';
 import { getTenantPublicUrl, getSaasBaseDomain, getSaasPublicUrl } from '../../utils/urlUtils';
+import { SaasSubscriptionsView } from './SaasSubscriptionsView';
+
+// FIX: Casteamos a ComponentType<any> para evitar errores de TS con componentes que no tiparon sus props aún.
+import { SaasPlansManagementSection as SaasPlansManagementSectionBase } from './SaasPlansManagementSection';
+const SaasPlansManagementSection = SaasPlansManagementSectionBase as React.ComponentType<any>;
+
+import { SaasSmtpConfigSection as SaasSmtpConfigSectionBase } from './SaasSmtpConfigSection';
+const SaasSmtpConfigSection = SaasSmtpConfigSectionBase as React.ComponentType<any>;
+
+import { SaasWhatsAppCentralSection as SaasWhatsAppCentralSectionBase } from './SaasWhatsAppCentralSection';
+const SaasWhatsAppCentralSection = SaasWhatsAppCentralSectionBase as React.ComponentType<any>;
+
+import { SaasVpsDatabaseSection as SaasVpsDatabaseSectionBase } from './SaasVpsDatabaseSection';
+const SaasVpsDatabaseSection = SaasVpsDatabaseSectionBase as React.ComponentType<any>;
 
 export const SaasCentralDashboard: React.FC = () => {
   const tenantContext = useTenant();
@@ -127,8 +137,6 @@ export const SaasCentralDashboard: React.FC = () => {
   const refreshSaasTenants = tenantContext?.refreshSaasTenants || (async () => {});
 
   // ─── Decide qué fuente usar: tenants reales o fallback al mock ───
-  // Si el Super Admin ya cargó tenants reales, los usamos.
-  // Si todavía no cargaron (loading), usamos el mock del contexto para no quedar vacío.
   const useRealTenants = saasTenants.length > 0;
   const tenantsSource: any[] = useRealTenants ? saasTenants : tenants;
 
@@ -162,6 +170,7 @@ export const SaasCentralDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<
     | 'tenants'
     | 'payment_receipts'
+    | 'subscriptions'
     | 'saas_plans'
     | 'saas_smtp'
     | 'saas_whatsapp'
@@ -234,51 +243,28 @@ export const SaasCentralDashboard: React.FC = () => {
 
   const isGlobalSuperAdmin = currentUser?.email === 'victoraray8@gmail.com' || currentUser?.isSuperAdmin === true;
 
-    /**
-   * Maneja el clic en "Entrar a Instancia".
-   *
-   * Antes: solo cambiaba el `currentTenantId` (branding) y NO recargaba
-   * los datos del tenant seleccionado.
-   *
-   * Ahora: llama a `enterTenantInstance` del TenantContext, que:
-   *   1. Setea `activeTenantId` → los fetch piden datos del tenant real.
-   *   2. Actualiza el branding del tenant.
-   *   3. Dispara re-fetch de clients y policies.
-   *   4. Fuerza remount de la UI (vía AppContentKeyed en App.tsx).
-   *
-   * @param tenantId ID del tenant al que entrar.
-   */
   const handleTenantSwitch = (tenantId: string) => {
-    // Buscar los datos del tenant en la lista de saasTenants reales
     const selectedTenant = (tenantContext?.saasTenants || []).find(
       (t: any) => t.id === tenantId
     );
 
-    // Extraer datos de branding del DTO real (si existen)
-        const brandingData = selectedTenant
+    const brandingData = selectedTenant
       ? {
           name: selectedTenant.name,
           primaryColor: selectedTenant.primaryColor,
-          // ⚠️ IMPORTANTE: el DTO usa `accentColor`, no `secondaryColor`.
-          // El tipo TenantBranding sí declara `secondaryColor`.
-          // Mapeamos accentColor → secondaryColor para que el branding
-          // del tenant se aplique correctamente.
           secondaryColor: selectedTenant.accentColor ?? undefined,
           logoUrl: selectedTenant.logoUrl ?? undefined,
         }
       : undefined;
 
-    // Llamar a la nueva función del contexto
     const enterTenantInstance = tenantContext?.enterTenantInstance;
     if (typeof enterTenantInstance === 'function') {
       enterTenantInstance(tenantId, brandingData);
     } else {
-      // Fallback: comportamiento antiguo (por si el contexto aún no expone la función)
       setCurrentTenantId(tenantId);
     }
   };
 
-  // ─── Filtrado de tenants: por búsqueda + por estado ───
   const filteredTenants = useMemo(() => {
     const q = tenantSearchQuery.toLowerCase();
     return (tenantsSource || []).filter((t) => {
@@ -307,7 +293,6 @@ export const SaasCentralDashboard: React.FC = () => {
     }
   };
 
-  // ─── Helper: formatear fecha de vencimiento ───
   const formatRenewalDate = (dateStr: string | null | undefined): string => {
     if (!dateStr) return 'Sin fecha';
     try {
@@ -321,7 +306,6 @@ export const SaasCentralDashboard: React.FC = () => {
     }
   };
 
-  // ─── Helper: obtener el estado legible de un tenant ───
   const getTenantStatusLabel = (status: string): { label: string; color: string } => {
     switch (status) {
       case 'active':
@@ -524,6 +508,18 @@ export const SaasCentralDashboard: React.FC = () => {
               {(saasPaymentReceipts || []).filter((r) => r.status === 'pending').length}
             </span>
           )}
+        </button>
+
+        <button
+          onClick={() => setActiveTab('subscriptions')}
+          className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0 ${
+            activeTab === 'subscriptions'
+              ? 'bg-indigo-600 text-white shadow-xs'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+          }`}
+        >
+          <CreditCard className="w-4 h-4" />
+          <span>Estado de Suscripciones</span>
         </button>
 
         <button
@@ -755,10 +751,8 @@ export const SaasCentralDashboard: React.FC = () => {
               /* Grid View */
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                 {filteredTenants.map((t) => {
-                  // ─── Determinar si es un tenant real (DTO) o mock ───
                   const isRealTenant = 'usersCount' in t;
 
-                  // Stats: para tenants reales vienen del DTO; para mocks, filtramos las colecciones.
                   const tenantUsersCount = isRealTenant
                     ? t.usersCount
                     : (users || []).filter((u) => u.tenantId === t.id).length;
@@ -1336,6 +1330,11 @@ export const SaasCentralDashboard: React.FC = () => {
           )}
         </div>
       )}
+
+      {/* ========================================================================= */}
+      {/* TAB: ESTADO DE SUSCRIPCIONES (SUPER ADMIN) */}
+      {/* ========================================================================= */}
+      {activeTab === 'subscriptions' && <SaasSubscriptionsView />}
 
       {/* ========================================================================= */}
       {/* TAB: PLANES Y LÍMITES SAAS */}
@@ -1983,7 +1982,7 @@ export const SaasCentralDashboard: React.FC = () => {
           {cmsSection === 'features' && (
             <div className="space-y-4 pt-2">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {(saasLandingConfig?.features || []).map((feat, idx) => (
+                {(saasLandingConfig?.features || []).map((feat: any, idx: number) => (
                   <div key={idx} className="p-4 rounded-2xl border border-slate-200 bg-slate-50 space-y-2.5">
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">
@@ -2022,7 +2021,7 @@ export const SaasCentralDashboard: React.FC = () => {
           {cmsSection === 'pricing' && (
             <div className="space-y-4 pt-2">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {(saasLandingConfig?.pricingPlans || []).map((plan, idx) => (
+                {(saasLandingConfig?.pricingPlans || []).map((plan: any, idx: number) => (
                   <div key={plan.id || idx} className="p-5 rounded-2xl border border-slate-200 bg-slate-50 space-y-3">
                     <div className="flex items-center justify-between">
                       <input
@@ -2085,7 +2084,7 @@ export const SaasCentralDashboard: React.FC = () => {
           {cmsSection === 'testimonials' && (
             <div className="space-y-4 pt-2">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {(saasLandingConfig?.testimonials || []).map((t, idx) => (
+                {(saasLandingConfig?.testimonials || []).map((t: any, idx: number) => (
                   <div key={idx} className="p-4 rounded-2xl border border-slate-200 bg-slate-50 space-y-3">
                     <div className="flex items-center justify-between">
                       <input
@@ -2570,8 +2569,7 @@ export const SaasCentralDashboard: React.FC = () => {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
                         <label className="block text-[11px] font-bold text-slate-700 mb-1">Email de Acceso *</label>
-                        <input
-                          type="email"
+                        <input                          type="email"
                           required
                           placeholder="admin@empresa.com"
                           value={tenantFormData.adminEmail}

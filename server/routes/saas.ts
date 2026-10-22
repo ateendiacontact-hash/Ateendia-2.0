@@ -20,6 +20,7 @@ import { registrationStatusRouter } from './saas/registrationStatus.js';
 import { paymentMethodsRouter } from './saas/paymentMethods.js';
 import { upgradeRouter } from './saas/upgrade.js';
 import { saasTenantsRouter } from './saas/tenants.js';
+import { subscriptionsRouter } from './saas/subscriptions.js';
 import { z } from 'zod';
 import {
   requireAuth,
@@ -298,6 +299,7 @@ saasRouter.delete(
 saasRouter.use('/landing', landingRouter);
 saasRouter.use('/register', registerRouter);
 saasRouter.use('/payment-methods', paymentMethodsRouter);
+saasRouter.use('/subscriptions', subscriptionsRouter);
 
 // ─────────────────────────────────────────────────────────────
 // Sub-router: Registros de nuevas empresas (Super Admin)
