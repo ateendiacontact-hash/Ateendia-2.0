@@ -1,9 +1,9 @@
 ﻿# AGENTS.md — Memory Bank de Ateendia CRM 2.0
 
-> **Última actualización:** 2026-10-19 (Sesión #28)
-> **Progreso global:** ~66%
-> **Sesiones completadas:** 28
-> **Último commit:** 35cca1d — feat(saas): fix BUG-DEMO-PERMISSIONS-FIX + SMTP transaccional (3.5.B.4.g)
+> **Última actualización:** 2026-10-22 (Sesión #30)
+> **Progreso global:** ~70%
+> **Sesiones completadas:** 30
+> **Último commit:** 9e8f06e — feat(saas): Fase 3.5.C - Endpoints de suscripciones y panel de gestion para Super Admin (Sesion #30)
 
 ---
 
@@ -370,11 +370,11 @@ Impacto: Cada componente que se agregue debe consumir datos REALES desde endpoin
 Progreso Global
 Total estimado: ~40 sesiones
 
-Completadas: 28 sesiones
+Completadas: 30 sesiones
 
-Restantes: ~12 sesiones
+Restantes: ~10 sesiones
 
-Progreso global: ~66%
+Progreso global: ~70%
 
 Progreso por Fase
 Fase	Descripción	Progreso
@@ -384,7 +384,7 @@ Fase 2	Clients	100% ✅
 Fase 3.1	Banking	100% ✅
 Fase 3.5.A	SaaS Plans Base	100% ✅
 Fase 3.5.B	Landing + Registro + Demo	100% ✅
-Fase 3.5.C-E	Pagos, Frontend SaaS, Límites	0% ⏳
+Fase 3.5.C-E	Pagos, Frontend SaaS, Límites	~65% 🔄
 Fase 4	Multibandeja Unificada	0% ⏳
 Fase 5	IA + Automatizaciones	0% ⏳
 Fase 6	Analytics + Reportes	0% ⏳
@@ -636,6 +636,16 @@ el `.env` del servidor con credenciales válidas. Idealmente usar
 SMTP dedicado (SendGrid / Mailgun) en lugar de Gmail.
 Prioridad: ALTA (solo cuando se pase a producción; en dev no bloquea).
 
+**HEADER-HARDCODED — Header.tsx tiene empresas hardcodeadas para Super Admin**
+Problema: `Header.tsx` tiene 3 empresas hardcodeadas en el dropdown
+del Super Admin SaaS (viola Regla 28: sistema para producción, no
+simulación).
+Causa raíz: Implementación temporal durante desarrollo del panel SaaS.
+Solución propuesta: Mover a Fase 3.5.D (Frontend SaaS Central).
+Consumir tenants reales desde el endpoint `/api/saas/tenants` y
+`TenantContext.saasTenants`.
+Prioridad: ALTA (Regla 28).
+
 Prioridad MEDIA
 **BUG-AUTH-1 — JWT expirado sin redirección a login**
 - **Problema:** Cuando el JWT expira, los endpoints devuelven
@@ -756,6 +766,59 @@ Deuda Técnica Preexistente (varias sesiones)
 Placeholders <67118c3> y <hash_corto> en AGENTS.md.
 
 9. HISTORIAL DE SESIONES
+### Sesión #30 — Fase 3.5.C: Pagos y Suscripciones (Backend + Panel Super Admin)
+**Fecha:** 2026-10-22
+**Commit:** `9e8f06e`
+**Push:** origin/main (b4793bf..9e8f06e)
+
+**Objetivo cumplido:**
+- Implementación exitosa de la capa de backend (servicio + endpoints) para la gestión de suscripciones SaaS.
+- Creación del panel de gestión para el Super Admin en el frontend (tabla con estados y acciones).
+- Verificación end-to-end del flujo de listado y cambio de estado (PATCH).
+
+**Archivos NUEVOS (4):**
+- `server/services/saasSubscriptionService.ts` — Servicio con funciones para obtener, listar y actualizar el estado de suscripciones (transacciones atómicas).
+- `server/routes/saas/subscriptions.ts` — Endpoints REST: `GET /me`, `GET /`, `PATCH /:id/status`.
+- `src/services/subscriptionService.ts` — Cliente HTTP con type guards (Regla 29) para el frontend.
+- `src/components/saas/SaasSubscriptionsView.tsx` — Componente de tabla para el Super Admin con acciones de suspender/activar.
+
+**Archivos MODIFICADOS (3):**
+- `server/routes/saas.ts` — Montaje del nuevo router `/subscriptions`.
+- `src/components/saas/SaasCentralDashboard.tsx` — Integración de la nueva pestaña "Estado de Suscripciones".
+- `src/types/index.ts` — Nuevo tipo `SubscriptionDTO` (espejo del backend).
+
+**Lecciones aprendidas:**
+- El "narrowing" (estrechamiento de tipos) de TypeScript funciona mejor cuando se evalúa primero el caso de éxito (`if (result.success)`) en lugar de la negación. Esto permite que el bloque `else` tipifique correctamente `result.error`.
+- Es fundamental aplicar el casteo `as React.ComponentType<any>` a componentes que aún no tienen sus props tipadas para evitar errores de TS en el archivo padre sin modificar los hijos.
+
+**Deuda técnica registrada:** ver sección 8.
+
+**Estado al cierre:** ✅ Sesión cerrada.
+`git log --oneline -3` confirma 9e8f06e como HEAD y origin/main.
+
+### Sesión #29 — Cleanup y Estabilización (3.5.F)
+**Fecha:** 2026-10-20
+**Commits:** `cfb6c3f`, `877cccc`, `3c504e4`, `6f942d7`, `b4793bf`
+**Push:** origin/main (35cca1d..b4793bf)
+
+**Objetivo cumplido:**
+- Resolución de BUG-AUTH-1 y BUG-PERFIL-1.
+- Limpieza de deuda técnica de `src/` (23 archivos commiteados).
+- Configuración de `.gitignore` y destrackeo de archivos legacy.
+
+**Archivos NUEVOS/MODIFICADOS (Backend):**
+- `server/routes/auth.ts`: Nuevo endpoint `PATCH /api/auth/me`.
+- `server/prisma/schema.prisma`: Campo `avatar` cambiado a `@db.LongText`.
+
+**Archivos NUEVOS/MODIFICADOS (Frontend):**
+- `src/services/authService.ts`: Implementado `fetchWithAuth` (interceptor 401).
+- `src/context/TenantContext.tsx`: Refactorizado para usar `fetchWithAuth`. `updateUser` ahora persiste en backend.
+- `src/components/layout/ProfileModal.tsx`: Redimensión de imágenes a 256x256 antes de guardar.
+
+**Lecciones aprendidas:**
+- Los avatares en Base64 pueden exceder el límite de `TEXT` (64KB). Usar `LONGTEXT` en Prisma y comprimir en el frontend con `<canvas>`.
+- El interceptor de 401 (`fetchWithAuth`) es esencial para la estabilidad de la sesión.
+
 ### Sesión #28 — Fix permisos DEMO + SMTP transaccional (3.5.B.4.g)
 **Fecha:** 2026-10-19
 **Commit:** 35cca1d
@@ -1151,42 +1214,32 @@ para ver el resumen de lo que está en staging ANTES del commit.
 
 11. PRÓXIMOS PASOS
 Sub-fase inmediata
-Sesión #29 — 3.5.F Cleanup y Estabilización.
-Objetivo: consolidar deuda técnica de src/ antes de Fase 3.5.C.
-Prioridades:
-
-BUG-AUTH-1 (MEDIA): JWT expirado sin redirect a login.
-
-BUG-PERFIL-1 (MEDIA): avatar del usuario no persiste.
-
-Revisar y consolidar ~28 archivos M en src/.
-
-Decidir qué hacer con 9 archivos legacy sin trackear
-(functions/, prisma.old/, src/index.ts, src/lib/, etc.).
+Sesión #31 — 3.5.C (restante): Flujo de aprobación de comprobantes end-to-end.
+Objetivo: Conectar el frontend de subida de comprobantes (TenantUpgradeView) con el panel de aprobación del Super Admin, asegurando que al aprobar se actualice la suscripción del tenant y se envíen las notificaciones (email/WhatsApp).
 
 Sub-fases de 3.5.B pendientes
 *Ninguna — Fase 3.5.B completa (B.1 a B.4.g todas ✅).*
 
 Deuda técnica prioritaria
-BUG-AUTH-1 — JWT expirado sin redirección a login (MEDIA).
-
-BUG-PERFIL-1 — El avatar del usuario no persiste (MEDIA).
-
 SMTP-CREDENTIALS-DEPLOY — Configurar credenciales SMTP reales en producción (ALTA).
+
+HEADER-HARDCODED — Header.tsx empresas hardcodeadas (ALTA).
 
 Fase B.5 — Protección de saas_super_admin (ALTA).
 
 Evolution API crash de nginx (MEDIA).
 
-Fase 3.5.F — Cleanup y Estabilización (agendada).
+BUG-AUTH-1 — JWT expirado sin redirección a login (MEDIA) — **RESUELTO en Sesión #29**.
+
+BUG-PERFIL-1 — El avatar del usuario no persiste (MEDIA) — **RESUELTO en Sesión #29**.
 
 ════════════════════════════════════════════════════════════════════
 FIN DEL AGENTS.md
-Última actualización: 2026-10-19 (Sesión #28)
-Progreso global: ~66%
-Último commit: 35cca1d
-Siguiente sub-fase: 3.5.F — Cleanup y Estabilización
-Siguiente sesión: #29 — Atacar BUG-AUTH-1, BUG-PERFIL-1 y deuda de src/
+Última actualización: 2026-10-22 (Sesión #30)
+Progreso global: ~70%
+Último commit: 9e8f06e
+Siguiente sub-fase: 3.5.C (restante) — Aprobación de comprobantes
+Siguiente sesión: #31 — Implementar Fase 3.5.C (restante)
 ═══════════════════════════════════════════════════════════════════
 
 

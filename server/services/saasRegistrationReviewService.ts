@@ -30,6 +30,15 @@
  * - Si el email falla, NO se revierte el tenant: solo se loguea el error.
  * - Si es un UPGRADE, no se envía email (el usuario ya existe y ya recibió
  *   su bienvenida en el registro original).
+ *
+ * --- Sesión #31: Fase 3.5.C (restante) - Integración de Fechas ---
+ * - Se agrega `ApproveRegistrationOptions` para recibir validFrom/validUntil.
+ * - Se aplica `startDateToApply` y `renewalDate` en las transacciones de DB.
+ * - Fix A.1: `start_date` también se actualiza en el `update` del upsert
+ *   (antes solo se aplicaba en `create`). Sin esto, el upgrade mantenía
+ *   la `start_date` vieja del demo.
+ * - Fix A.2: `receiptId` se persiste como prefijo `[Receipt: <uuid>]` en
+ *   `review_notes` para trazabilidad auditable sin migración de schema.
  */
 
 import { randomUUID, randomBytes } from 'crypto';
@@ -236,10 +245,25 @@ export interface ApproveRegistrationResult {
   tempPassword: string;
 }
 
+/**
+ * Opciones opcionales para la aprobación de una solicitud.
+ * Permite al Super Admin (desde el PaymentReceiptViewerModal) 
+ * definir fechas exactas de vigencia para el comprobante aprobado.
+ */
+export interface ApproveRegistrationOptions {
+  /** Fecha de inicio de vigencia (ISO 8601). Si no se provee, se usa 'now'. */
+  validFrom?: string;
+  /** Fecha de vencimiento de la suscripción (ISO 8601). Si no se provee, se calcula automáticamente. */
+  validUntil?: string;
+  /** ID del comprobante de pago asociado (opcional, para trazabilidad). */
+  receiptId?: string;
+}
+
 export async function approveRegistration(
   requestId: string,
   reviewerUserId: string | null,
   notes?: string,
+  options?: ApproveRegistrationOptions
 ): Promise<ApproveRegistrationResult> {
   const request = await prisma.saas_registration_requests.findUnique({
     where: { id: requestId },
@@ -290,10 +314,47 @@ export async function approveRegistration(
     );
   }
 
+  // ─── CÁLCULO DE FECHAS (Sesión #31) ─────────────────────────────────
+  // Si el Super Admin usó el modal, options.validUntil vendrá con fecha.
+  // Si no, calculamos la renovación por defecto según el ciclo de facturación.
   const renewalDays = request.billing_cycle === 'yearly' ? 365 : 30;
-  const renewalDate = new Date(
+  
+  let startDateToApply = now;
+  let renewalDate = new Date(
     now.getTime() + renewalDays * 24 * 60 * 60 * 1000,
   );
+
+  if (options?.validFrom) {
+    const parsedFrom = new Date(options.validFrom);
+    if (!isNaN(parsedFrom.getTime())) startDateToApply = parsedFrom;
+  }
+
+  if (options?.validUntil) {
+    const parsedUntil = new Date(options.validUntil);
+    // Validación de seguridad: La fecha de fin debe ser posterior a la de inicio
+    if (!isNaN(parsedUntil.getTime()) && parsedUntil > startDateToApply) {
+      renewalDate = parsedUntil;
+    }
+  }
+
+  // ─── CONSTRUIR review_notes con trazabilidad del receiptId ──────────
+  // (Sesión #31 / Fix A.2)
+  //
+  // Persistimos el receiptId como prefijo estructurado `[Receipt: <uuid>]`
+  // dentro de `review_notes`. Esto permite:
+  //   - Auditar qué comprobante específico aprobó cada solicitud.
+  //   - Consultar con SQL: WHERE review_notes LIKE '[Receipt: %'
+  //   - Sin requerir migración de schema (columna dedicada es deuda técnica
+  //     baja, se puede agregar en una futura Fase de Cleanup).
+  //
+  // Formato resultante:
+  //   - Con receiptId y notes:  "[Receipt: abc-123] Nota del admin"
+  //   - Con receiptId, sin notes: "[Receipt: abc-123]"
+  //   - Sin receiptId:           notes (o null si tampoco hay notes)
+  const noteParts: string[] = [];
+  if (options?.receiptId) noteParts.push(`[Receipt: ${options.receiptId}]`);
+  if (notes) noteParts.push(notes);
+  const reviewNotesCombined = noteParts.length > 0 ? noteParts.join(' ') : null;
 
   let upgradeTenantExists = false;
   let upgradeAdminUserId: string | null = null;
@@ -350,7 +411,7 @@ export async function approveRegistration(
             status: 'active',
             monthly_price: request.price_amount,
             renewal_date: renewalDate,
-            start_date: now,
+            start_date: startDateToApply,
             billing_cycle: request.billing_cycle,
             contact_email: request.admin_email,
             grace_period_days: PAID_GRACE_PERIOD_DAYS,
@@ -362,6 +423,10 @@ export async function approveRegistration(
             plan_id: request.plan_id,
             status: 'active',
             monthly_price: request.price_amount,
+            // Sesión #31 / Fix A.1: actualizar también la fecha de inicio
+            // cuando el Super Admin elige una vigencia desde el modal.
+            // Sin esto, el upgrade mantiene la start_date vieja del demo.
+            start_date: startDateToApply,
             renewal_date: renewalDate,
             billing_cycle: request.billing_cycle,
             contact_email: request.admin_email,
@@ -378,7 +443,8 @@ export async function approveRegistration(
             created_user_id: upgradeAdminUserId,
             reviewed_by: reviewerUserId,
             reviewed_at: now,
-            review_notes: notes ?? null,
+            // Sesión #31 / Fix A.2: review_notes incluye receiptId si vino.
+            review_notes: reviewNotesCombined,
             updated_at: now,
           },
         });
@@ -553,7 +619,7 @@ export async function approveRegistration(
             status: 'active',
             monthly_price: planPrice,
             renewal_date: renewalDate,
-            start_date: now,
+            start_date: startDateToApply,
             billing_cycle: request.billing_cycle,
             contact_email: request.admin_email,
             grace_period_days: PAID_GRACE_PERIOD_DAYS,
@@ -571,7 +637,8 @@ export async function approveRegistration(
             created_user_id: userId!,
             reviewed_by: reviewerUserId,
             reviewed_at: now,
-            review_notes: notes ?? null,
+            // Sesión #31 / Fix A.2: mismo tratamiento que en upgrade.
+            review_notes: reviewNotesCombined,
             updated_at: now,
           },
         });

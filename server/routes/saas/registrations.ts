@@ -12,6 +12,12 @@
  * - Todos requieren rol `saas_super_admin` (requirePlatformUser).
  * - Todos auditan con auditLog (fire-and-forget, solo 2xx).
  * - Los errores de dominio devuelven códigos HTTP semánticos.
+ * 
+ * --- Sesión #31 ---
+ * - Se agregan validFrom y validUntil al approveBodySchema para recibir
+ *   las fechas del PaymentReceiptViewerModal.
+ * - Fix complementario: se agrega receiptId al approveBodySchema y al
+ *   paso del servicio. Sin esto, Zod rechazaba con "Unrecognized key".
  */
 
 import { Router, type Request, type Response, type NextFunction } from 'express';
@@ -46,6 +52,13 @@ const listQuerySchema = z
 const approveBodySchema = z
   .object({
     notes: z.string().max(2000).optional(),
+    // Validación de fechas ISO 8601 (opcionales)
+    validFrom: z.string().datetime({ message: "Fecha de inicio inválida" }).optional(),
+    validUntil: z.string().datetime({ message: "Fecha de fin inválida" }).optional(),
+    // Sesión #31 / Fix A.2 complementario: el receiptId es opcional,
+    // se usa para trazabilidad en review_notes. Sin esta línea, el
+    // .strict() lo rechazaba con "Unrecognized key(s) in object".
+    receiptId: z.string().min(1).max(255).optional(),
   })
   .strict();
 
@@ -132,7 +145,7 @@ registrationsRouter.get(
  * Efecto: crea tenant + user admin + subscription en transacción atómica.
  * Devuelve el password temporal UNA SOLA VEZ (para enviarlo por email).
  *
- * Body: { notes?: string }
+ * Body: { notes?: string, validFrom?: string, validUntil?: string, receiptId?: string }
  */
 registrationsRouter.post(
   '/:id/approve',
@@ -159,6 +172,13 @@ registrationsRouter.post(
         requestId,
         reviewerUserId,
         parsed.data.notes,
+        {
+          validFrom: parsed.data.validFrom,
+          validUntil: parsed.data.validUntil,
+          // Sesión #31 / Fix A.2 complementario: pasar el receiptId al servicio
+          // para que se persista en review_notes con prefijo [Receipt: ...].
+          receiptId: parsed.data.receiptId,
+        }
       );
 
       // `id` en la respuesta para que auditLog capture targetId
