@@ -1,9 +1,9 @@
 ﻿# AGENTS.md — Memory Bank de Ateendia CRM 2.0
 
-> **Última actualización:** 2026-10-22 (Sesión #30)
-> **Progreso global:** ~70%
-> **Sesiones completadas:** 30
-> **Último commit:** 9e8f06e — feat(saas): Fase 3.5.C - Endpoints de suscripciones y panel de gestion para Super Admin (Sesion #30)
+> **Última actualización:** 2026-10-25 (Sesión #31)
+> **Progreso global:** ~72%
+> **Sesiones completadas:** 31
+> **Último commit:** 46ea85a — feat(saas): Fase 3.5.C - Flujo de aprobacion de comprobantes end-to-end (Sesion #31)
 
 ---
 
@@ -370,11 +370,11 @@ Impacto: Cada componente que se agregue debe consumir datos REALES desde endpoin
 Progreso Global
 Total estimado: ~40 sesiones
 
-Completadas: 30 sesiones
+Completadas: 31 sesiones
 
-Restantes: ~10 sesiones
+Restantes: ~9 sesiones
 
-Progreso global: ~70%
+Progreso global: ~72%
 
 Progreso por Fase
 Fase	Descripción	Progreso
@@ -384,7 +384,7 @@ Fase 2	Clients	100% ✅
 Fase 3.1	Banking	100% ✅
 Fase 3.5.A	SaaS Plans Base	100% ✅
 Fase 3.5.B	Landing + Registro + Demo	100% ✅
-Fase 3.5.C-E	Pagos, Frontend SaaS, Límites	~65% 🔄
+Fase 3.5.C-E	Pagos, Frontend SaaS, Límites	~85% 🔄
 Fase 4	Multibandeja Unificada	0% ⏳
 Fase 5	IA + Automatizaciones	0% ⏳
 Fase 6	Analytics + Reportes	0% ⏳
@@ -513,45 +513,27 @@ Grace period: 30 días.
 
 Estados de Tenant
 demo — Cuenta de prueba gratuita
-
 pending_payment — Registro pago, esperando aprobación
-
 active — Cuenta activa con plan pago
-
 suspended — Suspendido por falta de pago
-
 cancelled — Cancelado voluntariamente
-
 expired — Demo expirado sin conversión
-
 Configuración Global (saas_platform_settings)
 Fila única (id = 'global') con: demo_enabled, demo_duration_days, demo_grace_period_days, demo_watermark_enabled, demo_plan_id, default_currency, grace_period_days, auto_suspend_on_expire, support_email, support_whatsapp, platform_name.
-
 Flujo de Registro
 Demo: usuario completa formulario → solicitud creada → AUTO-APROBADA → tenant + user + subscription creados → usuario puede loguearse inmediatamente.
-
 Pago: usuario completa formulario + sube comprobante → solicitud queda pending → Super Admin revisa y aprueba/rechaza manualmente → usuario recibe password temporal.
-
 Flujo de Upgrade (demo → pago)
 Tenant en estado demo navega a "Upgrade a Pago".
-
 Ve catálogo de planes + métodos de pago.
-
 Selecciona plan, billing cycle, método de pago.
-
 Si método es manual o crypto_semi_auto → sube comprobante obligatorio.
-
 Submit → solicitud creada con type='upgrade' y created_tenant_id pre-poblado.
-
 Super Admin aprueba → UPSERT de subscription → tenant pasa a active.
-
 Flujo de Auto-aprobación de DEMO (Sesión #25)
 En createRegistrationRequest, si type === 'demo', se llama a autoApproveDemoRegistration(requestId).
-
 Esta función reutiliza approveRegistration con reviewerUserId = null y nota automática.
-
 Si falla, la solicitud queda pending como fallback (el Super Admin puede aprobarla manualmente).
-
 6. CANALES DE MENSAJERÍA
 Canal	Key interno	Configuración	Permisos
 WhatsApp Vendedores	whatsapp_sales	integrations/	whatsapp.view, whatsapp.send
@@ -563,11 +545,8 @@ Instagram	instagram	integrations/	instagram.view, instagram.send
 Facebook	facebook	integrations/	facebook.view, facebook.send
 Arquitectura Unificada
 Tabla ÚNICA conversations con columna channel (no una tabla por canal).
-
 Tabla ÚNICA messages con direction y sender_type.
-
 Migración: whatsapp_conversations → conversations (en Fase 4.1).
-
 sql
 conversations (id, tenant_id, channel, channel_account, client_id, contact_name, contact_handle, last_message, last_message_at, unread_count, assigned_agent_id, status, metadata_json)
 messages (id, conversation_id, direction, sender_type, sender_id, sender_name, content, media_type, media_url, status, timestamp, metadata_json)
@@ -578,194 +557,141 @@ Las cuentas DEMO deben tener acceso a **TODAS las funcionalidades del sistema** 
 
 Telegram
 Bot global de Ateendia (no por tenant).
-
 Vinculación con token PERMANENTE.
-
 Anti-spam: rate limit por tenant configurable por plan.
-
 IA premium (planes Pro+).
-
 IA
 Proveedor: OpenRouter (multi-modelo).
-
 Diseño: 1 resumen por conversación (no por mensaje — control de costos).
-
 Feature premium (planes Pro+).
-
 Planes SaaS
 Tabla saas_plans editable por Super Admin.
-
 Feature flags por plan (Telegram, IA, WhatsApp, etc.).
-
 Límites por plan (users, clients, msgs/día, IA tokens/mes).
-
 Tenants heredan límites de su plan.
-
 Policies
 13 tipos GLOBALES: Salud/ACA, Salud Privada, Vida, Dental/Visión, Auto, Hogar/Propiedad, Accidentes Personales, Gastos Médicos Mayores, Viaje, Responsabilidad Civil, Mascotas, Funerario, Indemnización.
-
 Formularios dinámicos: campos comunes en columnas + específicos en JSON.
-
 Historial: tabla policy_versions.
-
 Estados (8): Activa, En Proceso, Pendiente de Pago, Vencida, Cancelada, Renovada, Suspendida, En Revisión.
-
 Retención
 Por plan: Starter 30d, Pro 1a, Enterprise ilimitado.
-
 Media externa: Cloudflare R2 o S3.
-
 8. DEUDA TÉCNICA REGISTRADA
 Prioridad ALTA
 Fase B.5 — Protección de saas_super_admin
-
 Problema: Reglas de visibilidad/gestión de super admins no implementadas.
-
 Reglas a implementar: Solo saas_super_admin puede ver/crear/editar/eliminar otros super admins. Un tenant_admin ve SOLO usuarios de su tenant. No se puede degradar saas_super_admin ↔ rol tenant sin autorización.
-
 Prioridad: ALTA (seguridad multi-tenant).
-
-**SMTP-CREDENTIALS-DEPLOY — Configurar credenciales SMTP reales en producción**
-Problema: El servicio `emailService.ts` está implementado pero
-`SMTP_USER` y `SMTP_PASS` están vacíos en `server/.env`. En dev
-los emails solo se loguean a consola, no se envían.
-Causa raíz: No se han configurado credenciales de Gmail (o proveedor
-equivalente) con App Password.
-Solución propuesta: En producción, setear SMTP_USER y SMTP_PASS en
-el `.env` del servidor con credenciales válidas. Idealmente usar
-SMTP dedicado (SendGrid / Mailgun) en lugar de Gmail.
+SMTP-CREDENTIALS-DEPLOY — Configurar credenciales SMTP reales en producción
+Problema: El servicio emailService.ts está implementado pero SMTP_USER y SMTP_PASS están vacíos en server/.env. En dev los emails solo se loguean a consola, no se envían.
+Causa raíz: No se han configurado credenciales de Gmail (o proveedor equivalente) con App Password.
+Solución propuesta: En producción, setear SMTP_USER y SMTP_PASS en el .env del servidor con credenciales válidas. Idealmente usar SMTP dedicado (SendGrid / Mailgun) en lugar de Gmail.
 Prioridad: ALTA (solo cuando se pase a producción; en dev no bloquea).
-
-**HEADER-HARDCODED — Header.tsx tiene empresas hardcodeadas para Super Admin**
-Problema: `Header.tsx` tiene 3 empresas hardcodeadas en el dropdown
-del Super Admin SaaS (viola Regla 28: sistema para producción, no
-simulación).
+HEADER-HARDCODED — Header.tsx tiene empresas hardcodeadas para Super Admin
+Problema: Header.tsx tiene 3 empresas hardcodeadas en el dropdown del Super Admin SaaS (viola Regla 28: sistema para producción, no simulación).
 Causa raíz: Implementación temporal durante desarrollo del panel SaaS.
-Solución propuesta: Mover a Fase 3.5.D (Frontend SaaS Central).
-Consumir tenants reales desde el endpoint `/api/saas/tenants` y
-`TenantContext.saasTenants`.
+Solución propuesta: Mover a Fase 3.5.D (Frontend SaaS Central). Consumir tenants reales desde el endpoint /api/saas/tenants y TenantContext.saasTenants.
 Prioridad: ALTA (Regla 28).
-
+DEUDA-ARQ-RECEIPTS (NUEVA, Sesión #31)
+Problema: El frontend tiene saasService.approveReceipt() y saasService.rejectReceipt() apuntando a /api/saas/receipts/* que NO existe en el backend Express. El backend real usa /api/saas/registrations/:id/approve.
+Solución Sesión #32: usar reviewService.ts (nuevo) en lugar de saasService.receipts. Deuda de eliminar saasService.receipts.* en Sesión #33 (Cleanup 3.5.F).
+Prioridad: ALTA.
 Prioridad MEDIA
-**BUG-AUTH-1 — JWT expirado sin redirección a login**
-- **Problema:** Cuando el JWT expira, los endpoints devuelven
-  `401 AUTH_TOKEN_MISSING`, pero el frontend no redirige a login.
-  El usuario ve errores crípticos en consola.
-- **Causa raíz:** No hay interceptor global de 401 ni manejo
-  centralizado de sesión expirada.
-- **Solución propuesta:** Agregar un helper `fetchWithAuth()` que
-  detecte 401 y llame a `authService.logout()` + redirija a login.
-- **Prioridad:** MEDIA.
-
-**BUG-PERFIL-1 — El avatar del usuario no persiste**
-- **Problema:** Al cambiar el avatar (predeterminado o subido), se
-  actualiza visualmente en memoria, pero al recargar vuelve al original.
-- **Causa raíz:**
-  * `ProfileModal.tsx` llama a `updateUser` del `TenantContext`.
-  * `TenantContext.updateUser` solo hace `setCurrentUserState`
-    (estado en memoria, no persistente).
-  * `authService.updateProfile` existe pero usa endpoint legacy
-    `/api/user/profile` que NO existe en el backend Express actual.
-  * Al recargar, `App.tsx` lee `authService.getState().user` desde
-    localStorage (sin el avatar nuevo) y sobrescribe `currentUser`.
-- **Solución propuesta:**
-  1. Crear `PATCH /api/auth/me` en Express (actualiza `name` y
-     `avatar` en tabla `users`).
-  2. Modificar `TenantContext.updateUser` para llamar al endpoint
-     con JWT.
-  3. Modificar `authService` para persistir el user actualizado en
-     `localStorage.ateendia_session`.
-- **Prioridad:** MEDIA.
-
-TenantSubscription['status'] desactualizado
-
-Problema: El tipo frontend no incluye 'demo' ni 'expired' que sí usa el backend.
-
-Afecta: Sidebar.tsx (condición de visibilidad del item Upgrade).
-
-Solución propuesta: Sincronizar tipo frontend con enum real del backend.
-
-Fase B.6 — Roles Custom
-
-Objetivo: Permitir que cada tenant cree roles personalizados.
-
-Archivos a modificar: server/routes/roles.ts (nuevo), server/services/roleService.ts (nuevo), UsersRolesModule.tsx, TenantContext.tsx.
-
-Prioridad: MEDIA (~2-3 horas).
-
-Evolution API crash de nginx
-
-Problema: El contenedor Evolution API crashea con nginx: [emerg] invalid value "must-revalidate".
-
-Impacto: Endpoint /socket.io/ y /instance/fetchInstances responden 401.
-
-Prioridad: MEDIA (bloquea reconectar WhatsApp real).
-
-**SMTP-EMAIL-BATCH — Extender emailService con más templates**
-Problema: Solo existe el template `welcome`. Faltan:
-payment_approved, payment_rejected, subscription_expiring,
-password_reset.
+BUG-AUTH-1 — JWT expirado sin redirección a login
+Problema: Cuando el JWT expira, los endpoints devuelven 401 AUTH_TOKEN_MISSING, pero el frontend no redirige a login. El usuario ve errores crípticos en consola.
+Causa raíz: No hay interceptor global de 401 ni manejo centralizado de sesión expirada.
+Solución propuesta: Agregar un helper fetchWithAuth() que detecte 401 y llame a authService.logout() + redirija a login. — RESUELTO en Sesión #29.
 Prioridad: MEDIA.
-
+BUG-PERFIL-1 — El avatar del usuario no persiste
+Problema: Al cambiar el avatar (predeterminado o subido), se actualiza visualmente en memoria, pero al recargar vuelve al original.
+Causa raíz:
+ProfileModal.tsx llama a updateUser del TenantContext.
+TenantContext.updateUser solo hace setCurrentUserState (estado en memoria, no persistente).
+authService.updateProfile existe pero usa endpoint legacy /api/user/profile que NO existe en el backend Express actual.
+Al recargar, App.tsx lee authService.getState().user desde localStorage (sin el avatar nuevo) y sobrescribe currentUser.
+Solución propuesta:
+1. Crear PATCH /api/auth/me en Express (actualiza name y avatar en tabla users).
+2. Modificar TenantContext.updateUser para llamar al endpoint con JWT.
+3. Modificar authService para persistir el user actualizado en localStorage.ateendia_session. — RESUELTO en Sesión #29.
+Prioridad: MEDIA.
+TenantSubscription['status'] desactualizado
+Problema: El tipo frontend no incluye 'demo' ni 'expired' que sí usa el backend.
+Afecta: Sidebar.tsx (condición de visibilidad del item Upgrade).
+Solución propuesta: Sincronizar tipo frontend con enum real del backend.
+Fase B.6 — Roles Custom
+Objetivo: Permitir que cada tenant cree roles personalizados.
+Archivos a modificar: server/routes/roles.ts (nuevo), server/services/roleService.ts (nuevo), UsersRolesModule.tsx, TenantContext.tsx.
+Prioridad: MEDIA (~2-3 horas).
+Evolution API crash de nginx
+Problema: El contenedor Evolution API crashea con nginx: [emerg] invalid value "must-revalidate".
+Impacto: Endpoint /socket.io/ y /instance/fetchInstances responden 401.
+Prioridad: MEDIA (bloquea reconectar WhatsApp real).
+SMTP-EMAIL-BATCH — Extender emailService con más templates
+Problema: Solo existe el template welcome. Faltan: payment_approved, payment_rejected, subscription_expiring, password_reset.
+Prioridad: MEDIA.
+BUG-ZOD-SYNC (NUEVA, Sesión #31)
+Problema: Los tipos ApproveRegistrationOptions del servicio tenían receiptId declarado, pero approveBodySchema (Zod) no lo listaba. Con .strict() activo, el body era rechazado.
+Solución: Regla nueva 31 para prevenir futuros casos: siempre verificar schema Zod vs type al agregar campos.
+Prioridad: MEDIA.
 Prioridad BAJA
 RegisterForm.tsx duplica lógica de fetch
-
 Problema: RegisterForm duplica la lógica de fetch de planes/métodos.
-
 Solución: Consumir registrationService.fetchPlansPublic() y fetchPaymentMethodsPublic().
-
 Prioridad: BAJA.
-
 Indentación cosmética en TenantContext.tsx
-
 Problema: Diff de git muestra cambio de indentación de 2 espacios, no de lógica.
-
 Solución: Limpiar en sesión de cleanup.
-
 Prioridad: BAJA.
-
 Bug encoding María Test
-
 Problema: El usuario María Test está guardado como Mar�a Test (U+FFFD).
-
 Causa: Invoke-RestMethod sin UTF-8 en sesión anterior. NO es bug de producción.
-
 Solución: UPDATE users SET name='María Test' WHERE ...
-
 Prioridad: BAJA (cosmético).
-
 Fase C.0 — Migración tipada de WhatsApp/Evolution
-
 Problema: WhatsAppAccountsConfigSection.tsx tiene 29 errores TS porque response.json() devuelve unknown.
-
 Solución: Tipar cada response.json() as EvolutionApiResponse.
-
 Prioridad: BAJA (no bloqueante).
-
 4 errores TS preexistentes en SaasCentralDashboard.tsx
-
 Problema: Los errores Type 'X' is not assignable to type 'IntrinsicAttributes' en las líneas 1305, 1317, 1330 y 2698 son preexistentes (props no declaradas en los tipos de los sub-componentes).
-
 Solución: Declarar las props faltantes en las interfaces de SaasPlansManagementSection, SaasSmtpConfigSection, SaasWhatsAppCentralSection y ajustar SaasLandingPreviewModal.
-
 Prioridad: BAJA (no bloqueante).
-
-**Mejora de middleware de límites: extender `checkLimit()` a las rutas POST de `clients` y `policies`**
-- **Problema:** El middleware `checkLimit()` implementado en la sesión #27 solo protege la creación de usuarios (`POST /api/users`). No cubre la creación de clientes (`POST /api/clients`) ni pólizas (`POST /api/policies`), dejando huecos en la verificación de límites del plan.
-- **Causa raíz:** La implementación inicial se centró solo en users.ts por ser el caso más crítico.
-- **Solución propuesta:** Aplicar el middleware `checkLimit()` con los módulos correspondientes (`clients`, `policies`) en las rutas POST de `clients.ts` y `policies.ts` (cuando se implementen).
-- **Prioridad:** BAJA.
-
+Mejora de middleware de límites: extender checkLimit() a las rutas POST de clients y policies
+Problema: El middleware checkLimit() implementado en la sesión #27 solo protege la creación de usuarios (POST /api/users). No cubre la creación de clientes (POST /api/clients) ni pólizas (POST /api/policies), dejando huecos en la verificación de límites del plan.
+Causa raíz: La implementación inicial se centró solo en users.ts por ser el caso más crítico.
+Solución propuesta: Aplicar el middleware checkLimit() con los módulos correspondientes (clients, policies) en las rutas POST de clients.ts y policies.ts (cuando se implementen).
+Prioridad: BAJA.
 Deuda Técnica Preexistente (varias sesiones)
 ~28 archivos M sin commitear en src/components/*, src/services/*, src/context/*.
-
 9 archivos legacy sin trackear: functions/, prisma.old/, src/index.ts, src/lib/, src/services/databaseService.ts, MIGRATION_GUIDE.md, schema.sql.old, seed.sql, .vscode/.
-
 ~228 errores TS frontend (preexistentes, no bloqueantes).
-
 Placeholders <67118c3> y <hash_corto> en AGENTS.md.
-
 9. HISTORIAL DE SESIONES
+### Sesión #31 — Fase 3.5.C: Flujo de Aprobación de Comprobantes (Backend + Prueba de Oro)
+**Fecha:** 2026-10-25
+**Commit:** `46ea85a`
+**Push:** origin/main (9e8f06e..46ea85a)
+
+**Objetivo cumplido:**
+- Completar la lógica de backend para el flujo de aprobación de comprobantes.
+- Asegurar que las fechas de vigencia (validFrom/validUntil) del modal se persistan correctamente en la suscripción.
+- Añadir trazabilidad del comprobante aprobado (`receiptId`) en las notas de la solicitud.
+- Validar todo el flujo end-to-end con una "Prueba de Oro" usando curl + SQL.
+
+**Archivos MODIFICADOS (3):**
+- `server/services/saasRegistrationReviewService.ts` — Fix A.1 (start_date en update), Fix A.2 (receiptId en review_notes), integración de options.validFrom/validUntil.
+- `server/routes/saas/registrations.ts` — Fix complementario: agregado `receiptId` al `approveBodySchema` para que Zod no lo rechace.
+- `AGENTS.md` — Actualizado con los cambios y nuevas reglas.
+
+**Lecciones aprendidas:**
+- La Regla 31 (Sincronización Zod ↔ Type) nació de un bug real en esta sesión. Es crucial verificar ambas capas de validación.
+- La Regla 32 (Prueba de Oro) demostró ser invaluable para detectar que el backend no aplicaba las fechas de vigencia correctamente, antes de empezar a construir la UI.
+- La Regla 33 (Docker Exec sin espacio en -p) es un detalle pequeño pero que puede costar tiempo de debugging.
+
+**Deuda técnica registrada:** ver sección 8 (DEUDA-ARQ-RECEIPTS, BUG-ZOD-SYNC).
+
+**Estado al cierre:** ✅ Sesión cerrada. Backend de la Fase 3.5.C al 100%.
+
 ### Sesión #30 — Fase 3.5.C: Pagos y Suscripciones (Backend + Panel Super Admin)
 **Fecha:** 2026-10-22
 **Commit:** `9e8f06e`
@@ -1112,136 +1038,85 @@ Logros: Columna landing_config_json. Endpoints GET/PUT /api/saas/landing. Servic
 10. LECCIONES APRENDIDAS ACUMULADAS
 PowerShell + Windows
 Para JSON con acentos: usar [System.Text.Encoding]::UTF8.GetBytes($json) + -Body $bytes -ContentType "application/json; charset=utf-8".
-
 Redirección stdin: PowerShell NO soporta <. Usar pipeline (|) o cmd /c.
-
 Comillas en JSON: usar Invoke-RestMethod con hashtables + ConvertTo-Json -Depth 5.
-
 Login JWT response es PLANA: { success, token, user, mustResetPassword }, no { success, data: { token } }.
-
 Docker + MariaDB
 EPERM al regenerar Prisma: detener Express antes de npm run db:generate.
-
 MariaDB post-crash: si docker exec funciona pero desde host falla con P1017, reiniciar solo el contenedor mariadb.
-
 Backticks en PowerShell: los backticks de columnas reservadas se comen mal. Usar heredoc con Out-File.
-
 Prisma + DB
 Naming: modelos plural + snake_case. Campos snake_case.
-
 JSON en MariaDB: Prisma lo expone como String?. Serializar con JSON.stringify(), parsear con JSON.parse().
-
 UPSERT: requiere un campo @unique en el where.
-
 Imports con .js: con module: ESNext, imports entre archivos .ts con .js.
-
 Relación 1-a-1: include: { tenant_subscriptions: true } devuelve objeto único, no array.
-
 TypeScript
 Narrowing: no siempre funciona en uniones discriminadas complejas. Usar comparaciones explícitas (=== true, === false).
-
 Cast doble: as unknown as X es la técnica estándar cuando el tipo destino no declara todos los campos que el origen sí tiene.
-
 Fallbacks en type guards: al agregar un nuevo valor a un union type, actualizar TODOS los type guards que lo consumen.
-
 response.json() devuelve unknown: no acceder a .success ni .data sin type guard (Regla 29).
-
 React
 useCallback + useRef: resuelven bucles infinitos de useEffect cuando las funciones del contexto se recrean en cada render.
-
 Render condicional en App.tsx: el orden importa. authView debe chequearse ANTES de isAuthenticated.
-
 localStorage sobreescribe el mock: cuando el usuario ya hizo login, el currentUser viene de localStorage, no del defaultUser del mock.
-
 useMemo para cálculos derivados: calcular MRR y stats globales en base a saasTenants con useMemo evita re-cálculos innecesarios.
-
 useMemo para filtros: filtrar tenants por búsqueda + estado con useMemo mejora performance.
-
 Git
 Commits multilínea en PowerShell: usar comillas dobles y \ para escape. Alternativa: git commit -F archivo.txt.
-
 git add selectivo: NUNCA git add . ni git add -A si hay deuda técnica.
-
 git diff --stat: útil para verificar el alcance de los cambios antes del commit.
-
 Auto-aprobación de DEMO (Sesión #25)
 Los registros sin pago NO requieren aprobación humana. Reutilizar approveRegistration con reviewerUserId = null es más limpio que duplicar la transacción.
-
 Fallback en auto-aprobación: si falla, dejar la solicitud en pending.
-
 Validación de archivos (Sesión #25)
 Validar tipo MIME Y tamaño ANTES de convertir a Base64.
-
 Limpiar e.target.value = '' en caso de error para permitir reintentar con el mismo archivo.
-
 Badge de obligatoriedad: mostrar visualmente si el comprobante es OBLIGATORIO u OPCIONAL reduce fricción.
-
 Errores esperados (Sesión #25)
 Estado already_pending: los errores esperados (como UPGRADE_ALREADY_PENDING) merecen una UI propia, no un ErrorCard genérico.
-
 Regla de producción (Sesión #25)
 Los componentes de gestión NUNCA deben hardcodear datos mock. Si un endpoint no existe, se crea. No se mockea en frontend.
-
 Panel SaaS con datos reales (Sesión #26)
 DTO espejo del backend: el tipo SaasTenantDTO es el mismo en backend y frontend (camelCase).
-
 Fuente única de datos: el panel consume saasTenants cuando está disponible, si no cae al mock del contexto. Así no queda vacío si el fetch falla.
-
 Refrescar tras mutaciones: después de aprobar/rechazar comprobantes, se llama refreshSaasTenants() para actualizar la lista.
-
 useMemo para métricas derivadas: MRR, counts por estado, etc. se calculan con useMemo a partir de saasTenants.
-
 No todos los datos vienen de la DB: las stats agregadas (usersCount, clientsCount, policiesCount) las calcula el backend con queries paralelas (Promise.all).
-
 Type guard para response.json(): con TS estricto, hay que validar 'success' in body antes de acceder (Regla 29).
-
 ### Rama / Release (Sesión #28)
-
 Al verificar un commit, correr git log --oneline -3 Y git status --short
 en el mismo bloque. El log confirma que el commit entró; el status confirma
 que no quedaron archivos del commit sin stagear.
-
 El formato de git commit multilínea en PowerShell funciona bien con
 comillas dobles + salto de línea real (Enter). Evitar tildes en el
 mensaje del commit para prevenir problemas de encoding (Regla 15).
-
 git restore --staged <archivo> es la herramienta correcta para
 desstagear sin tocar el archivo en disco. git reset HEAD <archivo>
 funciona pero es más ruidoso en la salida.
-
 git diff --cached --stat (no git diff --stat) es el comando correcto
 para ver el resumen de lo que está en staging ANTES del commit.
-
 11. PRÓXIMOS PASOS
 Sub-fase inmediata
-Sesión #31 — 3.5.C (restante): Flujo de aprobación de comprobantes end-to-end.
-Objetivo: Conectar el frontend de subida de comprobantes (TenantUpgradeView) con el panel de aprobación del Super Admin, asegurando que al aprobar se actualice la suscripción del tenant y se envíen las notificaciones (email/WhatsApp).
+Sesión #32 — 3.5.C (restante): Frontend de Pagos.
+Objetivo: Integrar el modal PaymentReceiptViewerModal en la pestaña "Estado de Suscripciones" (SaasSubscriptionsView.tsx) para completar el flujo de aprobación de comprobantes end-to-end.
 
 Sub-fases de 3.5.B pendientes
 *Ninguna — Fase 3.5.B completa (B.1 a B.4.g todas ✅).*
 
 Deuda técnica prioritaria
+DEUDA-ARQ-RECEIPTS (ALTA) — Limpiar saasService.receipts.* obsoletos.
 SMTP-CREDENTIALS-DEPLOY — Configurar credenciales SMTP reales en producción (ALTA).
-
 HEADER-HARDCODED — Header.tsx empresas hardcodeadas (ALTA).
-
 Fase B.5 — Protección de saas_super_admin (ALTA).
-
 Evolution API crash de nginx (MEDIA).
-
-BUG-AUTH-1 — JWT expirado sin redirección a login (MEDIA) — **RESUELTO en Sesión #29**.
-
-BUG-PERFIL-1 — El avatar del usuario no persiste (MEDIA) — **RESUELTO en Sesión #29**.
-
+BUG-ZOD-SYNC (MEDIA) — Mantener sincronizados tipos Zod y TS.
 ════════════════════════════════════════════════════════════════════
 FIN DEL AGENTS.md
-Última actualización: 2026-10-22 (Sesión #30)
-Progreso global: ~70%
-Último commit: 9e8f06e
-Siguiente sub-fase: 3.5.C (restante) — Aprobación de comprobantes
-Siguiente sesión: #31 — Implementar Fase 3.5.C (restante)
+Última actualización: 2026-10-25 (Sesión #31)
+Progreso global: ~72%
+Último commit: 46ea85a
+Siguiente sub-fase: 3.5.C (restante) — Frontend de Pagos
+Siguiente sesión: #32 — Integrar PaymentReceiptViewerModal en SaasSubscriptionsView
 ═══════════════════════════════════════════════════════════════════
-
-
-
 
