@@ -1,9 +1,9 @@
 ﻿# AGENTS.md — Memory Bank de Ateendia CRM 2.0
 
-> **Última actualización:** 2026-10-25 (Sesión #31)
-> **Progreso global:** ~72%
-> **Sesiones completadas:** 31
-> **Último commit:** 46ea85a — feat(saas): Fase 3.5.C - Flujo de aprobacion de comprobantes end-to-end (Sesion #31)
+> **Última actualización:** 2026-10-26 (Sesión #32)
+> **Progreso global:** ~75%
+> **Sesiones completadas:** 32
+> **Último commit:** 97787a8 — feat(saas): Fase 3.5.C - Integracion de PaymentReceiptViewerModal en panel de suscripciones (Sesion #32)
 
 ---
 
@@ -370,11 +370,11 @@ Impacto: Cada componente que se agregue debe consumir datos REALES desde endpoin
 Progreso Global
 Total estimado: ~40 sesiones
 
-Completadas: 31 sesiones
+Completadas: 32 sesiones
 
-Restantes: ~9 sesiones
+Restantes: ~8 sesiones
 
-Progreso global: ~72%
+Progreso global: ~75%
 
 Progreso por Fase
 Fase	Descripción	Progreso
@@ -384,7 +384,7 @@ Fase 2	Clients	100% ✅
 Fase 3.1	Banking	100% ✅
 Fase 3.5.A	SaaS Plans Base	100% ✅
 Fase 3.5.B	Landing + Registro + Demo	100% ✅
-Fase 3.5.C-E	Pagos, Frontend SaaS, Límites	~85% 🔄
+Fase 3.5.C-E	Pagos, Frontend SaaS, Límites	~95% 🔄
 Fase 4	Multibandeja Unificada	0% ⏳
 Fase 5	IA + Automatizaciones	0% ⏳
 Fase 6	Analytics + Reportes	0% ⏳
@@ -596,7 +596,7 @@ Prioridad: ALTA (Regla 28).
 DEUDA-ARQ-RECEIPTS (NUEVA, Sesión #31)
 Problema: El frontend tiene saasService.approveReceipt() y saasService.rejectReceipt() apuntando a /api/saas/receipts/* que NO existe en el backend Express. El backend real usa /api/saas/registrations/:id/approve.
 Solución Sesión #32: usar reviewService.ts (nuevo) en lugar de saasService.receipts. Deuda de eliminar saasService.receipts.* en Sesión #33 (Cleanup 3.5.F).
-Prioridad: ALTA.
+Prioridad: MEDIA.
 Prioridad MEDIA
 BUG-AUTH-1 — JWT expirado sin redirección a login
 Problema: Cuando el JWT expira, los endpoints devuelven 401 AUTH_TOKEN_MISSING, pero el frontend no redirige a login. El usuario ve errores crípticos en consola.
@@ -667,6 +667,33 @@ Deuda Técnica Preexistente (varias sesiones)
 ~228 errores TS frontend (preexistentes, no bloqueantes).
 Placeholders <67118c3> y <hash_corto> en AGENTS.md.
 9. HISTORIAL DE SESIONES
+### Sesión #32 — Fase 3.5.C: Frontend de Aprobación de Comprobantes (Completada)
+**Fecha:** 2026-10-26
+**Commit:** `97787a8`
+**Push:** origin/main (46ea85a..97787a8)
+
+**Objetivo cumplido:**
+- Integrar el PaymentReceiptViewerModal en el panel de suscripciones.
+- Reescribir reviewService.ts usando fetchWithAuth y Type Guards.
+- Crear el adaptador registrationToReceipt.ts para unir backend y UI.
+- Verificación visual end-to-end del flujo de aprobación y activación de empresa.
+
+**Archivos NUEVOS (2):**
+- `src/services/reviewService.ts` — Servicio reescrito con type guards (Regla 29) y manejo de tokens con fetchWithAuth.
+- `src/adapters/registrationToReceipt.ts` — Puente entre el DTO del backend (SaasRegistrationRequest) y el tipo de la UI (SaasPaymentReceipt).
+
+**Archivos MODIFICADOS (2):**
+- `src/components/saas/SaasSubscriptionsView.tsx` — Añadida sección de comprobantes pendientes y conexión con el Modal.
+- `AGENTS.md` — Actualización de memoria.
+
+**Lecciones aprendidas:**
+- Los Type Guards de la Regla 29 deben ser flexibles para aceptar variaciones en la estructura de respuesta (ej. `{ data: [...] }` vs `{ data: { items: [...] } }`).
+- Los adaptadores son la mejor solución para no tener que reescribir componentes visuales ya probados cuando la estructura de datos del backend difiere del frontend.
+
+**Deuda técnica registrada:** ver sección 8.
+
+**Estado al cierre:** ✅ Sesión cerrada. Fase 3.5.C (Backend + Frontend) al 100%.
+
 ### Sesión #31 — Fase 3.5.C: Flujo de Aprobación de Comprobantes (Backend + Prueba de Oro)
 **Fecha:** 2026-10-25
 **Commit:** `46ea85a`
@@ -1097,26 +1124,21 @@ funciona pero es más ruidoso en la salida.
 git diff --cached --stat (no git diff --stat) es el comando correcto
 para ver el resumen de lo que está en staging ANTES del commit.
 11. PRÓXIMOS PASOS
-Sub-fase inmediata
-Sesión #32 — 3.5.C (restante): Frontend de Pagos.
-Objetivo: Integrar el modal PaymentReceiptViewerModal en la pestaña "Estado de Suscripciones" (SaasSubscriptionsView.tsx) para completar el flujo de aprobación de comprobantes end-to-end.
+**Sub-fase inmediata:**
+Sesión #33 — 3.5.D (Frontend SaaS Central).
+Objetivo: Revisar y limpiar `SaasCentralDashboard.tsx` para asegurar que las pestañas "Empresas & Instancias" y "Comprobantes de Pago" consuman datos reales y eliminar mocks residuales (Regla 28). Añadir buscador y filtros por estado.
 
-Sub-fases de 3.5.B pendientes
-*Ninguna — Fase 3.5.B completa (B.1 a B.4.g todas ✅).*
-
-Deuda técnica prioritaria
-DEUDA-ARQ-RECEIPTS (ALTA) — Limpiar saasService.receipts.* obsoletos.
-SMTP-CREDENTIALS-DEPLOY — Configurar credenciales SMTP reales en producción (ALTA).
+**Deuda técnica prioritaria:**
 HEADER-HARDCODED — Header.tsx empresas hardcodeadas (ALTA).
+SMTP-CREDENTIALS-DEPLOY — Configurar credenciales reales (ALTA).
 Fase B.5 — Protección de saas_super_admin (ALTA).
-Evolution API crash de nginx (MEDIA).
-BUG-ZOD-SYNC (MEDIA) — Mantener sincronizados tipos Zod y TS.
+DEUDA-ARQ-RECEIPTS — Eliminar métodos obsoletos en saasService (MEDIA).
 ════════════════════════════════════════════════════════════════════
 FIN DEL AGENTS.md
-Última actualización: 2026-10-25 (Sesión #31)
-Progreso global: ~72%
-Último commit: 46ea85a
-Siguiente sub-fase: 3.5.C (restante) — Frontend de Pagos
-Siguiente sesión: #32 — Integrar PaymentReceiptViewerModal en SaasSubscriptionsView
+Última actualización: 2026-10-26 (Sesión #32)
+Progreso global: ~75%
+Último commit: 97787a8
+Siguiente sub-fase: 3.5.D — Frontend SaaS Central
+Siguiente sesión: #33 — Limpieza de Paneles SaaS y Filtros
 ═══════════════════════════════════════════════════════════════════
 
