@@ -59,13 +59,17 @@ function extractErrorMessage(body: unknown, defaultMsg: string): string {
 // ─── Servicio ───────────────────────────────────────────────────────
 
 export const reviewService = {
-  /**
+    /**
    * Lista las solicitudes de registro.
-   * Por defecto, trae solo las pendientes (status = 'pending').
+   * @param status - 'pending' (default), 'all', 'approved', 'rejected'.
    */
-  async listPendingRegistrations(): Promise<{ success: true; data: SaasRegistrationRequest[] } | { success: false; error: string }> {
+  async listPendingRegistrations(
+    status: 'pending' | 'all' | 'approved' | 'rejected' = 'pending'
+  ): Promise<{ success: true; data: SaasRegistrationRequest[] } | { success: false; error: string }> {
     try {
-      const res = await authService.fetchWithAuth('/api/saas/registrations?status=pending');
+      // Construimos la URL con el query param de estado
+      const url = `/api/saas/registrations?status=${status}`;
+      const res = await authService.fetchWithAuth(url);
       const body: unknown = await res.json();
 
       // Regla 29: Type guard flexible para aceptar { data: [...] } o { data: { items: [...] } }

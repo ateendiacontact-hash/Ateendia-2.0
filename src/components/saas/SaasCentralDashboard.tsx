@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react'; // <-- AGREGA useEffect
 import {
   Building2,
   Users,
@@ -65,11 +65,14 @@ import {
   SaasPaymentReceipt,
   SaasPlanFeatureLimit,
   SaasTenantDTO,
+  SaasRegistrationRequest,
 } from '../../types';
 import { SaasLandingPreviewModal } from './SaasLandingPreviewModal';
 import { PaymentReceiptViewerModal } from './PaymentReceiptViewerModal';
 import { getTenantPublicUrl, getSaasBaseDomain, getSaasPublicUrl } from '../../utils/urlUtils';
 import { SaasSubscriptionsView } from './SaasSubscriptionsView';
+import { reviewService } from '../../services/reviewService'; // <-- AGREGA ESTO
+import { mapRegistrationToReceipt } from '../../adapters/registrationToReceipt';
 
 // FIX: Casteamos a ComponentType<any> para evitar errores de TS con componentes que no tiparon sus props aún.
 import { SaasPlansManagementSection as SaasPlansManagementSectionBase } from './SaasPlansManagementSection';
@@ -87,14 +90,9 @@ const SaasVpsDatabaseSection = SaasVpsDatabaseSectionBase as React.ComponentType
 export const SaasCentralDashboard: React.FC = () => {
   const tenantContext = useTenant();
 
-  // Safe destructuring with explicit array types and fallbacks
-  const tenants: any[] = tenantContext?.tenants || [];
+    // Safe destructuring with explicit array types and fallbacks
   const currentTenant = tenantContext?.currentTenant || { id: 'default', name: 'Default Tenant' };
   const setCurrentTenantId = tenantContext?.setCurrentTenantId || (() => {});
-  const users: any[] = tenantContext?.users || [];
-  const policies: any[] = tenantContext?.policies || [];
-  const clients: any[] = tenantContext?.clients || [];
-  const conversations: any[] = tenantContext?.conversations || [];
   const createTenant = tenantContext?.createTenant || (() => {});
   const updateTenantSubscription = tenantContext?.updateTenantSubscription || (() => {});
   const updateTenantSubscriptionPlan = tenantContext?.updateTenantSubscriptionPlan || (() => {});
@@ -132,18 +130,16 @@ export const SaasCentralDashboard: React.FC = () => {
   const currentUser = tenantContext?.currentUser;
 
   // ─── NUEVO (Sesión 3.5.B.4.e.2): Tenants reales de la DB ───
+  // REGLA 28: Usamos EXCLUSIVAMENTE los tenants reales de la DB. Cero fallbacks a mock.
   const saasTenants: SaasTenantDTO[] = tenantContext?.saasTenants || [];
   const saasTenantsLoading: boolean = tenantContext?.saasTenantsLoading || false;
   const refreshSaasTenants = tenantContext?.refreshSaasTenants || (async () => {});
 
-  // ─── Decide qué fuente usar: tenants reales o fallback al mock ───
-  const useRealTenants = saasTenants.length > 0;
-  const tenantsSource: any[] = useRealTenants ? saasTenants : tenants;
+  // ─── Fuente única de verdad ───
+  const tenantsSource: SaasTenantDTO[] = saasTenants;
 
   // ─── Métricas globales calculadas en base a tenants reales ───
   const computedGlobalMetrics = useMemo(() => {
-    if (!useRealTenants) return { totalMrr: 0, totalTenants: 0, activeTenants: 0, demoTenants: 0, suspendedTenants: 0 };
-
     let totalMrr = 0;
     let activeTenants = 0;
     let demoTenants = 0;
@@ -165,7 +161,7 @@ export const SaasCentralDashboard: React.FC = () => {
       demoTenants,
       suspendedTenants,
     };
-  }, [saasTenants, useRealTenants]);
+  }, [saasTenants]);
 
   const [activeTab, setActiveTab] = useState<
     | 'tenants'
@@ -186,13 +182,16 @@ export const SaasCentralDashboard: React.FC = () => {
   const [provisioningStep, setProvisioningStep] = useState<1 | 2 | 3>(1);
   const [isNewAdminModalOpen, setIsNewAdminModalOpen] = useState(false);
   const [previewMode, setPreviewMode] = useState<'saas_master' | 'tenant_agency' | null>(null);
-  const [previewTenant, setPreviewTenant] = useState<TenantBranding | null>(null);
+  const [previewTenant, setPreviewTenant] = useState<any | null>(null);
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
 
   // Payment Receipts Review State
   const [selectedReceiptForReview, setSelectedReceiptForReview] = useState<SaasPaymentReceipt | null>(null);
   const [receiptFilter, setReceiptFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
   const [receiptSearchQuery, setReceiptSearchQuery] = useState('');
+    // ─── NUEVO (Sesión #33): Historial real de comprobantes (Pendientes, Aprobados, Rechazados) ───
+  const [allRegistrations, setAllRegistrations] = useState<SaasRegistrationRequest[]>([]);
+  const [isLoadingRegistrations, setIsLoadingRegistrations] = useState(false);
 
   // Tenant Reset State
   const [confirmResetTenantId, setConfirmResetTenantId] = useState<string | null>(null);
@@ -265,7 +264,7 @@ export const SaasCentralDashboard: React.FC = () => {
     }
   };
 
-  const filteredTenants = useMemo(() => {
+    const filteredTenants = useMemo(() => {
     const q = tenantSearchQuery.toLowerCase();
     return (tenantsSource || []).filter((t) => {
       const matchesSearch =
@@ -273,7 +272,6 @@ export const SaasCentralDashboard: React.FC = () => {
         (t?.name && t.name.toLowerCase().includes(q)) ||
         (t?.id && t.id.toLowerCase().includes(q)) ||
         (t?.taxId && t.taxId.toLowerCase().includes(q)) ||
-        (t?.tax_id && t.tax_id.toLowerCase().includes(q)) ||
         (t?.subdomain && t.subdomain.toLowerCase().includes(q));
 
       const matchesStatus =
@@ -436,6 +434,27 @@ export const SaasCentralDashboard: React.FC = () => {
     });
   };
 
+      // ─── NUEVA FUNCIÓN: Cargar el historial completo de comprobantes ───
+  const loadRegistrationHistory = async () => {
+    setIsLoadingRegistrations(true);
+    // Solicitamos TODOS los estados (all)
+    const result = await reviewService.listPendingRegistrations('all');
+    
+    if (result.success) {
+      setAllRegistrations(result.data);
+    } else {
+      console.error("Error cargando historial:", result.error);
+    }
+    setIsLoadingRegistrations(false);
+  };
+
+  // Efecto para cargar los datos cuando se entra a la pestaña
+  useEffect(() => {
+    if (activeTab === 'payment_receipts') {
+      loadRegistrationHistory();
+    }
+  }, [activeTab]);
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12 animate-in fade-in">
       {/* Top Hero Banner */}
@@ -493,7 +512,7 @@ export const SaasCentralDashboard: React.FC = () => {
           <span>Empresas & Instancias ({(tenantsSource || []).length})</span>
         </button>
 
-        <button
+                <button
           onClick={() => setActiveTab('payment_receipts')}
           className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0 ${
             activeTab === 'payment_receipts'
@@ -503,9 +522,10 @@ export const SaasCentralDashboard: React.FC = () => {
         >
           <Receipt className="w-4 h-4" />
           <span>Comprobantes de Pago</span>
-          {(saasPaymentReceipts || []).filter((r) => r.status === 'pending').length > 0 && (
+          {/* Mostrar el badge solo si hay pendientes en el historial real */}
+          {(allRegistrations || []).filter((r) => r.status === 'pending').length > 0 && (
             <span className="px-1.5 py-0.5 rounded-full bg-amber-400 text-slate-950 font-black text-[10px]">
-              {(saasPaymentReceipts || []).filter((r) => r.status === 'pending').length}
+              {(allRegistrations || []).filter((r) => r.status === 'pending').length}
             </span>
           )}
         </button>
@@ -657,11 +677,12 @@ export const SaasCentralDashboard: React.FC = () => {
               />
             </div>
 
-            <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+                        <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
               <span>{(filteredTenants || []).length} de {(tenantsSource || []).length} empresas</span>
               <span className="text-slate-300">|</span>
-              <span className="text-emerald-600">
-                {useRealTenants ? '● Datos reales' : '○ Datos mock'}
+              <span className="text-emerald-600 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                Datos reales
               </span>
             </div>
 
@@ -717,8 +738,8 @@ export const SaasCentralDashboard: React.FC = () => {
             </div>
           </div>
 
-          {/* Loading state */}
-          {saasTenantsLoading && !useRealTenants && (
+                    {/* Loading state */}
+          {saasTenantsLoading && (
             <div className="bg-white rounded-3xl p-12 text-center border border-slate-200">
               <Loader2 className="w-8 h-8 text-indigo-600 animate-spin mx-auto mb-3" />
               <p className="text-sm font-semibold text-slate-700">Cargando empresas...</p>
@@ -751,17 +772,9 @@ export const SaasCentralDashboard: React.FC = () => {
               /* Grid View */
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                 {filteredTenants.map((t) => {
-                  const isRealTenant = 'usersCount' in t;
-
-                  const tenantUsersCount = isRealTenant
-                    ? t.usersCount
-                    : (users || []).filter((u) => u.tenantId === t.id).length;
-                  const tenantPolicies = isRealTenant
-                    ? t.policiesCount
-                    : (policies || []).filter((p) => p.tenantId === t.id).length;
-                  const tenantClientsCount = isRealTenant
-                    ? t.clientsCount
-                    : (clients || []).filter((c) => c.tenantId === t.id).length;
+                  const tenantUsersCount = t.usersCount;
+                  const tenantPolicies = t.policiesCount;
+                  const tenantClientsCount = t.clientsCount;
 
                   const isCurrent = t.id === currentTenant?.id;
                   const statusLabel = getTenantStatusLabel(t.status);
@@ -781,7 +794,8 @@ export const SaasCentralDashboard: React.FC = () => {
                           <div className="flex items-center gap-3">
                             <div
                               className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-black text-sm shadow-xs"
-                              style={{ backgroundColor: t.primaryColor || t.primary_color || '#4f46e5' }}
+                              style={{ backgroundColor: t.primaryColor || '#4f46e5' }}
+
                             >
                               {t.name ? t.name.charAt(0) : 'T'}
                             </div>
@@ -832,15 +846,29 @@ export const SaasCentralDashboard: React.FC = () => {
                             </span>
                           </div>
 
-                          {t.subscription && (
-                            <div className="flex items-center justify-between text-slate-600 pt-1 border-t border-slate-200/60">
-                              <span className="text-slate-400 flex items-center gap-1">
-                                <DollarSign className="w-3.5 h-3.5" /> MRR:
-                              </span>
-                              <span className="font-bold text-emerald-600 text-[11px]">
-                                ${t.subscription.monthlyPrice?.toFixed(2) || '0.00'} {t.currency || 'USD'}
-                              </span>
-                            </div>
+                                                    {t.subscription && (
+                            <>
+                              <div className="flex items-center justify-between text-slate-600 pt-1 border-t border-slate-200/60">
+                                <span className="text-slate-400 flex items-center gap-1">
+                                  <DollarSign className="w-3.5 h-3.5" /> MRR:
+                                </span>
+                                <span className="font-bold text-emerald-600 text-[11px]">
+                                  ${t.subscription.monthlyPrice?.toFixed(2) || '0.00'} {t.currency || 'USD'}
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between text-slate-600 pt-1 border-t border-slate-200/60">
+                                <span className="text-slate-400 flex items-center gap-1">
+                                  <CreditCard className="w-3.5 h-3.5" /> Suscripción:
+                                </span>
+                                <span className={`font-bold text-[10px] px-1.5 py-0.5 rounded-md ${
+                                  t.subscription.status === 'active' 
+                                    ? 'bg-emerald-100 text-emerald-700' 
+                                    : 'bg-rose-100 text-rose-700'
+                                }`}>
+                                  {t.subscription.status === 'active' ? 'Al día' : 'Vencida'}
+                                </span>
+                              </div>
+                            </>
                           )}
                         </div>
 
@@ -958,17 +986,10 @@ export const SaasCentralDashboard: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {filteredTenants.map((t) => {
-                        const isRealTenant = 'usersCount' in t;
-                        const tenantUsersCount = isRealTenant
-                          ? t.usersCount
-                          : (users || []).filter((u) => u.tenantId === t.id).length;
-                        const tenantPolicies = isRealTenant
-                          ? t.policiesCount
-                          : (policies || []).filter((p) => p.tenantId === t.id).length;
-                        const tenantClientsCount = isRealTenant
-                          ? t.clientsCount
-                          : (clients || []).filter((c) => c.tenantId === t.id).length;
+                       {filteredTenants.map((t) => {
+                        const tenantUsersCount = t.usersCount;
+                        const tenantPolicies = t.policiesCount;
+                        const tenantClientsCount = t.clientsCount;
                         const isCurrent = t.id === currentTenant?.id;
                         const statusLabel = getTenantStatusLabel(t.status);
                         const subdomain = t.subdomain || t.id;
@@ -980,7 +1001,8 @@ export const SaasCentralDashboard: React.FC = () => {
                               <div className="flex items-center gap-3">
                                 <div
                                   className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-black text-xs shadow-xs shrink-0"
-                                  style={{ backgroundColor: t.primaryColor || t.primary_color || '#4f46e5' }}
+                                  style={{ backgroundColor: t.primaryColor || '#4f46e5' }}
+
                                 >
                                   {t.name ? t.name.charAt(0) : 'T'}
                                 </div>
@@ -1002,10 +1024,21 @@ export const SaasCentralDashboard: React.FC = () => {
                                 {subdomain}.{baseDomain}
                               </span>
                             </td>
-                            <td className="p-4">
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700">
-                                {t.subscription?.plan || 'Sin plan'}
-                              </span>
+                                                        <td className="p-4">
+                              <div className="flex flex-col gap-1">
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 w-fit">
+                                  {t.subscription?.plan || 'Sin plan'}
+                                </span>
+                                {t.subscription && (
+                                  <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold w-fit ${
+                                    t.subscription.status === 'active' 
+                                      ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' 
+                                      : 'bg-rose-50 text-rose-600 border border-rose-200'
+                                  }`}>
+                                    {t.subscription.status === 'active' ? 'Al día' : 'Vencida'}
+                                  </span>
+                                )}
+                              </div>
                             </td>
                             <td className="p-4 text-center font-bold text-slate-700">{tenantUsersCount}</td>
                             <td className="p-4 text-center font-bold text-slate-700">{tenantClientsCount}</td>
@@ -1163,16 +1196,20 @@ export const SaasCentralDashboard: React.FC = () => {
             </div>
           </div>
 
-          {/* Receipts Table / List */}
-          {(saasPaymentReceipts || []).filter((r) => {
+                    {/* Receipts Table / List */}
+          {isLoadingRegistrations ? (
+            <div className="bg-white rounded-3xl p-12 text-center border border-slate-200">
+              <Loader2 className="w-8 h-8 text-indigo-600 animate-spin mx-auto mb-3" />
+              <p className="text-sm font-semibold text-slate-700">Cargando historial de pagos...</p>
+            </div>
+          ) : (allRegistrations || []).filter((r) => {
             const matchesFilter = receiptFilter === 'all' || r.status === receiptFilter;
             const query = receiptSearchQuery.toLowerCase();
             const matchesQuery =
               !query ||
-              (r?.tenantName && r.tenantName.toLowerCase().includes(query)) ||
+              (r?.companyName && r.companyName.toLowerCase().includes(query)) ||
               (r?.adminName && r.adminName.toLowerCase().includes(query)) ||
               (r?.adminEmail && r.adminEmail.toLowerCase().includes(query)) ||
-              (r?.referenceNumber && r.referenceNumber.toLowerCase().includes(query)) ||
               (r?.planName && r.planName.toLowerCase().includes(query));
             return matchesFilter && matchesQuery;
           }).length === 0 ? (
@@ -1202,20 +1239,22 @@ export const SaasCentralDashboard: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {(saasPaymentReceipts || [])
+                    {(allRegistrations || [])
                       .filter((r) => {
                         const matchesFilter = receiptFilter === 'all' || r.status === receiptFilter;
                         const query = receiptSearchQuery.toLowerCase();
                         const matchesQuery =
                           !query ||
-                          (r?.tenantName && r.tenantName.toLowerCase().includes(query)) ||
+                          (r?.companyName && r.companyName.toLowerCase().includes(query)) ||
                           (r?.adminName && r.adminName.toLowerCase().includes(query)) ||
                           (r?.adminEmail && r.adminEmail.toLowerCase().includes(query)) ||
-                          (r?.referenceNumber && r.referenceNumber.toLowerCase().includes(query)) ||
                           (r?.planName && r.planName.toLowerCase().includes(query));
                         return matchesFilter && matchesQuery;
                       })
-                      .map((receipt) => {
+                      .map((reg) => {
+                        // Adaptamos el DTO del backend al formato visual del Modal
+                        const receipt = mapRegistrationToReceipt(reg);
+                        
                         return (
                           <tr key={receipt.id} className="hover:bg-slate-50/80 transition-colors">
                             <td className="p-4">
@@ -1340,11 +1379,11 @@ export const SaasCentralDashboard: React.FC = () => {
       {/* TAB: PLANES Y LÍMITES SAAS */}
       {/* ========================================================================= */}
       {activeTab === 'saas_plans' && (
-        <SaasPlansManagementSection
+                <SaasPlansManagementSection
           plans={saasPlans || []}
           onUpdatePlans={updateSaasPlans}
           onApplyPlanToTenant={updateTenantSubscriptionPlan}
-          tenants={tenantsSource || []}
+          tenants={tenantsSource as any} // <--- AGREGA "as any" AQUÍ
         />
       )}
 
@@ -1394,11 +1433,11 @@ export const SaasCentralDashboard: React.FC = () => {
                 <Building2 className="w-5 h-5" />
               </div>
               <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Empresas Activas</div>
-              <div className="text-2xl font-black text-slate-900 mt-1">
-                {useRealTenants ? computedGlobalMetrics.activeTenants : (tenantsSource || []).length}
+                 <div className="text-2xl font-black text-slate-900 mt-1">
+                {computedGlobalMetrics.activeTenants}
               </div>
               <div className="text-[11px] text-indigo-600 font-bold mt-1">
-                {useRealTenants ? `de ${computedGlobalMetrics.totalTenants} totales` : '100% particionadas'}
+                de {computedGlobalMetrics.totalTenants} totales
               </div>
             </div>
 
@@ -1456,17 +1495,10 @@ export const SaasCentralDashboard: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-700">
-                  {(tenantsSource || []).map((t) => {
-                    const isRealTenant = 'usersCount' in t;
-                    const tUsers = isRealTenant
-                      ? t.usersCount
-                      : (users || []).filter((u) => u.tenantId === t.id).length;
-                    const tClients = isRealTenant
-                      ? t.clientsCount
-                      : (clients || []).filter((c) => c.tenantId === t.id).length;
-                    const tPolicies = isRealTenant
-                      ? t.policiesCount
-                      : (policies || []).filter((p) => p.tenantId === t.id).length;
+                    {(tenantsSource || []).map((t) => {
+                    const tUsers = t.usersCount;
+                    const tClients = t.clientsCount;
+                    const tPolicies = t.policiesCount;
                     const tMrr = t.subscription?.monthlyPrice || 0;
                     const statusLabel = getTenantStatusLabel(t.status);
 
@@ -1475,7 +1507,8 @@ export const SaasCentralDashboard: React.FC = () => {
                         <td className="p-4 font-bold text-slate-900 flex items-center gap-2">
                           <span
                             className="w-3 h-3 rounded-full inline-block"
-                            style={{ backgroundColor: t.primaryColor || t.primary_color || '#4f46e5' }}
+                            style={{ backgroundColor: t.primaryColor || '#4f46e5' }}
+
                           ></span>
                           <span>{t.name}</span>
                         </td>
@@ -2168,16 +2201,18 @@ export const SaasCentralDashboard: React.FC = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {(tenantsSource || []).map((t) => {
-                const landing = t.landingConfig || {
-                  agencyName: t.name,
-                  slug: t.subdomain || t.id,
-                  tagline: 'Asesoría en seguros de salud y vida',
-                  whatsappDirectNumber: '+1 (800) 555-0100',
-                  callDirectNumber: '+1 (800) 555-0100',
-                  quoteFormEnabled: true
-                };
+                const landing = (t as any).landingConfig || {
+                 agencyName: t.name,
+                 slug: t.subdomain || t.id,
+                 tagline: 'Asesoría en seguros de salud y vida',
+                 whatsappDirectNumber: '+1 (800) 555-0100',
+                 callDirectNumber: '+1 (800) 555-0100',
+                 quoteFormEnabled: true
+               };
 
-                const publicLandingUrl = getTenantPublicUrl(t, saasLandingConfig);
+                const publicLandingUrl = getTenantPublicUrl(t as any, saasLandingConfig);
+
+                
 
                 return (
                   <div key={t.id} className="p-5 rounded-3xl border border-slate-200 bg-white shadow-2xs space-y-4">
@@ -2185,7 +2220,8 @@ export const SaasCentralDashboard: React.FC = () => {
                       <div className="flex items-center gap-3">
                         <div
                           className="w-10 h-10 rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-xs"
-                          style={{ backgroundColor: t.primaryColor || t.primary_color || '#4f46e5' }}
+                          style={{ backgroundColor: t.primaryColor || '#4f46e5' }}
+
                         >
                           {t.name ? t.name.charAt(0) : 'T'}
                         </div>
@@ -2733,7 +2769,7 @@ export const SaasCentralDashboard: React.FC = () => {
           isOpen={!!previewMode}
           onClose={() => setPreviewMode(null)}
           mode={previewMode}
-          tenant={previewTenant || currentTenant}
+          tenant={(previewTenant || currentTenant) as any}
         />
       )}
 
