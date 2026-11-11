@@ -90,7 +90,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
     setAvatarPreview(selectedAvatar || '');
   };
 
-    const handleSave = async (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     
     const nameValue = (formData.name || '').trim();
@@ -106,7 +106,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
       const updates: Partial<UserType> = { name: nameValue };
 
       if (customAvatarFile) {
-        // ✅ NUEVO: Redimensionar la imagen antes de convertirla a Base64
+        // Redimensionar la imagen antes de convertirla a Base64
         const resizeImage = (file: File): Promise<string> => {
           return new Promise((resolve, reject) => {
             const reader = new FileReader();
@@ -114,7 +114,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
               const img = new Image();
               img.onload = () => {
                 const canvas = document.createElement('canvas');
-                const MAX_SIZE = 256; // Tamaño máximo (256x256)
+                const MAX_SIZE = 256;
                 let width = img.width;
                 let height = img.height;
 
@@ -134,8 +134,6 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
                 canvas.height = height;
                 const ctx = canvas.getContext('2d');
                 ctx?.drawImage(img, 0, 0, width, height);
-                
-                // Calidad 0.8 (JPEG) para que pese menos
                 resolve(canvas.toDataURL('image/jpeg', 0.8));
               };
               img.onerror = reject;
@@ -152,13 +150,12 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({ isOpen, onClose }) =
         updates.avatar = selectedAvatar;
       }
 
-      // Llamamos a updateUser (que ahora sí persistirá en el backend)
       await updateUser(updates);
       
       setSaveSuccess(true);
       setTimeout(() => {
         onClose();
-        setIsSaving(false); // ✅ Aseguramos que el botón se resetee
+        setIsSaving(false);
       }, 1500);
       
     } catch (err: any) {

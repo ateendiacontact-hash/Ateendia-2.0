@@ -2,9 +2,11 @@
 .env
 .env.local
 .env.*.local
+.env.old
+.env.old.disabled
 server/.env
 server/.env.local
-.env.old
+
 
 # ─── Build & Deps ───
 node_modules

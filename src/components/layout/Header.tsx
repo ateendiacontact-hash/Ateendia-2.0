@@ -3,24 +3,15 @@ import {
   Bell,
   Search,
   PhoneCall,
-  Shield,
-  Building2,
   ChevronDown,
-  UserCheck,
   CheckCircle2,
-  Lock,
   LogOut,
-  Sparkles,
-  PhoneForwarded,
+  Crown,
+  ArrowRightLeft,
   AlertTriangle,
   Globe,
   ExternalLink,
   User,
-  Camera,
-  Settings,
-  Crown,
-  ArrowRightLeft,
-  AlertCircle,
   Plus
 } from 'lucide-react';
 import { useTenant } from '../../context/TenantContext';
@@ -50,19 +41,18 @@ export const Header: React.FC<HeaderProps> = ({
 
   // Desestructuración segura con valores por defecto
   const currentTenant = tenantContext?.currentTenant || { id: 'default', name: 'Ateendia Seguros', primaryColor: '#4f46e5' };
-  const currentTenantLandingConfig = tenantContext?.currentTenantLandingConfig || null;
-  const tenants = Array.isArray(tenantContext?.tenants) ? tenantContext.tenants : [];
+  const saasLandingConfig = tenantContext?.saasLandingConfig || null;
+  
+  // REGLA 28: Usamos los tenants reales de la DB, NO hardcodeados
+  const tenants = Array.isArray(tenantContext?.saasTenants) ? tenantContext.saasTenants : [];
   const setCurrentTenantId = tenantContext?.setCurrentTenantId || (() => {});
+  
   const currentUser = tenantContext?.currentUser || { name: 'Usuario', email: '', role: 'agent', extension: '101' };
-  const setCurrentUserId = tenantContext?.setCurrentUserId || (() => {});
-  const users = Array.isArray(tenantContext?.users) ? tenantContext.users : [];
   const alerts = Array.isArray(tenantContext?.alerts) ? tenantContext.alerts : [];
   const appNotifications = Array.isArray(tenantContext?.appNotifications) ? tenantContext.appNotifications : [];
   const showSoftphone = Boolean(tenantContext?.showSoftphone);
   const setShowSoftphone = tenantContext?.setShowSoftphone || (() => {});
   const activeCall = tenantContext?.activeCall || null;
-  const updateTenantBranding = tenantContext?.updateTenantBranding || (() => {});
-  const saasLandingConfig = tenantContext?.saasLandingConfig || null;
 
   const [showTenantDropdown, setShowTenantDropdown] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
@@ -73,7 +63,7 @@ export const Header: React.FC<HeaderProps> = ({
     supervisor: 'Supervisor',
     agent: 'Agente Asesor',
     readonly: 'Solo Lectura',
-    super_admin: 'Super Admin Global'
+    saas_super_admin: 'Super Admin Global'
   };
 
   const roleBadgeColors: Record<string, string> = {
@@ -81,29 +71,20 @@ export const Header: React.FC<HeaderProps> = ({
     supervisor: 'bg-blue-50 text-blue-700 border-blue-200',
     agent: 'bg-emerald-50 text-emerald-700 border-emerald-200',
     readonly: 'bg-slate-100 text-slate-700 border-slate-200',
-    super_admin: 'bg-purple-50 text-purple-700 border-purple-200'
+    saas_super_admin: 'bg-purple-50 text-purple-700 border-purple-200'
   };
 
-  // Filtrado seguro contra valores nulos/undefined
   const highPriorityAlertsCount = alerts.filter((a) => a?.priority === 'high').length;
   const unreadNotificationsCount = appNotifications.filter((n) => n && !n.read).length;
 
   const isSuperAdminGlobal = isGlobalSuperAdmin();
 
-  // HARDCODED: 3 empresas para Super Admin Global
-  const SUPER_ADMIN_TENANTS = [
-    { id: 'tenant-ateendia', name: 'Ateendia Seguros', type: 'Enterprise', primaryColor: '#4f46e5' },
-    { id: 'tenant-optima', name: 'Optima Health Brokers', type: 'Pro Business', primaryColor: '#059669' },
-    { id: 'tenant-sol', name: 'Seguros Sol Naciente', type: 'Starter', primaryColor: '#dc2626' },
-  ];
-
-  // Opciones de empresas seguras
+  // Filtramos los tenants reales
   const tenantOptions = isSuperAdminGlobal
-    ? SUPER_ADMIN_TENANTS
-    : tenants.filter((t) => t?.id === currentTenant?.id);
+    ? tenants // Si es Super Admin, ve TODOS los de la DB
+    : tenants.filter((t) => t?.id === currentTenant?.id); // Si es tenant, solo ve el suyo
 
-  // Nombre y rol a mostrar
-  const displayName = isSuperAdminGlobal ? 'Víctor Aray (Super Admin)' : (currentUser?.name || 'Usuario');
+  const displayName = isSuperAdminGlobal ? 'Super Admin (Plataforma)' : (currentUser?.name || 'Usuario');
   const userRoleKey = currentUser?.role || 'agent';
   const displayRole = isSuperAdminGlobal ? 'Super Admin Global 👑' : (roleLabels[userRoleKey] || userRoleKey || 'Admin');
   const displayRoleColor = isSuperAdminGlobal
@@ -111,6 +92,12 @@ export const Header: React.FC<HeaderProps> = ({
     : (roleBadgeColors[userRoleKey] || 'bg-slate-100 text-slate-700 border-slate-200');
 
   const tenantInitial = (currentTenant?.name || 'A').charAt(0).toUpperCase();
+
+  const handleLogoutClick = () => {
+    setShowUserDropdown(false);
+    // Llamamos al logout del padre que debería recargar la página para limpiar estado
+    onLogout();
+  };
 
   return (
     <header className="h-16 sm:h-20 bg-white border-b border-slate-200 sticky top-0 z-30 px-6 sm:px-8 flex items-center justify-between flex-shrink-0 shadow-xs">
@@ -185,7 +172,7 @@ export const Header: React.FC<HeaderProps> = ({
                     </div>
                     {t?.id === currentTenant?.id && <CheckCircle2 className="w-4 h-4 text-indigo-600 shrink-0" />}
                     {isSuperAdminGlobal && t?.id !== currentTenant?.id && (
-                      <ArrowRightLeft className="w-4 h-4 text-purple-500 shrink-0 opacity-70" title="Cambiar a esta empresa" />
+                    <ArrowRightLeft className="w-4 h-4 text-purple-500 shrink-0 opacity-70" aria-label="Cambiar a esta empresa" />
                     )}
                   </button>
                 ))}
@@ -195,12 +182,13 @@ export const Header: React.FC<HeaderProps> = ({
                 <button
                   onClick={() => {
                     setShowTenantDropdown(false);
-                    window.location.href = '/saas_central';
+                    // Navegación al panel SaaS (esto lo maneja App.tsx usualmente)
+                    window.location.hash = '#/saas_central'; 
                   }}
                   className="w-full px-3 py-2 rounded-xl flex items-center gap-2.5 hover:bg-purple-50 text-purple-700 text-xs font-semibold transition-colors"
                 >
                   <Plus className="w-4 h-4" />
-                  <span>+ Crear Nueva Empresa</span>
+                  <span>+ Ir al Panel Central SaaS</span>
                 </button>
               )}
               <div className="px-3 py-1.5">
@@ -228,7 +216,7 @@ export const Header: React.FC<HeaderProps> = ({
         </button>
       </div>
 
-      {/* Controles Derecha: Telefonía + Alertas + Notificaciones + Perfil */}
+      {/* Controles Derecha */}
       <div className="flex items-center gap-3 sm:gap-4">
         {/* Marcador PBX Issabel */}
         <button
@@ -319,9 +307,10 @@ export const Header: React.FC<HeaderProps> = ({
                 <p className="text-[10px] text-slate-500">{displayRole}</p>
               </div>
               <div className="w-10 h-10 rounded-xl bg-indigo-100 border border-indigo-200 flex items-center justify-center text-indigo-700 font-bold text-xs shadow-xs overflow-hidden">
-                {currentUser?.avatar ? (
-                  <img src={currentUser.avatar} alt={currentUser?.name || 'Avatar'} className="w-full h-full object-cover rounded-xl" />
+                {currentUser && (currentUser as any).avatar ? (
+                <img src={(currentUser as any).avatar} alt={currentUser?.name || 'Avatar'} className="w-full h-full object-cover rounded-xl" />
                 ) : (
+                // ... resto del código
                   <span>
                     {((currentUser?.name || 'US').split(' ').filter(Boolean).map((n) => n[0]).join('') || 'US').slice(0, 2).toUpperCase()}
                   </span>
@@ -354,10 +343,7 @@ export const Header: React.FC<HeaderProps> = ({
 
               <div className="px-1 pt-1">
                 <button
-                  onClick={() => {
-                    setShowUserDropdown(false);
-                    onLogout();
-                  }}
+                  onClick={handleLogoutClick}
                   className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-xl transition-colors"
                 >
                   <LogOut className="w-3.5 h-3.5" />

@@ -20,7 +20,7 @@ export default defineConfig(() => {
       // Proxy: todo lo que empiece con /api se reenvía a Express (puerto 4000)
       proxy: {
         '/api': {
-          target: 'http://localhost:4000',
+          target: 'http://127.0.0.1:4000', // ⬅️ CAMBIO CRÍTICO: 127.0.0.1 en vez de localhost
           changeOrigin: true,
           secure: false,
         },

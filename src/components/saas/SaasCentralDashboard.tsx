@@ -73,6 +73,7 @@ import { getTenantPublicUrl, getSaasBaseDomain, getSaasPublicUrl } from '../../u
 import { SaasSubscriptionsView } from './SaasSubscriptionsView';
 import { reviewService } from '../../services/reviewService'; // <-- AGREGA ESTO
 import { mapRegistrationToReceipt } from '../../adapters/registrationToReceipt';
+import { UsageProgressBar } from '../ui/UsageProgressBar';
 
 // FIX: Casteamos a ComponentType<any> para evitar errores de TS con componentes que no tiparon sus props aún.
 import { SaasPlansManagementSection as SaasPlansManagementSectionBase } from './SaasPlansManagementSection';
@@ -435,19 +436,19 @@ export const SaasCentralDashboard: React.FC = () => {
   };
 
       // ─── NUEVA FUNCIÓN: Cargar el historial completo de comprobantes ───
-  const loadRegistrationHistory = async () => {
+   const loadRegistrationHistory = async () => {
     setIsLoadingRegistrations(true);
-    // Solicitamos TODOS los estados (all)
     const result = await reviewService.listPendingRegistrations('all');
     
-    if (result.success) {
+    // ✅ FIX TS2339: Type narrowing explícito
+    if (result.success === true) {
       setAllRegistrations(result.data);
     } else {
+      // TypeScript ya sabe que result es { success: false; error: string }
       console.error("Error cargando historial:", result.error);
     }
     setIsLoadingRegistrations(false);
   };
-
   // Efecto para cargar los datos cuando se entra a la pestaña
   useEffect(() => {
     if (activeTab === 'payment_receipts') {
@@ -676,6 +677,33 @@ export const SaasCentralDashboard: React.FC = () => {
                 className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500"
               />
             </div>
+
+                                {/* ─── NUEVO (Sesión 3.5.E): Barras de Límites ─── */}
+          {(
+            tenantContext?.tenantLimits || 
+            { planName: 'Demo (Simulado)', limits: { users: { limit: 2, current: 3 }, clients: { limit: 20, current: 1 }, policies: { limit: 30, current: 1 } } } // <-- PRUEBA TEMPORAL
+          ) && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <UsageProgressBar 
+                label="Usuarios del Plan" 
+                current={(tenantContext?.tenantLimits || { limits: { users: { current: 3 } } }).limits.users.current} 
+                limit={(tenantContext?.tenantLimits || { limits: { users: { limit: 2 } } }).limits.users.limit} 
+                isLoading={tenantContext.tenantLimitsLoading}
+              />
+              <UsageProgressBar 
+                label="Clientes del Plan" 
+                current={(tenantContext?.tenantLimits || { limits: { clients: { current: 1 } } }).limits.clients.current} 
+                limit={(tenantContext?.tenantLimits || { limits: { clients: { limit: 20 } } }).limits.clients.limit} 
+                isLoading={tenantContext.tenantLimitsLoading}
+              />
+              <UsageProgressBar 
+                label="Pólizas del Plan" 
+                current={(tenantContext?.tenantLimits || { limits: { policies: { current: 1 } } }).limits.policies.current} 
+                limit={(tenantContext?.tenantLimits || { limits: { policies: { limit: 30 } } }).limits.policies.limit} 
+                isLoading={tenantContext.tenantLimitsLoading}
+              />
+            </div>
+          )}
 
                         <div className="flex items-center gap-2 text-xs font-semibold text-slate-500">
               <span>{(filteredTenants || []).length} de {(tenantsSource || []).length} empresas</span>

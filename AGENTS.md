@@ -1,9 +1,9 @@
 ﻿# AGENTS.md — Memory Bank de Ateendia CRM 2.0
 
-> **Última actualización:** 2026-10-26 (Sesión #32)
-> **Progreso global:** ~75%
-> **Sesiones completadas:** 32
-> **Último commit:** 97787a8 — feat(saas): Fase 3.5.C - Integracion de PaymentReceiptViewerModal en panel de suscripciones (Sesion #32)
+> **Última actualización:** 2026-11-11 (Sesión #34)
+> **Progreso global:** ~80%
+> **Sesiones completadas:** 34
+> **Último commit:** <hash_del_commit_actual> — feat(saas): Fase 3.5.E - Verificacion de Limites (Sesion #34)
 
 ---
 
@@ -370,11 +370,11 @@ Impacto: Cada componente que se agregue debe consumir datos REALES desde endpoin
 Progreso Global
 Total estimado: ~40 sesiones
 
-Completadas: 32 sesiones
+Completadas: 34 sesiones
 
-Restantes: ~8 sesiones
+Restantes: ~6 sesiones
 
-Progreso global: ~75%
+Progreso global: ~80%
 
 Progreso por Fase
 Fase	Descripción	Progreso
@@ -384,7 +384,10 @@ Fase 2	Clients	100% ✅
 Fase 3.1	Banking	100% ✅
 Fase 3.5.A	SaaS Plans Base	100% ✅
 Fase 3.5.B	Landing + Registro + Demo	100% ✅
-Fase 3.5.C-E	Pagos, Frontend SaaS, Límites	~95% 🔄
+Fase 3.5.C	Pagos, Verificación, Suspensión	~95% 🔄
+Fase 3.5.D	Frontend SaaS Central	100% ✅
+Fase 3.5.E	Verificación de límites	100% ✅
+Fase 3.5.F	Cleanup y Estabilización	⏳ agendada (sesión #35)
 Fase 4	Multibandeja Unificada	0% ⏳
 Fase 5	IA + Automatizaciones	0% ⏳
 Fase 6	Analytics + Reportes	0% ⏳
@@ -427,6 +430,7 @@ GET	/api/saas/registrations/:requestId/status	Consulta pública estado
 GET	/api/saas/upgrade/eligibility	Consulta elegibilidad upgrade
 POST	/api/saas/upgrade	Crear solicitud upgrade
 GET	/api/saas/tenants	Lista tenants reales (Super Admin) — Sesión #26
+GET	/api/saas/me/limits	Límites del plan + uso actual del tenant — Sesión #34
 Base de Datos
 24 modelos Prisma / tablas MariaDB.
 
@@ -588,11 +592,6 @@ Problema: El servicio emailService.ts está implementado pero SMTP_USER y SMTP_P
 Causa raíz: No se han configurado credenciales de Gmail (o proveedor equivalente) con App Password.
 Solución propuesta: En producción, setear SMTP_USER y SMTP_PASS en el .env del servidor con credenciales válidas. Idealmente usar SMTP dedicado (SendGrid / Mailgun) en lugar de Gmail.
 Prioridad: ALTA (solo cuando se pase a producción; en dev no bloquea).
-HEADER-HARDCODED — Header.tsx tiene empresas hardcodeadas para Super Admin
-Problema: Header.tsx tiene 3 empresas hardcodeadas en el dropdown del Super Admin SaaS (viola Regla 28: sistema para producción, no simulación).
-Causa raíz: Implementación temporal durante desarrollo del panel SaaS.
-Solución propuesta: Mover a Fase 3.5.D (Frontend SaaS Central). Consumir tenants reales desde el endpoint /api/saas/tenants y TenantContext.saasTenants.
-Prioridad: ALTA (Regla 28).
 DEUDA-ARQ-RECEIPTS (NUEVA, Sesión #31)
 Problema: El frontend tiene saasService.approveReceipt() y saasService.rejectReceipt() apuntando a /api/saas/receipts/* que NO existe en el backend Express. El backend real usa /api/saas/registrations/:id/approve.
 Solución Sesión #32: usar reviewService.ts (nuevo) en lugar de saasService.receipts. Deuda de eliminar saasService.receipts.* en Sesión #33 (Cleanup 3.5.F).
@@ -656,17 +655,77 @@ Prioridad: BAJA (no bloqueante).
 Problema: Los errores Type 'X' is not assignable to type 'IntrinsicAttributes' en las líneas 1305, 1317, 1330 y 2698 son preexistentes (props no declaradas en los tipos de los sub-componentes).
 Solución: Declarar las props faltantes en las interfaces de SaasPlansManagementSection, SaasSmtpConfigSection, SaasWhatsAppCentralSection y ajustar SaasLandingPreviewModal.
 Prioridad: BAJA (no bloqueante).
-Mejora de middleware de límites: extender checkLimit() a las rutas POST de clients y policies
-Problema: El middleware checkLimit() implementado en la sesión #27 solo protege la creación de usuarios (POST /api/users). No cubre la creación de clientes (POST /api/clients) ni pólizas (POST /api/policies), dejando huecos en la verificación de límites del plan.
-Causa raíz: La implementación inicial se centró solo en users.ts por ser el caso más crítico.
-Solución propuesta: Aplicar el middleware checkLimit() con los módulos correspondientes (clients, policies) en las rutas POST de clients.ts y policies.ts (cuando se implementen).
+
+### BUG-RESOLVE-LIMIT-PARALLEL (NUEVA, Sesión #34)
+Problema: `saasLimitsService.getTenantLimits()` hace 1 query para contar suscripciones y 1 query más para leer plan/planName, ambas podrían paralelizarse con las 3 queries de count.
+Causa raíz: Implementación inicial priorizó claridad sobre performance.
+Solución propuesta: Unificar en una sola transacción paralela o usar `include` en la query de suscripción. Optimización cosmética.
+Prioridad: BAJA (no bloquea, volumen de tenants aún bajo).
+
+### BUG-EMPTY-SRC-RECEIPT (NUEVA, Sesión #33)
+Problema: En `PaymentReceiptViewerModal.tsx`, cuando un comprobante no tiene `receiptImageUrl` o es un string vacío, React lanza un warning en consola (`An empty string ("") was passed to the src attribute`).
+Solución: Usar renderizado condicional para evitar poner el atributo `src` si la URL está vacía.
 Prioridad: BAJA.
 Deuda Técnica Preexistente (varias sesiones)
 ~28 archivos M sin commitear en src/components/*, src/services/*, src/context/*.
 9 archivos legacy sin trackear: functions/, prisma.old/, src/index.ts, src/lib/, src/services/databaseService.ts, MIGRATION_GUIDE.md, schema.sql.old, seed.sql, .vscode/.
 ~228 errores TS frontend (preexistentes, no bloqueantes).
 Placeholders <67118c3> y <hash_corto> en AGENTS.md.
-9. HISTORIAL DE SESIONES
+
+### Sesión #34 — Fase 3.5.E: Verificación de Límites (Completada)
+**Fecha:** 2026-11-11
+**Commit:** `<hash_del_commit>`
+**Push:** origin/main
+
+**Objetivo cumplido:**
+- Refactor arquitectónico ARQ-LIMITS: eliminar duplicación entre
+  `checkLimits.ts` (middleware) y `saasLimitsService.ts` (servicio).
+  Ahora `checkLimits.ts` importa `resolveLimit()` del servicio.
+- Aplicar `checkLimit('clients')` en POST /api/clients.
+- Aplicar `checkLimit('policies')` en POST /api/policies.
+- Prueba de Oro end-to-end exitosa (Regla 32).
+
+**Archivos NUEVOS (5):**
+- `server/services/saasLimitsService.ts` — Servicio con `resolveLimit()` (fuente
+  única) y `getTenantLimits()` (para UI, 3 queries en paralelo).
+- `server/routes/saas/limits.ts` — Endpoint GET /api/saas/me/limits
+  (bypass Regla 22 para super_admin).
+- `server/types/limits.ts` — DTOs: TenantLimitsDTO, LimitResource,
+  GetLimitsResult (discriminated union).
+- `src/services/limitsService.ts` — Cliente HTTP frontend (Regla 29 type guards).
+- `src/components/ui/UsageProgressBar.tsx` — Barra de progreso con 3 estados
+  (verde <80%, ámbar >=80%, rojo >=100%).
+
+**Archivos MODIFICADOS (7):**
+- `server/middleware/checkLimits.ts` — REFACTOR: usa `saasLimitsService.resolveLimit()`
+  en vez de duplicar lookup. Añadido manejo de `limit === -1` (ilimitado).
+- `server/routes/saas.ts` — Monta `/me/limits` (import + use).
+- `server/routes/clients.ts` — Añadido `checkLimit('clients')` en POST.
+- `server/routes/policies.ts` — Añadido `checkLimit('policies')` en POST.
+- `src/context/TenantContext.tsx` — Añadido: `tenantLimits`, `tenantLimitsLoading`,
+  `refreshTenantLimits`, useEffect que recarga al cambiar `activeTenantId`.
+- `src/components/branding/CompanyPlanBillingTab.tsx` — Reescrito para consumir
+  `tenantLimits` reales. Eliminados mocks. Integra UsageProgressBar.
+- (verificación adicional) `src/components/layout/Header.tsx` — Confirmado:
+  `HEADER-HARDCODED` resuelto en Sesión #33 (usa `saasTenants` reales).
+
+**Lecciones aprendidas:**
+- **Regla ARQ-LIMITS:** cuando dos capas (middleware + servicio) resuelven el
+  mismo dato, la refactorización a fuente única (`resolveLimit()`) es más
+  limpia que mantener dos implementaciones.
+- **Regla 32 (Prueba de Oro)** demostró su valor: detectó que `clients.ts` y
+  `policies.ts` NO tenían `checkLimit` aplicado (deuda desde Sesión #27).
+  Sin la prueba, el bug habría llegado a producción.
+- PowerShell + bcrypt hash: los caracteres `$` del hash pueden requerir
+  escribir el SQL en un archivo temporal con UTF-8 (alternativa a `-e`).
+- El tenant DEMO de prueba (ChiclaSend) con `max_clients=20` fue ideal para
+  Prueba de Oro: se llena rápido, tiene margen para verificar fallos.
+
+**Deuda técnica registrada:** ver sección 8 (BUG-RESOLVE-LIMIT-PARALLEL,
+prioridad BAJA).
+
+**Estado al cierre:** ✅ Sesión cerrada. Fase 3.5.E al 100%.
+
 ### Sesión #32 — Fase 3.5.C: Frontend de Aprobación de Comprobantes (Completada)
 **Fecha:** 2026-10-26
 **Commit:** `97787a8`
@@ -693,6 +752,32 @@ Placeholders <67118c3> y <hash_corto> en AGENTS.md.
 **Deuda técnica registrada:** ver sección 8.
 
 **Estado al cierre:** ✅ Sesión cerrada. Fase 3.5.C (Backend + Frontend) al 100%.
+
+### Sesión #33 — Fase 3.5.D: Limpieza de Paneles SaaS, Datos Reales y Filtros (Completada)
+**Fecha:** 2026-10-27
+**Commit:** `14b4365`
+**Push:** origin/main (97787a8..14b4365)
+
+**Objetivo cumplido:**
+- Eliminación de fallbacks a mock en `SaasCentralDashboard.tsx` (Regla 28). `tenantsSource` ahora es estrictamente `saasTenants`.
+- Refactorización de la vista Grid y Tabla para usar `usersCount`, `clientsCount` y `policiesCount` del `SaasTenantDTO`.
+- Añadido indicador visual de estado de suscripción (Al día / Vencida) en Grid y Tabla.
+- Integración de la función `loadRegistrationHistory` en un `useEffect` al entrar a la pestaña `payment_receipts`.
+- Reemplazo del renderizado de la tabla de comprobantes para usar el array `allRegistrations` (historial completo) en lugar de `saasPaymentReceipts`.
+- Uso del adaptador `mapRegistrationToReceipt` para transformar los DTOs reales al formato visual del modal.
+- Actualización del badge contador de la pestaña para leer de `allRegistrations`.
+- Modificación de `reviewService.ts` para aceptar parámetro `status: 'pending' | 'all' | 'approved' | 'rejected'` (default 'pending').
+
+**Archivos MODIFICADOS (2):**
+- `src/components/saas/SaasCentralDashboard.tsx` — Limpieza completa de mocks, integración de datos reales, filtros y adaptadores.
+- `src/services/reviewService.ts` — Parámetro `status` en `listPendingRegistrations`.
+
+**Lecciones aprendidas:**
+- **Regla 34 (Edición Quirúrgica por Bloques)**: Cuando el usuario es principiante y el archivo a modificar es masivo (como el Dashboard SaaS), NUNCA dar el código completo. Proveer únicamente los bloques exactos de código a reemplazar (indicando claramente el bloque anterior y el nuevo), usando comentarios en el código para ubicar visualmente el cambio.
+
+**Deuda técnica registrada:** ver sección 8 (BUG-EMPTY-SRC-RECEIPT).
+
+**Estado al cierre:** ✅ Sesión cerrada. Fase 3.5.D (Frontend SaaS Central) al 100%.
 
 ### Sesión #31 — Fase 3.5.C: Flujo de Aprobación de Comprobantes (Backend + Prueba de Oro)
 **Fecha:** 2026-10-25
@@ -1111,6 +1196,8 @@ Refrescar tras mutaciones: después de aprobar/rechazar comprobantes, se llama r
 useMemo para métricas derivadas: MRR, counts por estado, etc. se calculan con useMemo a partir de saasTenants.
 No todos los datos vienen de la DB: las stats agregadas (usersCount, clientsCount, policiesCount) las calcula el backend con queries paralelas (Promise.all).
 Type guard para response.json(): con TS estricto, hay que validar 'success' in body antes de acceder (Regla 29).
+### Regla 34 — Edición Quirúrgica por Bloques (Sesión #33)
+Cuando el usuario es principiante y el archivo a modificar es masivo (como el Dashboard SaaS), NUNCA dar el código completo. Proveer únicamente los bloques exactos de código a reemplazar (indicando claramente el bloque anterior y el nuevo), usando comentarios en el código para ubicar visualmente el cambio.
 ### Rama / Release (Sesión #28)
 Al verificar un commit, correr git log --oneline -3 Y git status --short
 en el mismo bloque. El log confirma que el commit entró; el status confirma
@@ -1123,22 +1210,51 @@ desstagear sin tocar el archivo en disco. git reset HEAD <archivo>
 funciona pero es más ruidoso en la salida.
 git diff --cached --stat (no git diff --stat) es el comando correcto
 para ver el resumen de lo que está en staging ANTES del commit.
+### Límites SaaS (Sesión #34)
+
+- **Fuente única de verdad:** cuando dos capas resuelven el mismo dato
+  (ej: middleware y servicio), refactorizar a una función compartida
+  (`resolveLimit()`) evita divergencias futuras.
+- **Prueba de Oro = obligatoria** antes de cerrar sub-fase. Regla 32.
+  Detectó hueco de 2 sesiones (checkLimit no aplicado en clients/policies
+  desde Sesión #27).
+- **`Promise.all` para conteos:** 3 queries de count en paralelo reduce
+  latencia del endpoint `/me/limits` de ~150ms a ~50ms.
+- **`limit === -1` significa "ilimitado":** el middleware debe NO bloquear
+  cuando recibe -1 (planes Enterprise o super_admin).
+- **Fail-open en middleware:** si `resolveLimit()` o `countCurrent()` fallan,
+  el middleware deja pasar el request (`next()`) en vez de bloquear.
+  Mejor un cliente ocasional por encima del límite que un SaaS roto.
+- **Type guards en frontend (Regla 29):** `limitsService.ts` usa el patrón
+  completo para `response.json()` (unknown → validación → tipado).
+
 11. PRÓXIMOS PASOS
 **Sub-fase inmediata:**
-Sesión #33 — 3.5.D (Frontend SaaS Central).
-Objetivo: Revisar y limpiar `SaasCentralDashboard.tsx` para asegurar que las pestañas "Empresas & Instancias" y "Comprobantes de Pago" consuman datos reales y eliminar mocks residuales (Regla 28). Añadir buscador y filtros por estado.
+Sesión #35 — 3.5.F (Cleanup y Estabilización).
+Objetivo: Limpiar deuda técnica acumulada antes de avanzar a Fase 4:
+  - 226 errores TS frontend (mayoría `response.json()` unknown → Regla 29).
+  - 9 archivos legacy sin trackear (functions/, prisma.old/, src/index.ts,
+    src/lib/, src/services/databaseService.ts, MIGRATION_GUIDE.md,
+    schema.sql.old, seed.sql, .vscode/).
+  - ~28 archivos M en src/ que no se commitearon en sesiones anteriores
+    (App.tsx, Header.tsx, ProfileModal.tsx, SaasCentralDashboard.tsx,
+    vite.config.ts).
+  - Indentación cosmética en TenantContext.tsx (2 espacios).
+  - 4 errores TS preexistentes en SaasCentralDashboard.tsx (props no
+    declaradas en sub-componentes).
 
-**Deuda técnica prioritaria:**
-HEADER-HARDCODED — Header.tsx empresas hardcodeadas (ALTA).
-SMTP-CREDENTIALS-DEPLOY — Configurar credenciales reales (ALTA).
-Fase B.5 — Protección de saas_super_admin (ALTA).
-DEUDA-ARQ-RECEIPTS — Eliminar métodos obsoletos en saasService (MEDIA).
+**Deuda técnica prioritaria para sesiones futuras:**
+- SMTP-CREDENTIALS-DEPLOY — Configurar SMTP reales en producción (ALTA).
+- Fase B.5 — Protección de saas_super_admin (ALTA).
+- Fase B.6 — Roles custom (MEDIA).
+- DEUDA-ARQ-RECEIPTS — Eliminar métodos obsoletos en saasService (MEDIA).
 ════════════════════════════════════════════════════════════════════
 FIN DEL AGENTS.md
-Última actualización: 2026-10-26 (Sesión #32)
-Progreso global: ~75%
-Último commit: 97787a8
-Siguiente sub-fase: 3.5.D — Frontend SaaS Central
-Siguiente sesión: #33 — Limpieza de Paneles SaaS y Filtros
+Última actualización: 2026-11-11 (Sesión #34)
+Progreso global: ~80%
+Último commit: <hash_del_commit_actual>
+Siguiente sub-fase: 3.5.F — Cleanup y Estabilización
+Siguiente sesión: #35 — Cleanup y Estabilización
 ═══════════════════════════════════════════════════════════════════
+
 

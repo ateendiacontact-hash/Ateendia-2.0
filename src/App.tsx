@@ -19,11 +19,9 @@ import { LiveNotificationToast } from './components/notifications/LiveNotificati
 import { SaasCentralDashboard } from './components/saas/SaasCentralDashboard';
 import { PipelineView } from './components/pipeline/PipelineView';
 import { WhatsAppModule } from './components/whatsapp/WhatsAppModule';
-import { WhatsAppCloudSection } from './components/whatsapp/WhatsAppCloudSection';
 import { SmtpConfigModule } from './components/email/SmtpConfigModule';
 import { TemplatesModule } from './components/templates/TemplatesModule';
 import { InternalChatModule } from './components/chat/InternalChatModule';
-
 import { IssabelModule } from './components/telephony/IssabelModule';
 import { FloatingDialer } from './components/telephony/FloatingDialer';
 import { BankingModule } from './components/banking/BankingModule';
@@ -45,25 +43,18 @@ import { authService } from './services/authService';
 
 const AppContent: React.FC = () => {
   const {
-    clients,
-    policies,
     currentTenant,
     currentUser,
-    setCurrentTenantId,
     setCurrentTenant,
     setCurrentUser,
-    users,
     logoutUser: contextLogoutUser,
-    saasLandingConfig,
     activeConversationId,
     setActiveConversationId,
     fetchClients,
     fetchPolicies,
-     // ─── NUEVO (Sesión 3.5.B.4.e.3): Modo impersonación ───
-  activeTenantId,
-// ─── NUEVO: Refrescar tenants reales tras login ───
-  refreshSaasTenants,
-} = useTenant();
+    activeTenantId,
+    refreshSaasTenants,
+  } = useTenant();
 
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
@@ -86,74 +77,55 @@ const AppContent: React.FC = () => {
   const [landingPreviewMode, setLandingPreviewMode] = useState<'saas_master' | 'tenant_agency'>('tenant_agency');
   const [landingPreviewTenant, setLandingPreviewTenant] = useState<TenantBranding | null>(null);
 
-  // ─── Check auth on mount ───
-  /**
-   * Carga el estado del usuario autenticado desde `authService`.
-   *
-   * ⚠️ IMPORTANTE (Sesión 3.5.B.4.e.3):
-   * Cuando el Super Admin está impersonando un tenant (`activeTenantId !== null`),
-   * NO debemos sobrescribir `currentTenant` con el tenant original del login.
-   * Eso haría que el branding del tenant impersonado se pierda cada vez que
-   * el componente se remonta.
-   *
-   * Solución: chequear `activeTenantId` antes de llamar a `setCurrentTenant`.
-   */
   useEffect(() => {
-  const checkAuth = async () => {
-    const state = authService.getState();
-    if (state.isAuthenticated && state.user) {
-      setIsAuthenticated(true);
+    const checkAuth = async () => {
+      const state = authService.getState();
+      if (state.isAuthenticated && state.user) {
+        setIsAuthenticated(true);
+        if (state.user) setCurrentUser(state.user);
+        if (state.tenant && activeTenantId === null) {
+          setCurrentTenant(state.tenant);
+        }
+        if (state.user?.role === 'saas_super_admin') {
+          refreshSaasTenants();
+        }
+      }
+      setAuthChecked(true);
+    };
+    checkAuth();
+
+    const unsubscribe = authService.subscribe((state) => {
+      setIsAuthenticated(state.isAuthenticated);
       if (state.user) setCurrentUser(state.user);
       if (state.tenant && activeTenantId === null) {
         setCurrentTenant(state.tenant);
       }
-      // ─── NUEVO: si es Super Admin, cargar tenants reales ───
-      // El JWT ya está en localStorage después del login exitoso,
-      // así que `refreshSaasTenants` puede funcionar.
-      if (state.user?.role === 'saas_super_admin') {
+      if (state.isAuthenticated && state.user?.role === 'saas_super_admin') {
         refreshSaasTenants();
       }
-    }
-    setAuthChecked(true);
-  };
-  checkAuth();
+    });
 
-  // Suscribirse a cambios del authService
-  const unsubscribe = authService.subscribe((state) => {
-    setIsAuthenticated(state.isAuthenticated);
-    if (state.user) setCurrentUser(state.user);
-    if (state.tenant && activeTenantId === null) {
-      setCurrentTenant(state.tenant);
-    }
-    // ─── NUEVO: mismo fix para la suscripción ───
-    if (state.isAuthenticated && state.user?.role === 'saas_super_admin') {
-      refreshSaasTenants();
-    }
-  });
-
-  return () => { unsubscribe(); };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [activeTenantId]);
+    return () => { unsubscribe(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTenantId]);
 
   const handleLoginSuccess = (mustResetPassword: boolean = false) => {
     setIsAuthenticated(true);
-    // Si el usuario debe cambiar la contraseña, redirigir a la vista
-    // de primer login en lugar de cargar el dashboard.
     if (mustResetPassword) {
       setAuthView('firstLoginPasswordChange');
       return;
     }
-    // Cargar datos iniciales después del login
     fetchClients();
     fetchPolicies();
   };
 
+  // ✅ FIX CRÍTICO: Forzar recarga para limpiar toda la memoria de React al cambiar de usuario
   const handleLogout = async () => {
     await authService.logout();
     contextLogoutUser();
     setIsAuthenticated(false);
-    // Clear any local storage related to session
     localStorage.removeItem('pb_auth');
+    window.location.href = '/'; 
   };
 
   const handleOpenClient = (clientId: string) => {
@@ -183,7 +155,6 @@ const AppContent: React.FC = () => {
     setIsPolicyFormOpen(true);
   };
 
-  // Show loading spinner while checking auth
   if (!authChecked) {
     return (
       <div className="min-h-screen w-full bg-gradient-to-br from-slate-50 via-white to-indigo-50 flex items-center justify-center">
@@ -196,15 +167,10 @@ const AppContent: React.FC = () => {
     );
   }
 
-  // ─── VISTA DE CAMBIO OBLIGATORIO DE CONTRASEÑA ───
-  // Se chequea ANTES del check de isAuthenticated porque el usuario
-  // YA está autenticado (isAuthenticated=true) pero debe cambiar la
-  // contraseña antes de ver el dashboard.
   if (authView === 'firstLoginPasswordChange') {
     return (
       <FirstLoginPasswordChangeView
         onSuccess={() => {
-          // Al cambiar la contraseña con éxito, redirigir al dashboard
           setAuthView('login');
           fetchClients();
           fetchPolicies();
@@ -214,7 +180,6 @@ const AppContent: React.FC = () => {
     );
   }
 
-  // ─── VISTAS DE LOGIN / REGISTRO ───
   if (!isAuthenticated) {
     if (authView === 'register') {
       return <RegisterView onBackToLogin={() => setAuthView('login')} />;
@@ -235,9 +200,7 @@ const AppContent: React.FC = () => {
 
   return (
     <div className="flex h-screen w-full bg-[#F8FAFC] font-sans text-slate-800 overflow-hidden selection:bg-indigo-500 selection:text-white">
-      {/* Main App Layout */}
       <div className="flex h-full w-full">
-        {/* Sidebar */}
         <Sidebar
           activeTab={activeTab}
           setActiveTab={setActiveTab}
@@ -245,9 +208,7 @@ const AppContent: React.FC = () => {
           onOpenImport={() => setIsImportModalOpen(true)}
         />
 
-        {/* Right Section: Header + Main Content */}
         <div className="flex-1 flex flex-col h-full overflow-hidden">
-          {/* Top Header */}
           <Header
             onOpenAlerts={() => setIsAlertsCenterOpen(true)}
             onOpenNotifications={() => setIsNotificationCenterOpen(true)}
@@ -256,7 +217,6 @@ const AppContent: React.FC = () => {
             onLogout={handleLogout}
           />
 
-          {/* Content Area */}
           <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-[#F8FAFC]">
             {currentTenant?.subscription?.status === 'suspended' && activeTab !== 'saas_central' ? (
               <SuspendedCompanyLockScreen />
@@ -297,39 +257,23 @@ const AppContent: React.FC = () => {
                   />
                 )}
 
-                {activeTab === 'saas_central' && (
-                  <SaasCentralDashboard />
-                )}
+                {activeTab === 'saas_central' && <SaasCentralDashboard />}
 
                 {activeTab === 'banking' && (
                   <BankingModule onOpenClient={handleOpenClient} />
                 )}
 
                 {activeTab === 'whatsapp' && <WhatsAppModule onNavigateToTab={setActiveTab} />}
-
                 {activeTab === 'email' && <SmtpConfigModule />}
-
                 {activeTab === 'templates' && <TemplatesModule />}
-
                 {activeTab === 'chat' && <InternalChatModule />}
-
                 {activeTab === 'telephony' && <IssabelModule />}
                 {activeTab === 'issabel' && <IssabelModule />}
-
                 {activeTab === 'campaigns' && <CampaignsModule />}
-
-                                {activeTab === 'upgrade' && (
-                  <TenantUpgradeView
-                    onBackToDashboard={() => setActiveTab('dashboard')}
-                  />
-                )}
-
+                {activeTab === 'upgrade' && <TenantUpgradeView onBackToDashboard={() => setActiveTab('dashboard')} />}
                 {activeTab === 'branding' && <CompanyBrandingModule />}
-
                 {activeTab === 'integrations' && <IntegrationsModule />}
-
                 {activeTab === 'users' && <UsersRolesModule />}
-
                 {activeTab === 'audit' && <AuditTrailModule />}
               </>
             )}
@@ -337,16 +281,9 @@ const AppContent: React.FC = () => {
         </div>
       </div>
 
-      {/* Floating Issabel Softphone Dialer */}
       <FloatingDialer />
+      <LiveNotificationToast onNavigateToTab={setActiveTab} onOpenClient={handleOpenClient} />
 
-      {/* Real-time Toast Alerts */}
-      <LiveNotificationToast
-        onNavigateToTab={setActiveTab}
-        onOpenClient={handleOpenClient}
-      />
-
-      {/* Modals */}
       {isClientModalOpen && selectedClientId && (
         <ClientModal
           isOpen={isClientModalOpen}
@@ -412,22 +349,6 @@ const AppContent: React.FC = () => {
   );
 };
 
-/**
- * Componente principal de la aplicación.
- *
- * ─── Sesión 3.5.B.4.e.3 ───
- * Se ELIMINÓ el wrapper `<AppContentKeyed>` que forzaba un remount de
- * `<AppContent>` al cambiar el tenant activo. Ese remount generaba:
- *   - Doble click requerido para entrar a una instancia.
- *   - Reset del `activeTab` a 'dashboard'.
- *   - Reset de `isAuthenticated` a false.
- *   - 3 fetches simultáneos en cascada.
- *
- * El re-fetch de datos al cambiar de tenant ahora lo maneja el
- * `useEffect` dentro de `TenantContext` (que depende de `activeTenantId`).
- * Los componentes consumidores se re-renderizan automáticamente cuando
- * `clients` y `policies` cambian de valor en el contexto.
- */
 export default function App() {
   return (
     <TenantProvider>
