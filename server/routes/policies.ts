@@ -28,6 +28,7 @@ import {
   addPolicyMember,
   getPolicyVersions,
 } from '../services/policiesService.js';
+import { checkLimit } from '../middleware/checkLimits.js';
 
 export const policiesRouter = Router();
 
@@ -163,6 +164,7 @@ policiesRouter.post(
   '/',
   requireAuth,
   requireTenant,
+  checkLimit('policies'),  // ← NUEVO: Fase 3.5.E
   requirePermission('policies', 'create'),
   auditLog('CREATE', 'Pólizas'),
   async (req, res, next) => {

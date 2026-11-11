@@ -1,31 +1,28 @@
 // server/middleware/checkLimits.ts
 /**
- * Middleware de verificación de límites SaaS (sub-fase 3.5.B.4.f)
+ * Middleware de verificación de límites SaaS (sub-fase 3.5.E).
+ *
+ * Regla ARQ-LIMITS: usa `saasLimitsService.resolveLimit()` como
+ * fuente única de verdad. NO duplica el lookup de plan/suscripción.
+ *
  * Regla 22: Excepción para tenantId === 'platform' y super admins.
- * Regla 26: Deuda registrada si plan_id está null (fallback permisivo).
  */
 
 import type { Request, Response, NextFunction } from 'express';
-// Importamos el PrismaClient. Si tienes una instancia global (ej: server/prisma/db.ts),
-// cámbialo por import { prisma } from '../prisma/db.js'; o similar.
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
-
-export type LimitResource = 'users' | 'clients' | 'policies' | 'whatsapp';
+import { prisma } from '../db.js';
+import { resolveLimit } from '../services/saasLimitsService.js';
+import type { LimitResource } from '../types/limits.js';
 
 /**
- * Extrae el tenantId del request, según la estructura de tu auth.ts.
- * Tu auth.ts inyecta `req.user = { userId, tenantId, role, ... }`.
+ * Extrae el tenantId del request.
  */
 function getTenantId(req: Request): string | null {
-  // Usamos la propiedad `tenantId` (camelCase) que definiste en tu auth.ts
   return req.user?.tenantId ?? null;
 }
 
 /**
- * Determina si el usuario actual debe saltarse la verificación de límites.
- * Regla 22: Super Admins SaaS y tenant 'platform' no están sujetos a límites.
+ * Determina si el usuario debe saltarse la verificación de límites.
+ * Regla 22: Super Admins SaaS y tenant 'platform'.
  */
 function shouldBypassLimits(req: Request): boolean {
   const tenantId = getTenantId(req);
@@ -33,68 +30,16 @@ function shouldBypassLimits(req: Request): boolean {
 
   const user = req.user;
   if (!user) return false;
-  
-  // Tu auth.ts no inyecta is_super_admin ni is_platform_user directamente en el JWT.
-  // Si el rol es 'super_admin' o 'platform', asumimos que debe saltarse los límites.
-  // Si tienes otra lógica, ajústala aquí.
-  if (user.role === 'super_admin' || user.role === 'platform') return true;
+
+  if (
+    user.role === 'saas_super_admin' ||
+    user.role === 'super_admin' ||
+    user.role === 'platform'
+  ) {
+    return true;
+  }
 
   return false;
-}
-
-/**
- * Obtiene el límite numérico para un recurso dado.
- */
-async function resolveLimit(
-  tenantId: string,
-  resource: LimitResource
-): Promise<{ limit: number | null; source: string }> {
-  const subscription = await prisma.tenant_subscriptions.findUnique({
-    where: { tenant_id: tenantId },
-    select: {
-      plan_id: true,
-      user_quota: true,
-      whatsapp_lines_quota: true,
-    },
-  });
-
-  if (!subscription) {
-    return { limit: null, source: 'no_subscription' };
-  }
-
-  // Camino A: si hay plan_id, buscar el plan real en saas_plans
-  if (subscription.plan_id) {
-    const plan = await prisma.saas_plans.findUnique({
-      where: { id: subscription.plan_id },
-      select: {
-        max_users: true,
-        max_clients: true,
-        max_policies: true,
-        max_whatsapp: true,
-      },
-    });
-
-    if (plan) {
-      const limitsByResource: Record<LimitResource, number> = {
-        users: plan.max_users,
-        clients: plan.max_clients,
-        policies: plan.max_policies,
-        whatsapp: plan.max_whatsapp,
-      };
-      return { limit: limitsByResource[resource], source: `plan:${subscription.plan_id}` };
-    }
-  }
-
-  // Camino B: fallback desde tenant_subscriptions
-  if (resource === 'users') {
-    return { limit: subscription.user_quota, source: 'subscription.user_quota' };
-  }
-  if (resource === 'whatsapp') {
-    return { limit: subscription.whatsapp_lines_quota, source: 'subscription.whatsapp_lines_quota' };
-  }
-
-  // Sin plan y sin fallback → permisivo (no bloqueamos)
-  return { limit: null, source: 'no_plan_no_fallback' };
 }
 
 /**
@@ -108,8 +53,6 @@ async function countCurrent(tenantId: string, resource: LimitResource): Promise<
       return prisma.clients.count({ where: { tenant_id: tenantId } });
     case 'policies':
       return prisma.policies.count({ where: { tenant_id: tenantId } });
-    case 'whatsapp':
-      return prisma.whatsapp_conversations.count({ where: { tenant_id: tenantId } });
   }
 }
 
@@ -130,13 +73,12 @@ export function checkLimit(resource: LimitResource) {
         return next();
       }
 
-      const { limit, source } = await resolveLimit(tenantId, resource);
+      // Fuente única de verdad (ARQ-LIMITS).
+      const limit = await resolveLimit(tenantId, resource);
 
-      // Fallback permisivo si no hay límite definido
-      if (limit === null) {
-        console.warn(
-          `[checkLimit] Sin límite definido para tenant=${tenantId} resource=${resource} (source=${source})`
-        );
+      // Fallback permisivo si no hay límite definido.
+      // Nota: -1 significa ilimitado (no bloquea).
+      if (limit === null || limit === -1) {
         return next();
       }
 
@@ -159,6 +101,7 @@ export function checkLimit(resource: LimitResource) {
       return next();
     } catch (err) {
       console.error('[checkLimit] Error verificando límites:', err);
+      // Fail-open: si hay error, no bloqueamos (mejor que romper la app).
       return next();
     }
   };

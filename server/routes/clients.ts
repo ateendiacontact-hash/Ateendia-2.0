@@ -4,7 +4,7 @@
 //
 //   GET    /api/clients        → listar (paginado + filtros)
 //   GET    /api/clients/:id    → detalle
-//   POST   /api/clients        → crear (auditado)
+//   POST   /api/clients        → crear (auditado) [LIMIT-CHECK]
 //   PATCH  /api/clients/:id    → editar (auditado)
 //   DELETE /api/clients/:id    → soft delete (auditado)
 //
@@ -26,6 +26,7 @@ import {
   updateClient,
   deleteClient,
 } from '../services/clientsService.js';
+import { checkLimit } from '../middleware/checkLimits.js';
 
 export const clientsRouter = Router();
 
@@ -39,7 +40,7 @@ const createClientSchema = z.object({
   email: z.string().email('Email inválido').optional().or(z.literal('')),
   phone: z.string().min(1, 'Teléfono requerido').max(32),
   secondaryPhone: z.string().max(32).optional(),
-  birthDate: z.string().optional(),          // "YYYY-MM-DD"
+  birthDate: z.string().optional(),
   gender: z.enum(['M', 'F', 'Otro']).optional(),
   idNumber: z.string().max(64).optional(),
   category: z.string().max(64).optional(),
@@ -107,13 +108,14 @@ clientsRouter.get(
 );
 
 // ═════════════════════════════════════════════
-// POST /api/clients — Crear (auditado)
+// POST /api/clients — Crear (auditado + límite)
 // ═════════════════════════════════════════════
 
 clientsRouter.post(
   '/',
   requireAuth,
   requireTenant,
+  checkLimit('clients'),  // ← NUEVO: Fase 3.5.E
   requirePermission('clients', 'create'),
   auditLog('CREATE', 'Clientes'),
   async (req, res, next) => {
@@ -133,7 +135,7 @@ clientsRouter.post(
       const client = await createClient({
         tenantId: req.tenantId!,
         ...parsed.data,
-        email: parsed.data.email || undefined,   // '' → undefined
+        email: parsed.data.email || undefined,
       });
 
       res.status(201).json({

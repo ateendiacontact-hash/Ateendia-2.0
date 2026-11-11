@@ -33,6 +33,7 @@
  * Todas las llamadas pasan por el proxy de Vite (`/api/*` → localhost:4000).
  */
 
+import { limitsService, TenantLimitsDTO } from '../services/limitsService';
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import {
   TenantBranding,
@@ -191,6 +192,11 @@ interface TenantContextType {
    * Sale del modo "instancia" y vuelve al panel SaaS global.
    */
   exitTenantInstance: () => void;
+
+  // ─── NUEVO (Sesión 3.5.E): Límites del plan ───
+  tenantLimits: TenantLimitsDTO | null;
+  tenantLimitsLoading: boolean;
+  refreshTenantLimits: () => Promise<void>;
 
   // ─── SaaS Admins ───
   saasAdmins: any[];
@@ -886,6 +892,11 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // ─── NUEVO (Sesión 3.5.B.4.e.2): Tenants reales de la DB ───
   const [saasTenants, setSaasTenants] = useState<SaasTenantDTO[]>([]);
   const [saasTenantsLoading, setSaasTenantsLoading] = useState<boolean>(false);
+
+  // ─── NUEVO (Sesión 3.5.E): Límites del plan ───
+  const [tenantLimits, setTenantLimits] = useState<TenantLimitsDTO | null>(null);
+  const [tenantLimitsLoading, setTenantLimitsLoading] = useState<boolean>(false);
+
   // ─── NUEVO (Sesión 3.5.B.4.e.3): Modo "Super Admin dentro de tenant" ───
 /**
  * Tenant cuyos datos estamos viendo AHORA MISMO.
@@ -1038,6 +1049,30 @@ const [preImpersonationState, setPreImpersonationState] = useState<{
       refreshSaasTenants();
     }
   }, [currentUser?.role, refreshSaasTenants]);
+
+    // ─── NUEVO (Sesión 3.5.E): Límites del plan ───
+  const refreshTenantLimits = useCallback(async () => {
+    if (!currentUser || currentUser.isSuperAdmin) return; // Super admins no tienen límites
+    
+    setTenantLimitsLoading(true);
+    const result = await limitsService.getLimits();
+    
+    // ✅ FIX TS2339: Type narrowing explícito
+    if (result.success === true) {
+      setTenantLimits(result.data);
+    } else {
+      // Aquí TypeScript ya sabe que result.success es false
+      console.error('Error fetching tenant limits:', result.error);
+    }
+    setTenantLimitsLoading(false);
+  }, [currentUser]);
+
+  // Cargar límites automáticamente al iniciar sesión o cambiar de tenant
+  useEffect(() => {
+    if (currentUser && !currentUser.isSuperAdmin) {
+      refreshTenantLimits();
+    }
+  }, [currentUser, activeTenantId, refreshTenantLimits]);
 
   /**
  * Entra al "modo instancia" para un tenant específico.
@@ -2076,6 +2111,11 @@ useEffect(() => {
         activeTenantId,
         enterTenantInstance,
         exitTenantInstance,
+
+        // ─── NUEVO (Sesión 3.5.E): Límites del plan ───
+        tenantLimits,
+        tenantLimitsLoading,
+        refreshTenantLimits,
 
         // ─── SaaS Admins ───
         saasAdmins,
