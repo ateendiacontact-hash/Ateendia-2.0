@@ -1,4 +1,9 @@
-# Variables de entorno con secretos
+﻿# ============================================================
+# .gitignore — Ateendia CRM 2.0
+# Ultima actualizacion: 2026-11-12 (Sesion #35 - Fase 3.5.F.5)
+# ============================================================
+
+# ----- Variables de entorno con secretos -----
 .env
 .env.local
 .env.*.local
@@ -7,47 +12,43 @@
 server/.env
 server/.env.local
 
-# Build & Deps
+# ----- Build & Dependencias -----
 node_modules
 dist
 server/dist
 
-# Docker
+# ----- Docker -----
 mariadb_data/
 
-# Herramientas de IA
+# ----- Herramientas de IA -----
 .roo/
 .kilo/
 .wrangler/
 
-# Cache de herramientas
+# ----- Cache de herramientas -----
 .vite/
 *.tsbuildinfo
 
-# Archivos temporales del sistema
+# ----- Archivos temporales del sistema -----
 .DS_Store
 Thumbs.db
 
-# Backups de base de datos
+# ----- Backups de base de datos -----
 backups/
+backup_legacy_F5_*.zip
 
-# Configuraciones de IDE (VS Code / Kilo)
+# ----- Configuraciones de IDE (VS Code / Kilo) -----
 .vscode
 .vscode/*
 !.vscode/extensions.json
 
-# Archivos Legacy / Migraciones completadas
-MIGRATION_GUIDE.md
-functions/
-prisma.old/
-schema.sql.old
-seed.sql
-src/index.ts
-src/lib/
-src/services/databaseService.ts
+# ----- Archivos Legacy / Archivados (Fase 3.5.F.5) -----
+# Los archivos historicos se movieron a _archive/ en la F.5.
+# El contenido NO se versiona, solo el README que documenta.
+_archive/*
+!_archive/README.md
 
-# Configuración de TS (deuda Fase 7)
-tsconfig.json
+# ----- Logs temporales de TypeScript -----
+errores_ts.txt
 tsconfig.json.bak
 .gitignore.bak
-errores_ts.txt
