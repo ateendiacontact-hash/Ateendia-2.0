@@ -1,4 +1,4 @@
-# ─── Variables de entorno con secretos ───
+# Variables de entorno con secretos
 .env
 .env.local
 .env.*.local
@@ -7,38 +7,36 @@
 server/.env
 server/.env.local
 
-
-# ─── Build & Deps ───
+# Build & Deps
 node_modules
 dist
 server/dist
 
-# ─── Docker ───
+# Docker
 mariadb_data/
 
-# ─── Herramientas de IA ───
+# Herramientas de IA
 .roo/
 .kilo/
 .wrangler/
 
-# ─── Cache de herramientas ───
+# Cache de herramientas
 .vite/
 *.tsbuildinfo
 
-# ─── Archivos temporales del sistema ───
+# Archivos temporales del sistema
 .DS_Store
 Thumbs.db
 
 # Backups de base de datos
 backups/
 
-# ─── Configuraciones de IDE (VS Code / Kilo) ───
+# Configuraciones de IDE (VS Code / Kilo)
 .vscode
 .vscode/*
 !.vscode/extensions.json
-.kilo/
 
-# ─── Archivos Legacy / Migraciones completadas ───
+# Archivos Legacy / Migraciones completadas
 MIGRATION_GUIDE.md
 functions/
 prisma.old/
@@ -48,5 +46,8 @@ src/index.ts
 src/lib/
 src/services/databaseService.ts
 
-# ─── Configuración de TS (deuda Fase 7) ───
+# Configuración de TS (deuda Fase 7)
 tsconfig.json
+tsconfig.json.bak
+.gitignore.bak
+errores_ts.txt

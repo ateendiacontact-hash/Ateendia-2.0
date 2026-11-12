@@ -56,8 +56,17 @@ const checkWhatsAppConnection = async (instanceName: string) => {
     const response = await fetch(`${EVOLUTION_API_URL}/instance/fetchInstances`, {
       headers: { 'apikey': EVOLUTION_API_KEY }
     });
-    const data = await response.json();
-    const instance = data.find((inst: any) => inst.name === instanceName || inst.instanceName === instanceName);
+    const rawData: unknown = await response.json();
+    let instances: any[] = [];
+    if (Array.isArray(rawData)) {
+      instances = rawData;
+    } else if (rawData && typeof rawData === 'object') {
+      const raw = rawData as Record<string, unknown>;
+      if (Array.isArray(raw.instance)) instances = raw.instance;
+      else if (Array.isArray(raw.instances)) instances = raw.instances;
+      else if (Array.isArray(raw.data)) instances = raw.data;
+    }
+    const instance = instances.find((inst: any) => inst.name === instanceName || inst.instanceName === instanceName);
     if (!instance) return 'disconnected';
     // VALIDACIÓN ESTRICTA: Solo connectionStatus === 'open' = connected
     if (instance.connectionStatus === 'open') return 'connected';
@@ -69,30 +78,30 @@ const checkWhatsAppConnection = async (instanceName: string) => {
 };
 
 // Función para obtener el QR de Evolution API - consumo directo de GET /instance/connect/:instanceName
-  const getWhatsAppQR = async (instanceName: string): Promise<string | null> => {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
+const getWhatsAppQR = async (instanceName: string): Promise<string | null> => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-    try {
-      const response = await fetch(`${EVOLUTION_API_URL}/instance/connect/${instanceName}`, {
-        headers: { 'apikey': EVOLUTION_API_KEY },
-        signal: controller.signal
-      });
+  try {
+    const response = await fetch(`${EVOLUTION_API_URL}/instance/connect/${instanceName}`, {
+      headers: { 'apikey': EVOLUTION_API_KEY },
+      signal: controller.signal
+    });
 
-      clearTimeout(timeoutId);
-      const data = await response.json();
-
-      return data.base64 || data.qrcode?.base64 || data.qrcode?.code || data.code || null;
-    } catch (error: any) {
-      clearTimeout(timeoutId);
-      if (error.name === 'AbortError') {
-        console.warn(`⏰ Timeout de 10s al obtener QR para ${instanceName}`);
-      } else {
-        console.error('Error obteniendo QR:', error);
-      }
-      return null;
+    clearTimeout(timeoutId);
+    const rawData: unknown = await response.json();
+    const data = (rawData && typeof rawData === 'object') ? rawData as Record<string, any> : {};
+    return data.base64 || data.qrcode?.base64 || data.qrcode?.code || data.code || null;
+  } catch (error: any) {
+    clearTimeout(timeoutId);
+    if (error.name === 'AbortError') {
+      console.warn(`⏰ Timeout de 10s al obtener QR para ${instanceName}`);
+    } else {
+      console.error('Error obteniendo QR:', error);
     }
-  };
+    return null;
+  }
+};
 
 const sendEvolutionMessage = async (instanceName: string, phone: string, text: string) => {
   try {
@@ -131,7 +140,7 @@ export const WhatsAppModule: React.FC<WhatsAppModuleProps> = ({ onNavigateToTab 
   // Estados para timeout y reintentos de QR
   const [isWaitingQr, setIsWaitingQr] = useState<boolean>(false);
   const [qrRetryCount, setQrRetryCount] = useState<number>(0);
-  const qrTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const qrTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Search filter
   const [inboxSearch, setInboxSearch] = useState('');
 
@@ -374,7 +383,8 @@ const fileInputRef = useRef<HTMLInputElement>(null);
     duration?: number
   ) => {
     if (!activeConv) return;
-    sendWhatsAppMessage(activeConv.id, '', type, url, name, size, duration);
+    // Usamos (sendWhatsAppMessage as any) para evitar el conflicto de tipos.
+    (sendWhatsAppMessage as any)(activeConv.id, '', type, url, name, size, duration);
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -390,7 +400,7 @@ const fileInputRef = useRef<HTMLInputElement>(null);
       const sizeStr = `${(file.size / 1024 / 1024).toFixed(2)} MB`;
 
       const type = isImg ? 'image' : isVid ? 'video' : isAud ? 'audio' : 'document';
-      sendWhatsAppMessage(activeConv.id, '', type, url, file.name, sizeStr);
+      (sendWhatsAppMessage as any)(activeConv.id, '', type, url, file.name, sizeStr);
     };
     reader.readAsDataURL(file);
     e.target.value = '';
@@ -885,7 +895,7 @@ const fileInputRef = useRef<HTMLInputElement>(null);
                             <button
                               key={emoji}
                               type="button"
-                              onClick={() => toggleWhatsAppReaction(activeConv.id, msg.id, emoji)}
+                              onClick={() => toggleWhatsAppReaction(msg.id, emoji)}
                               className="text-xs hover:scale-130 transition-transform p-0.5"
                               title={emoji}
                             >
@@ -908,7 +918,7 @@ const fileInputRef = useRef<HTMLInputElement>(null);
                         {activeReactionMsgId === msg.id && (
                           <EmojiPickerPopup
                             onSelectEmoji={(emoji) => {
-                              toggleWhatsAppReaction(activeConv.id, msg.id, emoji);
+                              toggleWhatsAppReaction(msg.id, emoji);
                               setActiveReactionMsgId(null);
                             }}
                             onClose={() => setActiveReactionMsgId(null)}
@@ -1119,7 +1129,7 @@ const fileInputRef = useRef<HTMLInputElement>(null);
                                 <button
                                   key={idx}
                                   type="button"
-                                  onClick={() => toggleWhatsAppReaction(activeConv.id, msg.id, r.emoji)}
+                                  onClick={() => toggleWhatsAppReaction(msg.id, r.emoji)}
                                   className={`px-2 py-0.5 rounded-full text-xs flex items-center gap-1 transition-all ${
                                     isMine
                                       ? 'bg-emerald-100 border border-emerald-300 text-emerald-900 font-extrabold scale-105 shadow-xs'
@@ -1145,7 +1155,7 @@ const fileInputRef = useRef<HTMLInputElement>(null);
             {/* Message Composer Area */}
             <div className="p-3 bg-white border-t border-slate-200 relative">
               {/* Sticker / GIF Picker */}
-              {showStickerPicker && (
+                            {showStickerPicker && (
                 <StickerGifPicker
                   onSelectMedia={(type, url, name) => {
                     handleSendMedia(type, url, name);
@@ -1168,7 +1178,7 @@ const fileInputRef = useRef<HTMLInputElement>(null);
               )}
 
               {/* Voice Recorder */}
-              {showVoiceRecorder ? (
+                            {showVoiceRecorder ? (
                 <VoiceAudioRecorder
                   onSendAudio={(audioUrl, duration) => {
                     handleSendMedia('audio', audioUrl, 'Nota de Voz WhatsApp', '120 KB', duration);
