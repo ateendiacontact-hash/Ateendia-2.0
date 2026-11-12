@@ -364,14 +364,16 @@ export const WhatsAppAccountsConfigSection: React.FC = () => {
     }
   };
 
-  const checkEvolutionConnection = async (instanceName: string, tab: 'WA1' | 'WA2') => {
+    const checkEvolutionConnection = async (instanceName: string, tab: 'WA1' | 'WA2') => {
     try {
-      // Intentar primero endpoint directo de estado
-      let instance = null;
+      // ✅ FIX TS (strictNullChecks): tipar `instance` desde el principio
+      // Antes era `let instance = null;` → TypeScript infería `null` puro
+      // y luego no podía acceder a `.connectionStatus` (lo marcaba como `never`).
+      let instance: EvolutionInstance | undefined = undefined;
       let usedEndpoint = '';
       
       try {
-                const stateResponse = await fetch(`${EVOLUTION_API_URL}/instance/connectionState/${instanceName}`, {
+        const stateResponse = await fetch(`${EVOLUTION_API_URL}/instance/connectionState/${instanceName}`, {
           headers: { 'apikey': EVOLUTION_API_KEY }
         });
         if (stateResponse.ok) {
@@ -392,8 +394,6 @@ export const WhatsAppAccountsConfigSection: React.FC = () => {
         }
       } catch (e) {
         // Endpoint connectionState no disponible, continuar con fetchInstances
-        // [KILL SWITCH] Silenciado: el polling de connectionState no está activo.
-        // console.log('ℹ️ Endpoint connectionState no disponible, usando fetchInstances...');
       }
 
       // Fallback: /instance/fetchInstances - manejar múltiples formatos de respuesta
@@ -401,7 +401,7 @@ export const WhatsAppAccountsConfigSection: React.FC = () => {
         headers: { 'apikey': EVOLUTION_API_KEY }
       });
 
-            const rawData: unknown = await response.json();
+      const rawData: unknown = await response.json();
       usedEndpoint = 'fetchInstances';
       console.log(`📡 [${usedEndpoint}] Respuesta cruda:`, rawData);
 
@@ -554,7 +554,7 @@ export const WhatsAppAccountsConfigSection: React.FC = () => {
 
     const newLogItem = {
       date: dateStr,
-      user: currentUser.name,
+      user: currentUser?.name || 'Sistema',
       action: 'Modificación',
       change: `Pipeline de entrada configurado en "${pipeName}"`
     };
@@ -611,7 +611,7 @@ const handleGenerateQR = async () => {
     
     const newLogItem = {
       date: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${timeStr}`,
-      user: currentUser.name,
+      user: currentUser?.name || 'Sistema',
       action: 'Actualización QR',
       change: `Nuevo código QR generado para ${currentAcc.name} (Evolution API)`
     };
@@ -641,7 +641,7 @@ const handleGenerateQR = async () => {
       
       const newLogItem = {
         date: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${timeStr}`,
-        user: currentUser.name,
+        user: currentUser?.name || 'Sistema',
         action: 'Vinculación',
         change: `Sesión de ${currentAcc.name} vinculada con éxito vía QR (Evolution API)`
       };
@@ -677,7 +677,7 @@ const handleGenerateQR = async () => {
     
     const newLogItem = {
       date: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${timeStr}`,
-      user: currentUser.name,
+      user: currentUser?.name || 'Sistema',
       action: 'Desconexión',
       change: `Sesión de ${currentAcc.name} cerrada por el usuario`
     };
@@ -717,7 +717,7 @@ const handleGenerateQR = async () => {
       
       const newLogItem = {
         date: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${timeStr}`,
-        user: currentUser.name,
+        user: currentUser?.name || 'Sistema',
         action: 'Vinculación',
         change: `Sesión de ${currentAcc.name} vinculada con éxito vía QR (Evolution API)`
       };
@@ -765,7 +765,7 @@ const handleGenerateQR = async () => {
     
     const newLogItem = {
       date: dateStr,
-      user: currentUser.name,
+      user: currentUser?.name || 'Sistema',
       action: 'Creación',
       change: `Destinatario de alerta agregado: ${newRecName} (${cleanPhone})`
     };
@@ -793,7 +793,7 @@ const handleGenerateQR = async () => {
     
     const newLogItem = {
       date: dateStr,
-      user: currentUser.name,
+      user: currentUser?.name || 'Sistema',
       action: 'Eliminación',
       change: `Destinatario eliminado: ${target?.name || recId}`
     };
@@ -866,7 +866,7 @@ const handleGenerateQR = async () => {
       
       const newLogItem = {
         date: dateStr,
-        user: currentUser.name,
+        user: currentUser?.name || 'Sistema',
         action: 'Error Envío',
         change: `Fallo envío de prueba - instancia desconectada: ${errorMsg}`
       };
@@ -902,7 +902,7 @@ const handleGenerateQR = async () => {
 
         const newLogItem = {
           date: dateStr,
-          user: currentUser.name,
+          user: currentUser?.name || 'Sistema',
           action: 'Envío de Prueba',
           change: `Mensaje de prueba enviado vía Evolution API a ${formattedPhone} (${activeAccountTab})`
         };
@@ -926,7 +926,7 @@ const handleGenerateQR = async () => {
       
       const newLogItem = {
         date: dateStr,
-        user: currentUser.name,
+        user: currentUser?.name || 'Sistema',
         action: 'Error Envío',
         change: `Fallo envío de prueba a ${formattedPhone}: ${errorMsg}`
       };
@@ -1363,10 +1363,10 @@ const handleGenerateQR = async () => {
                         <AlertCircle className="w-8 h-8 text-amber-600 animate-pulse" />
                         <span className="text-xs text-amber-800 ml-2">Esperando QR...</span>
                       </div>
-                    ) : getCurrentQrCode() && getCurrentStatus() === 'connecting' ? (
+                 ) : getCurrentQrCode() && getCurrentStatus() === 'connecting' ? (
                     // QR REAL de Evolution API
                     <img 
-                      src={getCurrentQrCode()} 
+                      src={getCurrentQrCode() || undefined} 
                       alt="WhatsApp QR Code" 
                       className="w-36 h-36 rounded-lg"
                     />

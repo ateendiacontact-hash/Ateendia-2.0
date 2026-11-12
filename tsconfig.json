@@ -22,7 +22,13 @@
     },
     "allowImportingTsExtensions": true,
     "noEmit": true,
-    "types": ["@cloudflare/workers-types"]
+    "types": ["@cloudflare/workers-types"],
+    
+    // ═══════════════════════════════════════════════════════════════
+    // NUEVO (Sesión #35 - F.6): Type Hardening
+    // ═══════════════════════════════════════════════════════════════
+    "strictNullChecks": true,
+    "noImplicitAny": false
   },
   "include": ["src/**/*"],
   "exclude": [
