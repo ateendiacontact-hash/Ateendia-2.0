@@ -3,7 +3,7 @@
 > **Última actualización:** 2026-11-12 (Sesión #35 — Cierre de Fase 3.5.F)
 > **Progreso global:** ~83%
 > **Sesiones completadas:** 35
-> **Último commit:** `a6b63d4` — chore(cleanup): Fase 3.5.F.5 - archivar legacy y versionar tsconfig
+> **Último commit:** `1bd3c5b` — chore(fase-3.5.f.6): activar strictNullChecks + cerrar Fase 3.5.F
 
 ---
 
@@ -363,10 +363,104 @@ Abrí cualquier panel de gestión (Empresas, Comprobantes, Usuarios, Pólizas, e
 Si los datos que ves NO coinciden con lo que hay en la DB (SELECT * FROM ...), hay un mock escondido. Debe arreglarse.
 
 Si vaciás la DB (o filtrás por un criterio que no matchea nada) y el panel sigue mostrando datos, hay un mock escondido. Debe arreglarse.
-
 Impacto: Cada componente que se agregue debe consumir datos REALES desde endpoints backend. Si un endpoint no existe, se crea. NO se mockea en frontend.
 
-3. ESTADO ACTUAL DEL PROYECTO
+🔹 CATEGORÍA 9 — REGLAS NUEVAS (SESIÓN #35)
+
+Regla 34 — ⚠️ EDICIÓN QUIRÚRGICA POR BLOQUES EN ARCHIVOS MASIVOS
+
+Problema observado: Al intentar modificar archivos de 1000+ líneas (como SaasCentralDashboard.tsx o WhatsAppAccountsConfigSection.tsx), reescribir el archivo completo genera regresiones y errores.
+
+Regla: Cuando el archivo a modificar es masivo (1000+ líneas), NUNCA dar el código completo. Proveer únicamente los bloques exactos de código a reemplazar, indicando claramente el bloque anterior y el nuevo, usando comentarios en el código para ubicar visualmente el cambio.
+
+Aplicable a: WhatsAppAccountsConfigSection.tsx, SaasCentralDashboard.tsx, TenantContext.tsx, y cualquier archivo > 800 líneas.
+
+Regla 35 — ⚠️ VERIFICAR STAGING CON git status --short DESPUÉS DE CADA git add
+
+Problema observado: Al hacer git commit sin verificar el staging, el commit falla con "no changes added to commit" porque los archivos no estaban staged.
+
+Regla: Después de cada git add <archivo>, verificar con git status --short que el archivo esté staged correctamente.
+
+Señal visual clave:
+- ` M archivo` (con espacio antes de M) → modificado pero NO staged.
+- `M  archivo` (sin espacio, M en primera columna) → modificado Y staged.
+
+Si la M tiene un espacio antes, el commit va a fallar con "no changes added to commit".
+
+Aplicable a: todo commit con git add selectivo.
+
+Regla 36 — ⚠️ POWERSHELL HEREDOC SINGLE-QUOTE (@'...'@) PARA STRINGS CON BACKTICKS/ACENTOS
+
+Problema observado: Al crear archivos .md con here-string @"..."@ (double-quote) en PowerShell, los backticks de markdown se consumen como caracteres de escape, y los acentos se rompen (U+FFFD).
+
+Regla: Usar @'...'@ (single-quote) para here-strings. Esto NO interpreta backticks ni variables.
+
+Ejemplo correcto:
+@'
+# _archive/ - Archivos Historicos
+Codigo con `backticks` y acentos: configuracion
+'@ | Out-File -FilePath "archivo.md" -Encoding UTF8
+
+Aplicable a: creación de archivos .md, .txt, .json con contenido que tenga backticks, acentos o caracteres especiales.
+
+Regla 37 — ⚠️ NO CONFUNDIR ERRORES DE VS CODE CON ERRORES DE tsc
+
+Problema observado: El panel "Problemas" de VS Code mostraba errores de un archivo, pero npx tsc --noEmit no los reportaba. Confusión al buscar el archivo correcto.
+
+Regla: VS Code usa su propio TS Server, que puede mostrar errores de todo el proyecto (no solo del archivo abierto). La fuente de verdad es npx tsc --noEmit. Cuando VS Code y tsc discrepen, confiar en tsc (Regla 7).
+
+Verificar siempre con: npx tsc --noEmit 2>&1 | Select-String -Pattern "<archivo>" antes de asumir errores.
+
+Regla 38 — ⚠️ ARCHIVAR LEGACY EN _archive/ EN VEZ DE ELIMINAR SI TIENE VALOR HISTÓRICO
+
+Problema observado: Al limpiar archivos legacy (functions/, prisma.old/, MIGRATION_GUIDE.md), la decisión entre eliminar vs archivar no era clara.
+
+Regla: Cuando se detecten archivos legacy (obsoletos pero con valor histórico):
+1. Hacer backup en .zip (Regla 39).
+2. Clasificar:
+   - Sin valor histórico → eliminar permanentemente.
+   - Con valor histórico → mover a _archive/ (con README explicativo).
+3. Agregar _archive/* al .gitignore con excepción !_archive/README.md.
+
+El README de _archive/ debe explicar: qué contiene, por qué se archivó, cómo se usa (o no se usa).
+
+Aplicable a: functions/, prisma.old/, MIGRATION_GUIDE.md, schema.sql.old, seed.sql, src/index.ts, src/lib/.
+
+Regla 39 — ⚠️ BACKUP (.ZIP) ANTES DE ELIMINAR/MOVER ARCHIVOS LEGACY
+
+Problema observado: Al eliminar archivos legacy, no había red de seguridad para recuperarlos si algo salía mal.
+
+Regla: Antes de cualquier operación destructiva (eliminar, mover), crear un backup comprimido.
+
+Comando en PowerShell:
+Compress-Archive -Path "archivo1", "carpeta1", "archivo2" `
+  -DestinationPath "backup_legacy_<contexto>_$(Get-Date -Format 'yyyyMMdd_HHmmss').zip" `
+  -Force
+
+Verificar inmediatamente después:
+Get-ChildItem backup_legacy_*.zip | Select-Object Name, Length, LastWriteTime
+
+El backup NO debe commitearse a Git: agregar al .gitignore con backup_legacy_*.zip.
+
+Aplicable a: todo cleanup de archivos legacy (F.5, F.7, futuras fases de limpieza).
+
+🎯 Resumen Ejecutivo (39 reglas)
+
+Categoría	Total	Números
+Estilo de Trabajo	4	1-4
+Verificación	3	5-7
+Git y Versionado	4	8-11
+Gestión de Contexto	2	12-13
+Reglas Técnicas Críticas	11	14-24
+Documentación	3	25-27
+Reglas de Producción	2	28-29
+Reglas Nuevas (#31)	4	30-33
+Reglas Nuevas (#35)	6	34-39
+TOTAL	39	1-39
+
+---
+
+## 3. ESTADO ACTUAL DEL PROYECTO
 Progreso Global
 Total estimado: ~40 sesiones
 
@@ -713,17 +807,12 @@ Prioridad: BAJA (no bloquea, volumen de tenants aún bajo).
 Problema: En `PaymentReceiptViewerModal.tsx`, cuando un comprobante no tiene `receiptImageUrl` o es un string vacío, React lanza un warning en consola (`An empty string ("") was passed to the src attribute`).
 Solución: Usar renderizado condicional para evitar poner el atributo `src` si la URL está vacía.
 Prioridad: BAJA.
-Deuda Técnica Preexistente (varias sesiones)
-~28 archivos M sin commitear en src/components/*, src/services/*, src/context/*.
-9 archivos legacy sin trackear: functions/, prisma.old/, src/index.ts, src/lib/, src/services/databaseService.ts, MIGRATION_GUIDE.md, schema.sql.old, seed.sql, .vscode/.
-~228 errores TS frontend (preexistentes, no bloqueantes).
-Placeholders <67118c3> y <hash_corto> en AGENTS.md.
 
 ### Sesión #35 (Continuación) — Cierre Fase 3.5.F + Apertura Fase 3.5.G
 **Fecha:** 2026-11-12
 **Commits:**
 - `a6b63d4` — chore(cleanup): Fase 3.5.F.5 - archivar legacy y versionar tsconfig
-- (pendiente) — chore(fase-3.5.f.6): activar strictNullChecks + fix WhatsAppAccountsConfig
+- `1bd3c5b` — chore(fase-3.5.f.6): activar strictNullChecks + cerrar Fase 3.5.F
 
 **Objetivo cumplido:**
 - **F.5 completada:** 4 archivos legacy eliminados (`MIGRATION_GUIDE.md`, `prisma.old/`, `schema.sql.old`, `seed.sql`).
@@ -1359,7 +1448,7 @@ Estimado: 25-30 errores resueltos en una sesión.
 FIN DEL AGENTS.md
 Última actualización: 2026-11-12 (Sesión #35 - Cierre Fase 3.5.F)
 Progreso global: ~83%
-Último commit: a6b63d4 + (pendiente commit F.6)
-Siguiente sub-fase: 3.5.G.2 — Type Hardening (evolutionApi + smtpService)
+Último commit: 1bd3c5b
+Siguiente sub-fase: 3.5.G.2 — Type Hardening (evolutionApi + smtpService + quick wins)
 Siguiente sesión: #36 — Type Hardening
 ════════════════════════════════════════════════════════════════════
