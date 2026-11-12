@@ -34,6 +34,32 @@ import { pb } from '../../services/pocketbase';
 const EVOLUTION_API_URL = import.meta.env.VITE_WHATSAPP_API_URL;
 const EVOLUTION_API_KEY = import.meta.env.VITE_EVOLUTION_API_KEY;
 
+// ─── Tipos para Evolution API (Regla 29) ───
+interface EvolutionInstance {
+  name?: string;
+  instanceName?: string;
+  connectionStatus?: string;
+  state?: string;
+  status?: string;
+}
+
+interface EvolutionQrResponse {
+  base64?: string;
+  code?: string;
+  qrcode?: { base64?: string; code?: string };
+  status?: string;
+}
+
+interface EvolutionInstanceCreateResponse {
+  instance?: { instanceName?: string; status?: string };
+  message?: string;
+}
+
+interface PocketBaseError {
+  status?: number;
+  message?: string;
+}
+
 // Country codes with flags for phone input
 const COUNTRY_CODES = [
   { code: '1', flag: '🇺🇸', name: 'EE.UU.', dialCode: '+1' },
@@ -102,7 +128,7 @@ export const WhatsAppAccountsConfigSection: React.FC = () => {
     WA1: 0,
     WA2: 0
   });
-  const qrTimeoutRef = useRef<Record<'WA1' | 'WA2', NodeJS.Timeout | null>>({
+    const qrTimeoutRef = useRef<Record<'WA1' | 'WA2', ReturnType<typeof setTimeout> | null>>({
     WA1: null,
     WA2: null
   });
@@ -111,7 +137,7 @@ export const WhatsAppAccountsConfigSection: React.FC = () => {
     WA1: 60,
     WA2: 60
   });
-  const qrTimerRef = useRef<Record<'WA1' | 'WA2', NodeJS.Timeout | null>>({
+  const qrTimerRef = useRef<Record<'WA1' | 'WA2', ReturnType<typeof setInterval> | null>>({
     WA1: null,
     WA2: null
   });
@@ -230,11 +256,20 @@ export const WhatsAppAccountsConfigSection: React.FC = () => {
       }
 
       // Verificar si ya existe y está conectada (después del borrado limpio)
-      const checkResponse = await fetch(`${EVOLUTION_API_URL}/instance/fetchInstances`, {
+            const checkResponse = await fetch(`${EVOLUTION_API_URL}/instance/fetchInstances`, {
         headers: { 'apikey': EVOLUTION_API_KEY }
       });
-      const instances = await checkResponse.json();
-      const exists = instances.find((inst: any) => inst.name === instanceName);
+      const rawInstances: unknown = await checkResponse.json();
+      let instances: EvolutionInstance[] = [];
+      if (Array.isArray(rawInstances)) {
+        instances = rawInstances as EvolutionInstance[];
+      } else if (
+        typeof rawInstances === 'object' && rawInstances !== null &&
+        'instance' in rawInstances && Array.isArray((rawInstances as { instance: unknown }).instance)
+      ) {
+        instances = (rawInstances as { instance: EvolutionInstance[] }).instance;
+      }
+      const exists = instances.find((inst) => inst.name === instanceName);
 
       // Si ya existe y está conectada, no hacemos nada
       if (exists && exists.connectionStatus === 'open') {
@@ -288,8 +323,9 @@ export const WhatsAppAccountsConfigSection: React.FC = () => {
         signal: controller.signal
       });
 
-      clearTimeout(timeoutId);
-      const data = await response.json();
+            clearTimeout(timeoutId);
+      const rawData: unknown = await response.json();
+      const data = (rawData && typeof rawData === 'object') ? rawData as EvolutionQrResponse : {} as EvolutionQrResponse;
 
       // Extraer base64 de múltiples formatos posibles de respuesta
       const qrBase64 = data.base64 || data.qrcode?.base64 || data.qrcode?.code || data.code || null;
@@ -335,11 +371,12 @@ export const WhatsAppAccountsConfigSection: React.FC = () => {
       let usedEndpoint = '';
       
       try {
-        const stateResponse = await fetch(`${EVOLUTION_API_URL}/instance/connectionState/${instanceName}`, {
+                const stateResponse = await fetch(`${EVOLUTION_API_URL}/instance/connectionState/${instanceName}`, {
           headers: { 'apikey': EVOLUTION_API_KEY }
         });
         if (stateResponse.ok) {
-          const stateData = await stateResponse.json();
+          const rawState: unknown = await stateResponse.json();
+          const stateData = (rawState && typeof rawState === 'object') ? rawState as EvolutionInstance : {} as EvolutionInstance;
           usedEndpoint = 'connectionState';
           // Evolution API v2 connectionState puede devolver: { state: 'open' }, { status: 'open' }, { connectionStatus: 'open' }
           const status = stateData?.state || stateData?.status || stateData?.connectionStatus;
@@ -364,27 +401,27 @@ export const WhatsAppAccountsConfigSection: React.FC = () => {
         headers: { 'apikey': EVOLUTION_API_KEY }
       });
 
-      const rawData = await response.json();
+            const rawData: unknown = await response.json();
       usedEndpoint = 'fetchInstances';
       console.log(`📡 [${usedEndpoint}] Respuesta cruda:`, rawData);
 
       // Normalizar respuesta: puede ser array directo, { instance: [...] }, { instances: [...] }, o { data: [...] }
-      let instances = [];
+      let instances: EvolutionInstance[] = [];
       if (Array.isArray(rawData)) {
-        instances = rawData;
-      } else if (rawData?.instance && Array.isArray(rawData.instance)) {
-        instances = rawData.instance;
-      } else if (rawData?.instances && Array.isArray(rawData.instances)) {
-        instances = rawData.instances;
-      } else if (rawData?.data && Array.isArray(rawData.data)) {
-        instances = rawData.data;
+        instances = rawData as EvolutionInstance[];
+      } else if (rawData && typeof rawData === 'object' && 'instance' in rawData && Array.isArray((rawData as { instance: unknown }).instance)) {
+        instances = (rawData as { instance: EvolutionInstance[] }).instance;
+      } else if (rawData && typeof rawData === 'object' && 'instances' in rawData && Array.isArray((rawData as { instances: unknown }).instances)) {
+        instances = (rawData as { instances: EvolutionInstance[] }).instances;
+      } else if (rawData && typeof rawData === 'object' && 'data' in rawData && Array.isArray((rawData as { data: unknown }).data)) {
+        instances = (rawData as { data: EvolutionInstance[] }).data;
       } else {
         console.warn(`⚠️ Formato de respuesta no reconocido en ${usedEndpoint}:`, rawData);
         instances = [];
       }
 
       // Buscar instancia por name o instanceName
-      instance = instances.find((inst: any) => 
+      instance = instances.find((inst) => 
         inst?.name === instanceName || inst?.instanceName === instanceName
       );
 
@@ -784,11 +821,17 @@ const handleGenerateQR = async () => {
   // Verificar estado de conexión de la instancia antes de enviar
   const checkInstanceConnection = async (instanceName: string): Promise<{ connected: boolean; status?: string }> => {
     try {
-      const response = await fetch(`${EVOLUTION_API_URL}/instance/fetchInstances`, {
+            const response = await fetch(`${EVOLUTION_API_URL}/instance/fetchInstances`, {
         headers: { 'apikey': EVOLUTION_API_KEY }
       });
-      const instances = await response.json();
-      const instance = instances.find((inst: any) => inst.name === instanceName);
+      const rawData: unknown = await response.json();
+      let instances: EvolutionInstance[] = [];
+      if (Array.isArray(rawData)) {
+        instances = rawData as EvolutionInstance[];
+      } else if (rawData && typeof rawData === 'object' && 'instance' in rawData && Array.isArray((rawData as { instance: unknown }).instance)) {
+        instances = (rawData as { instance: EvolutionInstance[] }).instance;
+      }
+      const instance = instances.find((inst) => inst.name === instanceName);
       
       if (instance && instance.connectionStatus === 'open') {
         return { connected: true, status: instance.connectionStatus };
@@ -850,7 +893,8 @@ const handleGenerateQR = async () => {
         })
       });
 
-      const data = await response.json();
+            const rawData: unknown = await response.json();
+      const data = (rawData && typeof rawData === 'object') ? rawData as Record<string, unknown> : {};
 
       if (response.ok && data) {
         const now = new Date();
@@ -958,11 +1002,17 @@ const handleGenerateQR = async () => {
       const inactiveTab = activeAccountTab === 'WA1' ? 'WA2' : 'WA1';
       const inactiveInstanceName = getInstanceName(inactiveTab);
       try {
-        const response = await fetch(`${EVOLUTION_API_URL}/instance/fetchInstances`, {
+                const response = await fetch(`${EVOLUTION_API_URL}/instance/fetchInstances`, {
           headers: { 'apikey': EVOLUTION_API_KEY }
         });
-        const instances = await response.json();
-        const instance = instances.find((inst: any) => inst.name === inactiveInstanceName);
+        const rawData: unknown = await response.json();
+        let instances: EvolutionInstance[] = [];
+        if (Array.isArray(rawData)) {
+          instances = rawData as EvolutionInstance[];
+        } else if (rawData && typeof rawData === 'object' && 'instance' in rawData && Array.isArray((rawData as { instance: unknown }).instance)) {
+          instances = (rawData as { instance: EvolutionInstance[] }).instance;
+        }
+        const instance = instances.find((inst) => inst.name === inactiveInstanceName);
         
         if (instance && instance.connectionStatus === 'open') {
           setEvolutionStatus(prev => ({ ...prev, [inactiveTab]: 'connected' }));
@@ -1065,7 +1115,8 @@ const handleGenerateQR = async () => {
             headers: { 'apikey': EVOLUTION_API_KEY }
           });
           if (stateResponse.ok) {
-            const stateData = await stateResponse.json();
+                        const rawState: unknown = await stateResponse.json();
+            const stateData = (rawState && typeof rawState === 'object') ? rawState as EvolutionInstance : {} as EvolutionInstance;
             const status = stateData?.state || stateData?.status || stateData?.connectionStatus;
             
             if (status === 'open' && evolutionStatus[tab] !== 'connected') {
@@ -1414,11 +1465,11 @@ const handleGenerateQR = async () => {
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-slate-600">ESTADO DEL SISTEMA:</span>
                     <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-extrabold ${
-                      evolutionStatus === 'connected' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
-                    }`}>
-                      <span className={`w-2 h-2 rounded-full ${evolutionStatus === 'connected' ? 'bg-emerald-500' : 'bg-amber-500'}`} />
-                      {evolutionStatus === 'connected' ? 'VINCULADO (SESIÓN ACTIVA)' : 'DESCONECTADO / SESIÓN CERRADA'}
-                    </span>
+  evolutionStatus[activeAccountTab] === 'connected' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+}`}>
+  <span className={`w-2 h-2 rounded-full ${evolutionStatus[activeAccountTab] === 'connected' ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+  {evolutionStatus[activeAccountTab] === 'connected' ? 'VINCULADO (SESIÓN ACTIVA)' : 'DESCONECTADO / SESIÓN CERRADA'}
+</span>
                   </div>
 
                   <div className="text-xs text-slate-600 space-y-1 pt-1 border-t border-slate-200/60 font-mono">

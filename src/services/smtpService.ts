@@ -80,12 +80,14 @@ export const smtpService = {
         body: JSON.stringify(data),
       });
 
-      if (response.ok) {
-        const result = await response.json();
-        return { success: true, message: result.message || 'Conexión SMTP exitosa' };
+            if (response.ok) {
+        const rawData: unknown = await response.json();
+        const result = (rawData && typeof rawData === 'object') ? rawData as Record<string, unknown> : {};
+        return { success: true, message: (result.message as string) || 'Conexión SMTP exitosa' };
       } else {
-        const errorData = await response.json();
-        return { success: false, message: errorData.message || errorData.error || 'Error al probar conexión SMTP' };
+        const rawData: unknown = await response.json();
+        const errorData = (rawData && typeof rawData === 'object') ? rawData as Record<string, unknown> : {};
+        return { success: false, message: (errorData.message as string) || (errorData.error as string) || 'Error al probar conexión SMTP' };
       }
     } catch (e: any) {
       return { success: false, message: `Error de conexión: ${e.message}` };
@@ -110,13 +112,15 @@ export const smtpService = {
         }),
       });
 
-      if (response.ok) {
-        const result = await response.json();
-        return { success: true, messageId: result.messageId || result.id };
+            if (response.ok) {
+        const rawData: unknown = await response.json();
+        const result = (rawData && typeof rawData === 'object') ? rawData as Record<string, unknown> : {};
+        return { success: true, messageId: (result.messageId as string) || (result.id as string) };
       }
 
-      const errorData = await response.json();
-      const errorMsg = errorData.message || errorData.error || 'Error al enviar el correo electrónico';
+      const rawErrorData: unknown = await response.json();
+      const errorData = (rawErrorData && typeof rawErrorData === 'object') ? rawErrorData as Record<string, unknown> : {};
+      const errorMsg = (errorData.message as string) || (errorData.error as string) || 'Error al enviar el correo electrónico';
       return { success: false, error: errorMsg };
     } catch (e: any) {
       console.error('Failed to send email:', e);
@@ -183,13 +187,15 @@ export const smtpService = {
         }),
       });
 
-      if (response.ok) {
-        const result = await response.json();
-        return { success: true, message: result.message || 'Conexión SMTP Central exitosa' };
+            if (response.ok) {
+        const rawData: unknown = await response.json();
+        const result = (rawData && typeof rawData === 'object') ? rawData as Record<string, unknown> : {};
+        return { success: true, message: (result.message as string) || 'Conexión SMTP Central exitosa' };
       }
 
-      const errorData = await response.json();
-      return { success: false, message: errorData.message || errorData.error || 'Error al probar conexión SMTP Central' };
+      const rawErrorData: unknown = await response.json();
+      const errorData = (rawErrorData && typeof rawErrorData === 'object') ? rawErrorData as Record<string, unknown> : {};
+      return { success: false, message: (errorData.message as string) || (errorData.error as string) || 'Error al probar conexión SMTP Central' };
     } catch (e: any) {
       return { success: false, message: `Error de conexión: ${e.message || 'Error de conexión SMTP Central'}` };
     }

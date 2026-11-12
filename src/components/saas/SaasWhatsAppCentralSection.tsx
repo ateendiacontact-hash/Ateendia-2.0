@@ -16,6 +16,28 @@ import { useTenant } from '../../context/TenantContext';
 import { SaasWhatsAppCentralConfig } from '../../types';
 import { useWhatsAppSocket } from '../../services/whatsappSocketService';
 
+// ─── Tipos para Evolution API (Regla 29) ───
+interface EvolutionInstance {
+  name?: string;
+  instanceName?: string;
+  connectionStatus?: string;
+  state?: string;
+  status?: string;
+  ownerJid?: string;
+}
+
+interface EvolutionQrResponse {
+  base64?: string;
+  code?: string;
+  status?: string;
+}
+
+interface EvolutionInstanceCreateResponse {
+  instance?: { instanceName?: string; status?: string };
+  message?: string;
+  alreadyConnected?: boolean;
+}
+
 // Configuración de Evolution API
 const EVOLUTION_API_URL = import.meta.env.VITE_WHATSAPP_API_URL || 'http://13.140.37.155:8080';
 const EVOLUTION_API_KEY = import.meta.env.VITE_EVOLUTION_API_KEY || 'evolution2026';
@@ -92,7 +114,7 @@ export const SaasWhatsAppCentralSection: React.FC = () => {
   const [isFetchingQr, setIsFetchingQr] = useState<boolean>(false);
   // Countdown para el QR (60 segundos)
   const [qrCountdown, setQrCountdown] = useState<number>(60);
-  const qrTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const qrTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Instancia única para Central SaaS
   const CENTRAL_INSTANCE_NAME = 'ateendia-saas-central';
@@ -182,8 +204,9 @@ export const SaasWhatsAppCentralSection: React.FC = () => {
         const stateResponse = await fetch(`${EVOLUTION_API_URL}/instance/connectionState/${CENTRAL_INSTANCE_NAME}`, {
           headers: { 'apikey': EVOLUTION_API_KEY }
         });
-        if (stateResponse.ok) {
-          const stateData = await stateResponse.json();
+                if (stateResponse.ok) {
+          const rawState: unknown = await stateResponse.json();
+          const stateData = (rawState && typeof rawState === 'object') ? rawState as EvolutionInstance : {} as EvolutionInstance;
           const status = stateData?.state || stateData?.status || stateData?.connectionStatus;
 
           if (status === 'open') {
@@ -240,11 +263,20 @@ export const SaasWhatsAppCentralSection: React.FC = () => {
       }
 
       // Verificar si ya existe y está conectada
-      const checkResponse = await fetch(`${EVOLUTION_API_URL}/instance/fetchInstances`, {
+            const checkResponse = await fetch(`${EVOLUTION_API_URL}/instance/fetchInstances`, {
         headers: { 'apikey': EVOLUTION_API_KEY }
       });
-      const instances = await checkResponse.json();
-      const exists = instances.find((inst: any) => inst.name === CENTRAL_INSTANCE_NAME);
+      const rawInstances: unknown = await checkResponse.json();
+      let instances: EvolutionInstance[] = [];
+      if (Array.isArray(rawInstances)) {
+        instances = rawInstances as EvolutionInstance[];
+      } else if (
+        typeof rawInstances === 'object' && rawInstances !== null &&
+        'instance' in rawInstances && Array.isArray((rawInstances as { instance: unknown }).instance)
+      ) {
+        instances = (rawInstances as { instance: EvolutionInstance[] }).instance;
+      }
+      const exists = instances.find((inst) => inst.name === CENTRAL_INSTANCE_NAME);
 
       if (exists && exists.connectionStatus === 'open' && exists.ownerJid) {
         console.log(`✅ Instancia ${CENTRAL_INSTANCE_NAME} ya está conectada`);
@@ -266,7 +298,8 @@ export const SaasWhatsAppCentralSection: React.FC = () => {
         })
       });
 
-      const data = await response.json();
+            const rawData: unknown = await response.json();
+      const data = (rawData && typeof rawData === 'object') ? rawData as EvolutionInstanceCreateResponse : {} as EvolutionInstanceCreateResponse;
 
       if (response.status === 403 || response.status === 400) {
         console.warn(`⚠️ Error ${response.status} al crear instancia. Reintentando borrado e instalación...`);
@@ -289,7 +322,8 @@ export const SaasWhatsAppCentralSection: React.FC = () => {
             qrcode: true
           })
         });
-        const retryData = await retryResponse.json();
+        const rawRetryData: unknown = await retryResponse.json();
+        const retryData = (rawRetryData && typeof rawRetryData === 'object') ? rawRetryData as EvolutionInstanceCreateResponse : {} as EvolutionInstanceCreateResponse;
         return retryData;
       }
 
@@ -309,7 +343,8 @@ export const SaasWhatsAppCentralSection: React.FC = () => {
         headers: { 'apikey': EVOLUTION_API_KEY }
       });
 
-      const data = await response.json();
+            const rawData: unknown = await response.json();
+      const data = (rawData && typeof rawData === 'object') ? rawData as EvolutionQrResponse : {} as EvolutionQrResponse;
 
       if (data.base64) {
         setEvolutionQrCode(data.base64);
@@ -341,9 +376,9 @@ export const SaasWhatsAppCentralSection: React.FC = () => {
           const stateResponse = await fetch(`${EVOLUTION_API_URL}/instance/connectionState/${CENTRAL_INSTANCE_NAME}`, {
             headers: { 'apikey': EVOLUTION_API_KEY }
           });
-          if (stateResponse.ok) {
-            const stateData = await stateResponse.json();
-            // Evolution API v2 connectionState puede devolver: { state: 'open' }, { status: 'open' }, { connectionStatus: 'open' }
+                    if (stateResponse.ok) {
+            const rawState: unknown = await stateResponse.json();
+            const stateData = (rawState && typeof rawState === 'object') ? rawState as EvolutionInstance : {} as EvolutionInstance;
             const status = stateData?.state || stateData?.status || stateData?.connectionStatus;
             if (status === 'open') {
               console.log('✅ [connectionState] Central SaaS - Sesión ACTIVA');
@@ -363,26 +398,25 @@ export const SaasWhatsAppCentralSection: React.FC = () => {
         headers: { 'apikey': EVOLUTION_API_KEY }
       });
 
-      const rawData = await response.json();
+            const rawData: unknown = await response.json();
       console.log(`📡 [fetchInstances] Respuesta cruda:`, rawData);
 
       // Normalizar respuesta
-      let instances = [];
+      let instances: EvolutionInstance[] = [];
       if (Array.isArray(rawData)) {
-        instances = rawData;
-      } else if (rawData?.instance && Array.isArray(rawData.instance)) {
-        instances = rawData.instance;
-      } else if (rawData?.instances && Array.isArray(rawData.instances)) {
-        instances = rawData.instances;
-      } else if (rawData?.data && Array.isArray(rawData.data)) {
-        instances = rawData.data;
+        instances = rawData as EvolutionInstance[];
+      } else if (rawData && typeof rawData === 'object' && 'instance' in rawData && Array.isArray((rawData as { instance: unknown }).instance)) {
+        instances = (rawData as { instance: EvolutionInstance[] }).instance;
+      } else if (rawData && typeof rawData === 'object' && 'instances' in rawData && Array.isArray((rawData as { instances: unknown }).instances)) {
+        instances = (rawData as { instances: EvolutionInstance[] }).instances;
+      } else if (rawData && typeof rawData === 'object' && 'data' in rawData && Array.isArray((rawData as { data: unknown }).data)) {
+        instances = (rawData as { data: EvolutionInstance[] }).data;
       } else {
         console.warn(`⚠️ Formato de respuesta no reconocido:`, rawData);
         instances = [];
       }
 
-      // Buscar instancia
-      const instance = instances.find((inst: any) => 
+      const instance = instances.find((inst) =>  
         inst?.name === CENTRAL_INSTANCE_NAME || inst?.instanceName === CENTRAL_INSTANCE_NAME
       );
 
@@ -436,7 +470,7 @@ export const SaasWhatsAppCentralSection: React.FC = () => {
       return;
     }
 
-    if (instanceData.alreadyConnected) {
+        if ((instanceData as { alreadyConnected?: boolean })?.alreadyConnected) {
       console.log('✅ Central SaaS ya está conectado');
       setEvolutionStatus('connected');
       setIsFetchingQr(false);
@@ -576,7 +610,8 @@ export const SaasWhatsAppCentralSection: React.FC = () => {
           })
         });
 
-        const data = await response.json();
+                const rawData: unknown = await response.json();
+        const data = (rawData && typeof rawData === 'object') ? rawData as Record<string, unknown> : {};
         
         if (response.ok && data) {
           // Add to messageLog

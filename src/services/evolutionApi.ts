@@ -95,13 +95,24 @@ export async function createInstance(instanceName: string): Promise<{ status: 'c
   try {
     await deleteInstance(instanceName);
 
-    const checkResponse = await fetch(`${EVOLUTION_API_URL}/instance/fetchInstances`, {
+        const checkResponse = await fetch(`${EVOLUTION_API_URL}/instance/fetchInstances`, {
       headers: { 'apikey': EVOLUTION_API_KEY },
     });
-    const instances = await checkResponse.json().catch(() => []);
-    const normalizedInstances = Array.isArray(instances) ? instances : 
-      instances?.instance || instances?.instances || instances?.data || [];
-    const existing = normalizedInstances.find((inst: any) => inst.name === instanceName || inst.instanceName === instanceName);
+    
+    // Type Guard para rawData (Regla 29)
+    const rawInstances: unknown = await checkResponse.json().catch(() => []);
+    let normalizedInstances: EvolutionInstance[] = [];
+    
+    if (Array.isArray(rawInstances)) {
+      normalizedInstances = rawInstances as EvolutionInstance[];
+    } else if (rawInstances && typeof rawInstances === 'object') {
+      const raw = rawInstances as Record<string, unknown>;
+      if (Array.isArray(raw.instance)) normalizedInstances = raw.instance as EvolutionInstance[];
+      else if (Array.isArray(raw.instances)) normalizedInstances = raw.instances as EvolutionInstance[];
+      else if (Array.isArray(raw.data)) normalizedInstances = raw.data as EvolutionInstance[];
+    }
+
+    const existing = normalizedInstances.find((inst) => inst.name === instanceName || inst.instanceName === instanceName);
 
     if (existing && (existing.connectionStatus === 'open' || existing.state === 'open' || existing.status === 'open')) {
       return { status: 'connected', data: existing };
@@ -153,8 +164,9 @@ export async function checkConnectionState(instanceName: string): Promise<{ conn
       const stateResponse = await fetch(`${EVOLUTION_API_URL}/instance/connectionState/${instanceName}`, {
         headers: { 'apikey': EVOLUTION_API_KEY },
       });
-      if (stateResponse.ok) {
-        const stateData = await stateResponse.json().catch(() => ({}));
+            if (stateResponse.ok) {
+        const rawState: unknown = await stateResponse.json().catch(() => ({}));
+        const stateData = (rawState && typeof rawState === 'object') ? rawState as EvolutionInstance : {} as EvolutionInstance;
         const status = stateData?.state || stateData?.status || stateData?.connectionStatus;
         if (status === 'open') {
           return { connected: true, status: 'open', instance: stateData };
@@ -169,18 +181,17 @@ export async function checkConnectionState(instanceName: string): Promise<{ conn
       headers: { 'apikey': EVOLUTION_API_KEY },
     });
 
-    const rawData = await response.json().catch(() => null);
+        const rawData: unknown = await response.json().catch(() => null);
     if (!rawData) return { connected: false, status: 'error' };
 
     let instances: EvolutionInstance[] = [];
     if (Array.isArray(rawData)) {
-      instances = rawData;
-    } else if (rawData?.instance && Array.isArray(rawData.instance)) {
-      instances = rawData.instance;
-    } else if (rawData?.instances && Array.isArray(rawData.instances)) {
-      instances = rawData.instances;
-    } else if (rawData?.data && Array.isArray(rawData.data)) {
-      instances = rawData.data;
+      instances = rawData as EvolutionInstance[];
+    } else if (rawData && typeof rawData === 'object') {
+      const raw = rawData as Record<string, unknown>;
+      if (Array.isArray(raw.instance)) instances = raw.instance as EvolutionInstance[];
+      else if (Array.isArray(raw.instances)) instances = raw.instances as EvolutionInstance[];
+      else if (Array.isArray(raw.data)) instances = raw.data as EvolutionInstance[];
     }
 
     const instance = instances.find((inst) => inst.name === instanceName || inst.instanceName === instanceName);
