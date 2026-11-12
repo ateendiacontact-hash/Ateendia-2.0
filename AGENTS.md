@@ -496,8 +496,8 @@ Fase 3.5.B — Landing + Registro + Demo [~99%]
 
 Fase 3.5.C — Pagos, Verificación, Suspensión [⏳ ~10 sesiones]
 Fase 3.5.D — Frontend SaaS Central [⏳ 4 sesiones]
-Fase 3.5.E — Verificación de límites [⏳ 1 sesión]
-Fase 3.5.F — Cleanup y Estabilización [⏳ agendada]
+Fase 3.5.E — Verificación de límites [✅ 100% — Sesión #34]
+Fase 3.5.F — Cleanup y Estabilización [▓▓▓▓▓▓▓░░░] 75%
 Fase 3.6 — Telefonía Avanzada [⏳ ~9 sesiones]
 Módulo de gestión de extensiones Issabel + 3 proveedores VoIP (Twilio, RingCentral, RedVozTelecom, CloudTalk).
 
@@ -725,6 +725,37 @@ Placeholders <67118c3> y <hash_corto> en AGENTS.md.
 prioridad BAJA).
 
 **Estado al cierre:** ✅ Sesión cerrada. Fase 3.5.E al 100%.
+
+### Sesión #35 — Fase 3.5.F: Cleanup y Estabilización (Sub-fase F.4 Completada)
+**Fecha:** 2026-11-12
+**Commit:** `6d55540`
+**Push:** origin/main (b89a533..6d55540)
+
+**Objetivo cumplido (Sub-fase F.4):**
+- Aplicar Regla 29 (type guards para `response.json()`) a los 4 archivos con 77 errores TS2339:
+  1. `src/services/evolutionApi.ts` (~15 errores)
+  2. `src/services/smtpService.ts` (~10 errores)
+  3. `src/components/integrations/WhatsAppAccountsConfigSection.tsx` (~30 errores)
+  4. `src/components/saas/SaasWhatsAppCentralSection.tsx` (~20 errores + 1 error TS2503 NodeJS namespace)
+- Corregir `NodeJS.Timeout` → `ReturnType<typeof setInterval>` en ambos componentes (compatibilidad tras excluir `server/` del `tsconfig.json`).
+
+**Archivos MODIFICADOS (4):**
+- `src/services/evolutionApi.ts` — Type guards en `createInstance`, `checkConnectionState`, `fetchInstances` normalization.
+- `src/services/smtpService.ts` — Type guards en `testConnection`, `sendEmail`, `testSaasConnection`.
+- `src/components/integrations/WhatsAppAccountsConfigSection.tsx` — Tipos `EvolutionInstance`, `EvolutionQrResponse`, `EvolutionInstanceCreateResponse`; type guards en todos los `fetch` (createInstance, fetchQR, checkConnection, fetchInstances, checkInstanceConnection, sendTextMessage).
+- `src/components/saas/SaasWhatsAppCentralSection.tsx` — Mismos tipos; type guards en polling, createInstance, fetchQR, checkConnection, sendTextMessage; fix `NodeJS.Timeout`.
+
+**Lecciones aprendidas:**
+- **Regla 29 aplicada sistemáticamente:** El patrón `const raw: unknown = await res.json(); if (raw && typeof raw === 'object') { const data = raw as MyType; }` elimina todos los TS2339 ("Property does not exist on type 'unknown'") en llamadas a Evolution API y SMTP.
+- **Namespace `NodeJS` en frontend:** Tras excluir `server/` del `tsconfig.json` (F.3), `NodeJS.Timeout` deja de estar disponible. La solución portable es `ReturnType<typeof setInterval>` / `ReturnType<typeof setTimeout>`.
+- **Evolution API respuestas variables:** La API devuelve array directo, `{ instance: [...] }`, `{ instances: [...] }`, o `{ data: [...] }`. La normalización con type guards maneja los 4 casos sin `any`.
+- **Edición quirúrgica (Regla 34):** Bloques reemplazables precisos en archivos de 1000+ líneas evitan regresiones.
+
+**Deuda técnica pendiente (Sub-fases F.5, F.6):**
+- F.5: 9 archivos legacy sin trackear (functions/, prisma.old/, src/index.ts, src/lib/, src/services/databaseService.ts, MIGRATION_GUIDE.md, schema.sql.old, seed.sql, .vscode/).
+- F.6: Indentación cosmética en TenantContext.tsx (2 espacios) + 4 errores TS preexistentes en SaasCentralDashboard.tsx.
+
+**Estado al cierre:** ✅ Sub-fase F.4 completada. Fase 3.5.F al ~75%.
 
 ### Sesión #32 — Fase 3.5.C: Frontend de Aprobación de Comprobantes (Completada)
 **Fecha:** 2026-10-26
@@ -1230,9 +1261,8 @@ para ver el resumen de lo que está en staging ANTES del commit.
 
 11. PRÓXIMOS PASOS
 **Sub-fase inmediata:**
-Sesión #35 — 3.5.F (Cleanup y Estabilización).
-Objetivo: Limpiar deuda técnica acumulada antes de avanzar a Fase 4:
-  - 226 errores TS frontend (mayoría `response.json()` unknown → Regla 29).
+Sesión #35 (continuación) — 3.5.F.5 (Cleanup y Estabilización).
+Objetivo: Limpiar deuda técnica restante:
   - 9 archivos legacy sin trackear (functions/, prisma.old/, src/index.ts,
     src/lib/, src/services/databaseService.ts, MIGRATION_GUIDE.md,
     schema.sql.old, seed.sql, .vscode/).
@@ -1242,12 +1272,20 @@ Objetivo: Limpiar deuda técnica acumulada antes de avanzar a Fase 4:
   - Indentación cosmética en TenantContext.tsx (2 espacios).
   - 4 errores TS preexistentes en SaasCentralDashboard.tsx (props no
     declaradas en sub-componentes).
+  - ~76 errores TS frontend restantes (en otros archivos, ver lista completa).
 
 **Deuda técnica prioritaria para sesiones futuras:**
 - SMTP-CREDENTIALS-DEPLOY — Configurar SMTP reales en producción (ALTA).
 - Fase B.5 — Protección de saas_super_admin (ALTA).
 - Fase B.6 — Roles custom (MEDIA).
 - DEUDA-ARQ-RECEIPTS — Eliminar métodos obsoletos en saasService (MEDIA).
+════════════════════════════════════════════════════════════════════
+FIN DEL AGENTS.md
+Última actualización: 2026-11-12 (Sesión #35 - F.4)
+Progreso global: ~80%
+Último commit: 6d55540
+Siguiente sub-fase: 3.5.F.5 — Cleanup y Estabilización (archivos legacy + cosmética)
+Siguiente sesión: #35 (continuación) — Cleanup y Estabilización
 ════════════════════════════════════════════════════════════════════
 FIN DEL AGENTS.md
 Última actualización: 2026-11-11 (Sesión #34)
