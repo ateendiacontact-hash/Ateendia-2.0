@@ -1,9 +1,9 @@
 ﻿# AGENTS.md — Memory Bank de Ateendia CRM 2.0
 
-> **Última actualización:** 2026-11-12 (Sesión #35 — Cierre de Fase 3.5.F)
-> **Progreso global:** ~83%
-> **Sesiones completadas:** 35
-> **Último commit:** `1bd3c5b` — chore(fase-3.5.f.6): activar strictNullChecks + cerrar Fase 3.5.F
+> **Última actualización:** 2026-11-13 (Sesión #37 — Cierre de Fase 3.5.G.3)
+> **Progreso global:** ~86%
+> **Sesiones completadas:** 37
+> **Último commit:** `<hash_del_commit>` — fix(fase-3.5.g.3): type hardening en ClientFormModal, ClientModal y PolicyFormModal + fix catalogs en TenantContext
 
 ---
 
@@ -482,7 +482,7 @@ Fase 3.5.C	Pagos, Verificación, Suspensión	~95% 🔄
 Fase 3.5.D	Frontend SaaS Central	100% ✅
 Fase 3.5.E	Verificación de límites	100% ✅
 Fase 3.5.F	Cleanup y Estabilización	100% ✅
-Fase 3.5.G	Type Hardening	⏳ 15% (Sesión #35)
+Fase 3.5.G	Type Hardening	⏳ 55% (Sesión #37)
 Fase 4	Multibandeja Unificada	0% ⏳
 Fase 5	IA + Automatizaciones	0% ⏳
 Fase 6	Analytics + Reportes	0% ⏳
@@ -600,15 +600,19 @@ Fase 3.5.F — Cleanup y Estabilización [✅ 100%]
 - F.5: Archivar legacy + versionar tsconfig ✅
 - F.6: Activar strictNullChecks + fix WhatsAppAccountsConfig ✅
 
-Fase 3.5.G — Type Hardening [▓░░░░░░░░░] 15% (Sesión #35)
+Fase 3.5.G — Type Hardening [▓▓▓▓░░░░░] 55% (Sesión #37)
 - F.7.1: Fix WhatsAppAccountsConfigSection (15 errores) ✅
-- F.7.2: Fix evolutionApi.ts (~10 errores) ⏳
-- F.7.3: Fix smtpService.ts (~10 errores) ⏳
-- F.7.4: Fix archivos pequeños (1-2 errores cada uno) ⏳
-- F.7.5: Fix archivos medianos (4-6 errores cada uno) ⏳
-- F.7.6: Fix archivos grandes (PolicyFormModal, WhatsAppCloudService) ⏳
-Objetivo: 96 errores → 0 errores con `strictNullChecks: true`.
-Estimado: ~4-6 sesiones.
+- F.7.2: Fix evolutionApi.ts (~10 errores) ✅
+- F.7.3: Fix smtpService.ts (~10 errores) ✅
+- F.7.4: Fix paymentService.ts (~5 errores) ✅
+- F.7.5: Fix metaGraphService.ts (~4 errores) ✅
+- F.7.6: Fix apiClient.ts (~4 errores) ✅
+- F.7.7: Fix UI nullability (SuspendedCompanyLockScreen, UsersRolesModule, WhatsAppModule) ✅
+- F.7.8: Fix archivos medianos (ClientModal, PolicyFormModal, ClientFormModal) ✅
+- F.7.9: Fix archivos pequeños (AlertsCenterModal, CompanyBrandingModule, etc.) ⏳
+- F.7.10: Fix archivos grandes (whatsAppCloudService) ⏳
+Objetivo: 96 errores → 48 errores restantes con `strictNullChecks: true`.
+Estimado: ~2-3 sesiones más.
 
 Fase 3.6 — Telefonía Avanzada [⏳ ~9 sesiones]
 Módulo de gestión de extensiones Issabel + 3 proveedores VoIP (Twilio, RingCentral, RedVozTelecom, CloudTalk).
@@ -772,7 +776,7 @@ Prioridad: MEDIA.
 
 **Prioridad:** MEDIA-ALTA. No bloquea el build de Vite (que usa esbuild, no `tsc`), pero bloquea el CI cuando se configure y puede causar bugs sutiles en producción.
 
-**Progreso:** Sesión #35 arregló 15 errores en `WhatsAppAccountsConfigSection.tsx`. 96 restantes.
+**Progreso:** Sesión #35 arregló 15 errores en `WhatsAppAccountsConfigSection.tsx`. Sesión #36 arregló ~29 errores en servicios core y UI (evolutionApi, smtpService, paymentService, metaGraphService, apiClient, SuspendedCompanyLockScreen, UsersRolesModule, WhatsAppModule). Sesión #37 arregló ~19 errores en `ClientFormModal`, `ClientModal`, `PolicyFormModal` y `TenantContext`. **96 → 48 errores restantes**.
 
 Prioridad BAJA
 RegisterForm.tsx duplica lógica de fetch
@@ -845,6 +849,65 @@ Prioridad: BAJA.
 **Deuda técnica registrada:** ver `DEUDA-TYPE-HARDENING` (nueva, sección 8).
 
 **Estado al cierre:** ✅ Fase 3.5.F al 100%. Fase 3.5.G abierta.
+
+### Sesión #36 — Fase 3.5.G.2: Type Hardening (Servicios Core + UI Nullability)
+**Fecha:** 2026-11-13
+**Commit:** `HEAD` (pendiente de push)
+
+**Objetivo cumplido:**
+- Reducir errores TypeScript de 96 a 67 (~29 errores resueltos en esta sesión).
+- Aplicar Regla 29 (type guards para `response.json()`) a servicios core.
+- Corregir nullability de `currentUser` en componentes UI críticos.
+
+**Archivos MODIFICADOS (9):**
+- `src/services/evolutionApi.ts` — Type guards en `fetchQR`, `sendTextMessage`, `sendMediaMessage`. Eliminados `any` en catches.
+- `src/services/smtpService.ts` — Añadido tipo `PbRecord<T>` para tipar respuestas de PocketBase. Eliminados `any`.
+- `src/services/paymentService.ts` — Type guards en retornos de Stripe/PayPal y uploads.
+- `src/services/metaGraphService.ts` — Type guards en `data` y errores.
+- `src/services/apiClient.ts` — Type guards en `request<T>` y manejo de `unknown`.
+- `src/components/saas/SuspendedCompanyLockScreen.tsx` — Optional chaining en `currentUser`.
+- `src/components/users/UsersRolesModule.tsx` — Optional chaining en `currentUser`.
+- `src/components/whatsapp/WhatsAppModule.tsx` — Optional chaining en `currentUser` (10 fixes).
+
+**Lecciones aprendidas:**
+- **Regla 29 + strictNullChecks:** La combinación obliga a tipar cada `response.json()` con type guards exhaustivos. El patrón `const raw: unknown = await res.json(); if (isSuccessResponse(raw)) { ... }` escala mejor que casts inline.
+- **Eliminación de `any` en catches:** En TS estricto, `catch (e: unknown)` + type guard `e instanceof Error` es más seguro que `catch (e: any)`.
+- **Optional chaining masivo:** 10 fixes en `WhatsAppModule.tsx` demuestran que `currentUser?.property` resuelve TS2722/TS18047 sin cambiar lógica.
+- **Progreso incremental:** Atacar archivos por categoría (servicios → UI) permite medir avance real (96→67).
+
+**Deuda técnica pendiente (Fase 3.5.G.3):**
+- Errores TS2554 (Argumentos incorrectos en `ClientModal.tsx` y `PolicyFormModal.tsx`).
+- Sincronizar tipos en `ClientFormModal.tsx` (enums de estado civil y género).
+- Archivos pequeños restantes (`AlertsCenterModal`, `CompanyBrandingModule`, etc.).
+
+**Estado al cierre:** ✅ Fase 3.5.G.2 completada. Fase 3.5.G al ~40%.
+
+### Sesión #37 — Fase 3.5.G.3: Type Hardening (Modales Clientes + Pólizas + Catalogos TenantContext)
+**Fecha:** 2026-11-13
+**Commit:** `<hash_del_commit>` — fix(fase-3.5.g.3): type hardening en ClientFormModal, ClientModal y PolicyFormModal + fix catalogs en TenantContext
+
+**Objetivo cumplido:**
+- Reducir errores TypeScript de 67 a **48** (~19 errores resueltos en esta sesión).
+- Corregir errores TS2554 (argumentos incorrectos) en `ClientModal.tsx` y `PolicyFormModal.tsx`.
+- Sincronizar enums de género y estado civil en `ClientFormModal.tsx`.
+- Restaurar interfaz `catalogs` completa en `TenantContext.tsx`.
+
+**Archivos MODIFICADOS (4):**
+- `src/components/clients/ClientFormModal.tsx` — Alineación de enums de género (`'M'`) y estado civil (`'Soltero/a'`). Fallback seguro para `catalogs.leadSources`.
+- `src/components/clients/ClientModal.tsx` — Corrección de argumentos en `addNote`, `addDocument`, `deleteDocument` y `startWhatsAppConversation`. Eliminación de 4to argumento en `sendEmailMessage`.
+- `src/components/policies/PolicyFormModal.tsx` — Corrección de `startDate` a `effectiveDate`. Cast temporal `(catalogs as any)` para `carriers` y `plans`. Corrección de argumentos en `updatePolicy`.
+- `src/context/TenantContext.tsx` — Restauración de la interfaz `catalogs` completa (clientCategories, leadSources, policyTypes).
+
+**Lecciones aprendidas:**
+- **Regla 34 (Edición Quirúrgica):** Los archivos de 1000+ líneas se modifican por bloques exactos. El código completo solo se entrega cuando el usuario lo solicita explícitamente para evitar regresiones.
+- **Regla 37 (No confundir VS Code con tsc):** Los errores de cSpell (ortografía) saturan el panel de VS Code. La única fuente de verdad es `npx tsc --noEmit`.
+- **Verificación de guardado:** Siempre verificar que el puntito blanco de VS Code haya desaparecido antes de correr `tsc`. Si el archivo no está guardado, el compilador lee la versión anterior.
+
+**Deuda técnica pendiente (Fase 3.5.G.4):**
+- Archivos pequeños restantes (`AlertsCenterModal`, `CompanyBrandingModule`, etc.).
+- 2 archivos grandes (`whatsappCloudService`).
+
+**Estado al cierre:** ✅ Fase 3.5.G.3 completada. Fase 3.5.G al ~55%.
 
 ### Sesión #34 — Fase 3.5.E: Verificación de Límites (Completada)
 **Fecha:** 2026-11-11
@@ -1435,9 +1498,9 @@ para ver el resumen de lo que está en staging ANTES del commit.
 
 11. PRÓXIMOS PASOS
 **Sub-fase inmediata:**
-Sesión #36 — Fase 3.5.G.2 (Type Hardening).
-Objetivo: Resolver errores en `evolutionApi.ts` (~10), `smtpService.ts` (~10) y los quick wins de 1-2 errores (~11 archivos).
-Estimado: 25-30 errores resueltos en una sesión.
+Sesión #38 — Fase 3.5.G.4 (Type Hardening).
+Objetivo: Resolver errores en archivos pequeños restantes (`AlertsCenterModal`, `CompanyBrandingModule`, etc.) y atacar los 2 archivos grandes (`whatsappCloudService`).
+Estimado: Bajar de 48 a ~20 errores.
 
 **Deuda técnica prioritaria para sesiones futuras:**
 - SMTP-CREDENTIALS-DEPLOY — Configurar SMTP reales en producción (ALTA).
@@ -1446,9 +1509,9 @@ Estimado: 25-30 errores resueltos en una sesión.
 - DEUDA-ARQ-RECEIPTS — Eliminar métodos obsoletos en saasService (MEDIA).
 ════════════════════════════════════════════════════════════════════
 FIN DEL AGENTS.md
-Última actualización: 2026-11-12 (Sesión #35 - Cierre Fase 3.5.F)
-Progreso global: ~83%
-Último commit: 1bd3c5b
-Siguiente sub-fase: 3.5.G.2 — Type Hardening (evolutionApi + smtpService + quick wins)
-Siguiente sesión: #36 — Type Hardening
+Última actualización: 2026-11-13 (Sesión #37 - Cierre Fase 3.5.G.3)
+Progreso global: ~86%
+Último commit: `<hash_del_commit>`
+Siguiente sub-fase: 3.5.G.4 — Type Hardening (archivos pequeños + whatsappCloudService)
+Siguiente sesión: #38 — Type Hardening
 ════════════════════════════════════════════════════════════════════
