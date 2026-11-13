@@ -19,7 +19,7 @@ export const ClientFormModal: React.FC<ClientFormModalProps> = ({
   const defaultPipeline = pipelines[0];
   const firstStage = defaultPipeline?.stages[0];
 
-  const [formData, setFormData] = useState<Partial<Client>>({
+    const [formData, setFormData] = useState<Partial<Client>>({
     firstName: '',
     lastName: '',
     email: '',
@@ -27,8 +27,8 @@ export const ClientFormModal: React.FC<ClientFormModalProps> = ({
     secondaryPhone: '',
     idNumber: '',
     birthDate: '',
-    gender: 'Masculino',
-    maritalStatus: 'Soltero(a)',
+    gender: 'M', // ✅ CORREGIDO: 'Masculino' -> 'M' (alineado al tipo Client)
+    maritalStatus: 'Soltero/a', // ✅ CORREGIDO: 'Soltero(a)' -> 'Soltero/a'
     category: 'Seguro de Salud / ACA',
     status: 'Lead',
     assignedAgentId: '',
@@ -55,7 +55,7 @@ export const ClientFormModal: React.FC<ClientFormModalProps> = ({
       setTagsInput(clientToEdit.tags ? clientToEdit.tags.join(', ') : '');
     } else {
       const activeAgents = users.filter((u) => u.tenantId === currentTenant.id && u.status === 'active');
-      setFormData({
+            setFormData({
         firstName: '',
         lastName: '',
         email: '',
@@ -63,8 +63,8 @@ export const ClientFormModal: React.FC<ClientFormModalProps> = ({
         secondaryPhone: '',
         idNumber: '',
         birthDate: '',
-        gender: 'Masculino',
-        maritalStatus: 'Soltero(a)',
+        gender: 'M', // ✅ CORREGIDO
+        maritalStatus: 'Soltero/a', // ✅ CORREGIDO
         category: 'Seguro de Salud / ACA',
         status: 'Lead',
         assignedAgentId: activeAgents[0]?.id || '',
@@ -225,28 +225,29 @@ export const ClientFormModal: React.FC<ClientFormModalProps> = ({
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">Género</label>
-                <select
-                  value={formData.gender || 'Masculino'}
-                  onChange={(e) => setFormData({ ...formData, gender: e.target.value as any })}
+                                <select
+                  value={formData.gender || 'M'}
+                  onChange={(e) => setFormData({ ...formData, gender: e.target.value as 'M' | 'F' | 'Otro' })}
                   className="w-full px-3 py-2 bg-slate-50 border rounded-xl text-xs font-medium"
                 >
-                  <option value="Masculino">Masculino</option>
-                  <option value="Femenino">Femenino</option>
+                  <option value="M">Masculino</option>
+                  <option value="F">Femenino</option>
                   <option value="Otro">Otro</option>
                 </select>
               </div>
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">Estado Civil</label>
-                <select
-                  value={formData.maritalStatus || 'Soltero(a)'}
+                                <select
+                  value={formData.maritalStatus || 'Soltero/a'}
                   onChange={(e) => setFormData({ ...formData, maritalStatus: e.target.value as any })}
                   className="w-full px-3 py-2 bg-slate-50 border rounded-xl text-xs font-medium"
                 >
-                  <option value="Soltero(a)">Soltero(a)</option>
-                  <option value="Casado(a)">Casado(a)</option>
-                  <option value="Divorciado(a)">Divorciado(a)</option>
-                  <option value="Viudo(a)">Viudo(a)</option>
+                  <option value="Soltero/a">Soltero(a)</option>
+                  <option value="Casado/a">Casado(a)</option>
+                  <option value="Divorciado/a">Divorciado(a)</option>
+                  <option value="Viudo/a">Viudo(a)</option>
+                  <option value="Unión Libre">Unión Libre</option>
                 </select>
               </div>
             </div>
@@ -312,7 +313,7 @@ export const ClientFormModal: React.FC<ClientFormModalProps> = ({
                   onChange={(e) => setFormData({ ...formData, leadSource: e.target.value })}
                   className="w-full px-3 py-2 bg-slate-50 border rounded-xl text-xs font-medium"
                 >
-                  {catalogs.leadSources.map((src) => (
+                  {(catalogs?.leadSources || ['WhatsApp Inbound', 'Landing Web', 'Referido', 'Llamada Directa']).map((src) => (
                     <option key={src} value={src}>
                       {src}
                     </option>

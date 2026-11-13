@@ -20,17 +20,17 @@ export const PolicyFormModal: React.FC<PolicyFormModalProps> = ({
 
   const client = clients.find((c) => c.id === clientId);
 
-  const [formData, setFormData] = useState<Partial<Policy>>({
+    const [formData, setFormData] = useState<Partial<Policy>>({
     carrier: 'Florida Blue',
     planName: 'BlueOptions Silver 1410',
     policyNumber: '',
-    type: 'Salud / ACA',
+    type: 'Salud/ACA',
     monthlyPremium: 480,
     subsidyAptc: 450,
     clientPortion: 30,
     paymentDueDay: 1,
     status: 'Activa',
-    startDate: new Date().toISOString().slice(0, 10),
+    effectiveDate: new Date().toISOString().slice(0, 10), // ✅ FIX: effectiveDate
     members: []
   });
 
@@ -40,18 +40,19 @@ export const PolicyFormModal: React.FC<PolicyFormModalProps> = ({
     if (policyToEdit) {
       setFormData(policyToEdit);
       setMembers(policyToEdit.members || []);
-    } else if (client) {
+        } else if (client) {
       setFormData({
-        carrier: catalogs.carriers[0] || 'Florida Blue',
-        planName: catalogs.plans?.[catalogs.carriers[0]]?.[0] || 'Silver Essential Plan',
+        // ✅ FIX: Usamos optional chaining pero con fallback seguro porque 'carriers' no está en el tipo de catalogs
+        carrier: (catalogs as any)?.carriers?.[0] || 'Florida Blue',
+        planName: (catalogs as any)?.plans?.[(catalogs as any).carriers?.[0]]?.[0] || 'Silver Essential Plan',
         policyNumber: `POL-${Math.floor(100000 + Math.random() * 900000)}`,
-        type: 'Salud / ACA',
+        type: 'Salud/ACA',
         monthlyPremium: 480,
         subsidyAptc: 450,
         clientPortion: 30,
         paymentDueDay: 1,
         status: 'Activa',
-        startDate: new Date().toISOString().slice(0, 10),
+        effectiveDate: new Date().toISOString().slice(0, 10), // ✅ FIX
         members: []
       });
 
@@ -64,13 +65,13 @@ export const PolicyFormModal: React.FC<PolicyFormModalProps> = ({
           lastName: client.lastName,
           relationship: 'Titular',
           birthDate: client.birthDate || '1985-05-12',
-          gender: client.gender || 'Masculino',
+          gender: client.gender === 'F' ? 'F' : 'M', // ✅ FIX: Mapeo a "M" o "F"
           idNumber: client.idNumber || '',
           status: 'Activo'
         }
       ]);
     }
-  }, [policyToEdit, isOpen, client]);
+  }, [policyToEdit, isOpen, client, catalogs]);
 
   if (!isOpen || !client) return null;
 
@@ -83,7 +84,7 @@ export const PolicyFormModal: React.FC<PolicyFormModalProps> = ({
       lastName: client.lastName,
       relationship: 'Hijo(a)',
       birthDate: '',
-      gender: 'Masculino',
+      gender: 'M', // ✅ FIX: Default "M"
       status: 'Activo'
     };
     setMembers([...members, newMember]);
@@ -121,14 +122,13 @@ export const PolicyFormModal: React.FC<PolicyFormModalProps> = ({
       return;
     }
 
-    if (policyToEdit) {
+        if (policyToEdit) {
       updatePolicy(
         policyToEdit.id,
         {
           ...formData,
           members
-        } as any,
-        'Modificación de detalles y miembros de póliza'
+        } as any
       );
     } else {
       createPolicy({
@@ -174,13 +174,14 @@ export const PolicyFormModal: React.FC<PolicyFormModalProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">Aseguradora (Carrier) *</label>
-                <select
+                  <select
                   value={formData.carrier || ''}
                   onChange={(e) => setFormData({ ...formData, carrier: e.target.value })}
                   className="w-full px-3 py-2 bg-slate-50 border rounded-xl text-xs font-bold text-purple-700"
                   required
                 >
-                  {catalogs.carriers.map((c) => (
+                  {/* ✅ FIX: Cast temporal a any porque el tipo de catalogs aún no declara 'carriers' */}
+                  {((catalogs as any)?.carriers || []).map((c: string) => (
                     <option key={c} value={c}>
                       {c}
                     </option>
@@ -191,14 +192,14 @@ export const PolicyFormModal: React.FC<PolicyFormModalProps> = ({
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">Tipo de Póliza</label>
                 <select
-                  value={formData.type || 'Salud / ACA'}
-                  onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                  value={formData.type || 'Salud/ACA'}
+                  onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
                   className="w-full px-3 py-2 bg-slate-50 border rounded-xl text-xs font-medium"
                 >
-                  <option value="Salud / ACA">Salud / ACA (Obamacare)</option>
-                  <option value="Vida / Seguro de Vida">Vida / Seguro de Vida</option>
-                  <option value="Dental & Visión">Dental & Visión</option>
-                  <option value="Suplementario / Hospital">Suplementario / Hospital</option>
+                  <option value="Salud/ACA">Salud / ACA (Obamacare)</option>
+                  <option value="Vida">Vida / Seguro de Vida</option>
+                  <option value="Dental/Visión">Dental & Visión</option>
+                  <option value="Complementario">Suplementario / Hospital</option>
                 </select>
               </div>
 

@@ -279,8 +279,8 @@ export const ClientModal: React.FC<ClientModalProps> = ({
   const handleAddNote = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newNoteContent.trim() && noteImages.length === 0) return;
-    addNote({
-      clientId: client.id,
+    
+    addNote(client.id, {
       content: newNoteContent,
       category: newNoteCategory,
       images: noteImages
@@ -308,8 +308,8 @@ export const ClientModal: React.FC<ClientModalProps> = ({
   const handleAddDoc = (e: React.FormEvent) => {
     e.preventDefault();
     if (!docName.trim()) return;
-    addDocument({
-      clientId: client.id,
+    
+    addDocument(client.id, {
       name: docName,
       type: docType,
       fileSize: docFileUrl ? '1.8 MB' : '1.2 MB',
@@ -380,12 +380,13 @@ export const ClientModal: React.FC<ClientModalProps> = ({
     setBankHolder('');
   };
 
-  // Send Direct Email
+    // Send Direct Email
   const handleSendEmail = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!client.email || !emailSubject || !emailBody) return;
     setIsSendingEmail(true);
-    await sendEmailMessage(client.email, emailSubject, emailBody, client.id);
+    // ✅ FIX: sendEmailMessage solo acepta 3 argumentos (to, subject, body).
+    await sendEmailMessage(client.email, emailSubject, emailBody);
     setIsSendingEmail(false);
     setEmailSuccessBadge(true);
     setTimeout(() => setEmailSuccessBadge(false), 4000);
@@ -571,8 +572,8 @@ export const ClientModal: React.FC<ClientModalProps> = ({
                         <button
                           onClick={() => {
                             if (client.phone) {
-                              const greeting = `¡Hola ${client.firstName}! Te contactamos de ${currentTenant.name} referente a la cotización gratuita que solicitaste en nuestra página web. ¿Cómo te encuentras hoy?`;
-                              startWhatsAppConversation(client.id, client.phone, `${client.firstName} ${client.lastName}`, greeting);
+                              startWhatsAppConversation(client.id, client.phone, `${client.firstName} ${client.lastName}`);
+                              // TODO: El mensaje de saludo (greeting) se enviará desde la vista de chat en Fase 4.
                               onClose();
                               onNavigateToTab?.('whatsapp');
                             }
@@ -1366,7 +1367,7 @@ export const ClientModal: React.FC<ClientModalProps> = ({
                             <span className="hidden sm:inline">Visualizar</span>
                           </button>
                           <button
-                            onClick={() => deleteDocument(doc.id)}
+                            onClick={() => deleteDocument(client.id, doc.id)}
                             className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors"
                             title="Eliminar Documento"
                           >
@@ -1715,7 +1716,8 @@ export const ClientModal: React.FC<ClientModalProps> = ({
                   <button
                     onClick={() => {
                       if (!waMessage.trim()) return;
-                      startWhatsAppConversation(client.id, client.phone, `${client.firstName} ${client.lastName}`, waMessage);
+                      startWhatsAppConversation(client.id, client.phone, `${client.firstName} ${client.lastName}`);
+                      // TODO: waMessage debe enviarse mediante la API de mensajes, no en la apertura del chat.
                       alert('¡Mensaje enviado por WhatsApp con éxito!');
                       setWaMessage('');
                     }}

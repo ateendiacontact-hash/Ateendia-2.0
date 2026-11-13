@@ -231,11 +231,12 @@ interface TenantContextType {
   rejectPaymentReceipt: (receiptId: string, reason?: string) => void;
   globalSaasMetrics: any;
 
-  // ─── Catálogos ───
+    // ─── Catálogos ───
   catalogs: {
     clientCategories: string[];
+    leadSources: string[];
     policyTypes: string[];
-  };
+  }; // ✅ FIX: Restauramos el objeto completo
 
   // ─── STUBS Sesión #20 (Fix Pantallas Bloque Base) ───
 
@@ -407,7 +408,8 @@ const defaultTenant: TenantBranding = {
   primaryColor: '#7c3aed',
   secondaryColor: '#06B6D4',
   clientCategories: ['Salud / ACA', 'Vida', 'Dental', 'Visión', 'Medicare'],
-  policyTypes: ['Salud ACA', 'Vida Término', 'IUL', 'Dental', 'Suplementario'],
+    leadSources: ['WhatsApp Inbound', 'Landing Web', 'Referido', 'Llamada Directa'], // ✅ AGREGADO
+    policyTypes: ['Salud ACA', 'Vida Término', 'IUL', 'Dental', 'Suplementario'],
     subscription: {
     status: 'active',
     plan: 'enterprise',
@@ -835,6 +837,7 @@ const normalizeTenantData = (rawTenant: any): TenantBranding => {
     primaryColor: rawTenant.primary_color || rawTenant.primaryColor || '#7c3aed',
     secondaryColor: rawTenant.secondary_color || rawTenant.secondaryColor || '#06B6D4',
     clientCategories: rawTenant.clientCategories || (defaultTenant as any).clientCategories,
+    leadSources: (rawTenant as any).leadSources || (defaultTenant as any).leadSources, // ✅ AGREGADO
     policyTypes: rawTenant.policyTypes || (defaultTenant as any).policyTypes,
     subscription: rawTenant.subscription || defaultTenant.subscription,
     } as unknown as TenantBranding;
@@ -861,6 +864,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     primaryColor: '#4f46e5',
     accentColor: '#10b981',
     clientCategories: ['Salud / ACA', 'Vida', 'Dental', 'Visión', 'Medicare'],
+    leadSources: ['WhatsApp Inbound', 'Landing Web', 'Referido', 'Llamada Directa'], // ✅ AGREGADO
     features: [],
     pricingPlans: [],
     testimonials: []
@@ -2022,6 +2026,7 @@ useEffect(() => {
 
   const catalogs = {
     clientCategories: (currentTenant as any).clientCategories || (defaultTenant as any).clientCategories,
+    leadSources: (currentTenant as any).leadSources || (defaultTenant as any).leadSources, // ✅ AGREGADO
     policyTypes: (currentTenant as any).policyTypes || (defaultTenant as any).policyTypes,
   };
 
