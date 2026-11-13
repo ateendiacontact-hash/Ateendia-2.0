@@ -69,20 +69,20 @@ export const paymentService = {
   },
 
   async processStripePayment(data: ProcessPaymentData): Promise<{ success: boolean; clientSecret?: string; paymentId?: string; error?: string }> {
-    // In a real implementation, this would call your backend to create a PaymentIntent
-    // For now, we'll simulate success
     try {
-      // Call your backend endpoint to create Stripe PaymentIntent
       const response = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/payments/stripe/create-intent`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });
 
-      const result = await response.json();
+      // REGLA 29: Type Guard
+      const rawData: unknown = await response.json();
+      const result = (rawData && typeof rawData === 'object') ? rawData as { success: boolean; clientSecret?: string; paymentId?: string; error?: string } : { success: false, error: 'Respuesta inválida' };
+      
       return result;
-    } catch (e: any) {
-      return { success: false, error: e.message };
+    } catch (e: unknown) {
+      return { success: false, error: e instanceof Error ? e.message : 'Error de conexión' };
     }
   },
 
@@ -94,10 +94,13 @@ export const paymentService = {
         body: JSON.stringify(data),
       });
 
-      const result = await response.json();
+      // REGLA 29: Type Guard
+      const rawData: unknown = await response.json();
+      const result = (rawData && typeof rawData === 'object') ? rawData as { success: boolean; orderId?: string; approvalUrl?: string; error?: string } : { success: false, error: 'Respuesta inválida' };
+
       return result;
-    } catch (e: any) {
-      return { success: false, error: e.message };
+    } catch (e: unknown) {
+      return { success: false, error: e instanceof Error ? e.message : 'Error de conexión' };
     }
   },
 
@@ -105,7 +108,6 @@ export const paymentService = {
     let receiptUrl = data.receiptUrl;
     
     if (data.receiptFile) {
-      // Upload to PocketBase files
       const formData = new FormData();
       formData.append('receipt', data.receiptFile);
       
@@ -115,7 +117,10 @@ export const paymentService = {
         body: formData,
       });
       
-      const uploadResult = await uploadResponse.json();
+      // REGLA 29: Type Guard para uploadResult
+      const rawUploadResult: unknown = await uploadResponse.json();
+      const uploadResult = (rawUploadResult && typeof rawUploadResult === 'object') ? rawUploadResult as Record<string, any> : {};
+
       if (uploadResult.url) {
         receiptUrl = `${pb.baseUrl}/api/files/${COLLECTIONS.PAYMENTS}/${uploadResult.id}/${uploadResult.filename}`;
       }
@@ -144,10 +149,7 @@ export const paymentService = {
 
     const record = await pb.collection(COLLECTIONS.PAYMENTS).create(payment);
     
-    // Notify via WhatsApp Central
     await this.notifyPaymentReceived(record as unknown as PaymentRecord);
-    
-    // Send webhook to n8n
     await this.sendWebhook('payment.received', record);
 
     return record as unknown as PaymentRecord;
@@ -156,11 +158,9 @@ export const paymentService = {
   async approvePayment(paymentId: string, validFrom: string, validUntil: string): Promise<PaymentRecord> {
     const payment = await pb.collection(COLLECTIONS.PAYMENTS).getOne(paymentId);
     
-    // If it's a new registration, create the tenant
     if (payment.type === 'new_registration' && payment.tenantId) {
       await this.activateTenant(payment.tenantId, validFrom, validUntil);
     } else if (payment.tenantId) {
-      // Update subscription for existing tenant
       await this.updateTenantSubscription(payment.tenantId, {
         status: 'active',
         renewalDate: validUntil,
@@ -176,9 +176,8 @@ export const paymentService = {
       validUntil,
     });
 
-    // Notify tenant via WhatsApp and Email
-    await this.notifyTenantApproved(payment, validFrom, validUntil);
-    await this.sendApprovalEmail(payment, validFrom, validUntil);
+    await this.notifyTenantApproved(payment as unknown as PaymentRecord, validFrom, validUntil);
+    await this.sendApprovalEmail(payment as unknown as PaymentRecord, validFrom, validUntil);
 
     return updated as unknown as PaymentRecord;
   },
@@ -193,14 +192,12 @@ export const paymentService = {
       rejectionReason: reason,
     });
 
-    // Notify tenant
-    await this.notifyTenantRejected(payment, reason);
+    await this.notifyTenantRejected(payment as unknown as PaymentRecord, reason);
 
     return updated as unknown as PaymentRecord;
   },
 
   async activateTenant(tenantId: string, validFrom: string, validUntil: string): Promise<TenantBranding> {
-    // Update tenant status
     const tenant = await pb.collection(COLLECTIONS.TENANTS).update(tenantId, {
       status: 'active',
       subscription: {
@@ -211,13 +208,11 @@ export const paymentService = {
       },
     });
 
-    // Create admin user if not exists
     const existingUsers = await pb.collection(COLLECTIONS.USERS).getList(1, 1, {
       filter: `tenantId = "${tenantId}" && role = "admin"`,
     });
 
     if (existingUsers.items.length === 0) {
-      // Create admin user
       const tempPassword = this.generateTempPassword();
       await pb.collection(COLLECTIONS.USERS).create({
         tenantId,
@@ -230,7 +225,6 @@ export const paymentService = {
         twoFactorEnabled: false,
       });
 
-      // Send welcome email with credentials
       await this.sendWelcomeEmail(tenant, tempPassword);
     }
 
@@ -289,8 +283,8 @@ export const paymentService = {
             text: `💰 *Nuevo Pago Recibido*\n\nEmpresa: ${payment.tenantName || payment.tenantId}\nPlan: ${payment.planName}\nMonto: $${payment.amount} ${payment.currency}\nMétodo: ${payment.paymentMethod}\nRef: ${payment.referenceNumber}\n\nRevisar en Central SaaS > Pagos`,
           }),
         });
-      } catch (e) {
-        console.error('WhatsApp notification failed:', e);
+      } catch (e: unknown) {
+        console.error('WhatsApp notification failed:', e instanceof Error ? e.message : e);
       }
     }
   },
@@ -307,8 +301,8 @@ export const paymentService = {
           text: `✅ *¡Pago Aprobado y Cuenta Activada!*\n\nBienvenido a Ateendia CRM, ${payment.adminName}.\n\nTu plan ${payment.planName} está activo desde el ${validFrom} hasta el ${validUntil}.\n\n🔗 Accede aquí: ${import.meta.env.VITE_APP_URL || 'https://ateendia.cloud'}/${payment.tenantId}\n\nUsuario: ${payment.adminEmail}\n\n¡Gracias por confiar en nosotros!`,
         }),
       });
-    } catch (e) {
-      console.error('WhatsApp approval notification failed:', e);
+    } catch (e: unknown) {
+      console.error('WhatsApp approval notification failed:', e instanceof Error ? e.message : e);
     }
   },
 
@@ -324,13 +318,12 @@ export const paymentService = {
           text: `❌ *Pago Rechazado*\n\nHola ${payment.adminName},\n\nTu pago para el plan ${payment.planName} no pudo ser verificado.\n\nMotivo: ${reason}\n\nPor favor, verifica el comprobante e intenta nuevamente o contacta a soporte.`,
         }),
       });
-    } catch (e) {
-      console.error('WhatsApp rejection notification failed:', e);
+    } catch (e: unknown) {
+      console.error('WhatsApp rejection notification failed:', e instanceof Error ? e.message : e);
     }
   },
 
   async sendApprovalEmail(payment: PaymentRecord, validFrom: string, validUntil: string) {
-    // Implement email sending via SMTP service
     await fetch(`${import.meta.env.VITE_API_URL || '/api'}/email/send`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -377,8 +370,8 @@ export const paymentService = {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ event, payload, timestamp: new Date().toISOString() }),
       });
-    } catch (e) {
-      console.error('Webhook failed:', e);
+    } catch (e: unknown) {
+      console.error('Webhook failed:', e instanceof Error ? e.message : e);
     }
   },
 };

@@ -26,6 +26,9 @@ export interface EmailLogEntry {
   tenantId?: string;
 }
 
+// Extendemos los tipos para asegurar que PocketBase devuelve un ID
+type PbRecord<T> = T & { id: string };
+
 const PB_TENANT_SMTP = 'tenant_smtp';
 const PB_SAAS_SMTP = 'saas_smtp';
 
@@ -42,7 +45,7 @@ export const smtpService = {
       if (records.length === 0) {
         return { success: true, data: undefined };
       }
-      return { success: true, data: records[0] as unknown as SmtpConfig };
+      return { success: true, data: records[0] as unknown as PbRecord<SmtpConfig> };
     } catch (e: unknown) {
       return { success: false, error: e instanceof Error ? e.message : 'Error desconocido' };
     }
@@ -56,7 +59,9 @@ export const smtpService = {
       }
       const existing = await this.getConfig();
       if (existing.success && existing.data) {
-        const updated = await pb.collection(PB_TENANT_SMTP).update(existing.data.id, config);
+        // Casteamos a PbRecord para que acepte .id
+        const existingWithId = existing.data as PbRecord<SmtpConfig>;
+        const updated = await pb.collection(PB_TENANT_SMTP).update(existingWithId.id, config);
         return { success: true, data: updated as unknown as SmtpConfig };
       }
       const created = await pb.collection(PB_TENANT_SMTP).create({
@@ -148,7 +153,7 @@ export const smtpService = {
       if (records.length === 0) {
         return { success: true, data: undefined };
       }
-      return { success: true, data: records[0] as unknown as SaasSmtpConfig };
+      return { success: true, data: records[0] as unknown as PbRecord<SaasSmtpConfig> };
     } catch (e: unknown) {
       return { success: false, error: e instanceof Error ? e.message : 'Error desconocido' };
     }
@@ -158,7 +163,9 @@ export const smtpService = {
     try {
       const existing = await this.getSaasConfig();
       if (existing.success && existing.data) {
-        const updated = await pb.collection(PB_SAAS_SMTP).update(existing.data.id, config);
+        // Casteamos a PbRecord para que acepte .id
+        const existingWithId = existing.data as PbRecord<SaasSmtpConfig>;
+        const updated = await pb.collection(PB_SAAS_SMTP).update(existingWithId.id, config);
         return { success: true, data: updated as unknown as SaasSmtpConfig };
       }
       const created = await pb.collection(PB_SAAS_SMTP).create(config);
@@ -205,7 +212,7 @@ export const smtpService = {
   async getSaasTemplates(): Promise<{ success: boolean; data?: SaasNotificationTemplates; error?: string }> {
     try {
       const records = await pb.collection('saas_notif_templates').getFullList();
-      return { success: true, data: records[0] as unknown as SaasNotificationTemplates };
+      return { success: true, data: records[0] as unknown as PbRecord<SaasNotificationTemplates> };
     } catch (e: unknown) {
       return { success: false, error: e instanceof Error ? e.message : 'Error desconocido' };
     }
@@ -215,7 +222,9 @@ export const smtpService = {
     try {
       const existing = await this.getSaasTemplates();
       if (existing.success && existing.data) {
-        const updated = await pb.collection('saas_notif_templates').update(existing.data.id, templates);
+        // Casteamos a PbRecord para que acepte .id
+        const existingWithId = existing.data as PbRecord<SaasNotificationTemplates>;
+        const updated = await pb.collection('saas_notif_templates').update(existingWithId.id, templates);
         return { success: true, data: updated as unknown as SaasNotificationTemplates };
       }
       const created = await pb.collection('saas_notif_templates').create(templates);
