@@ -78,20 +78,29 @@ class ApiClient {
 
     try {
       const response = await fetch(url, options);
-      const result = await response.json();
-
+      
+      // REGLA 29: Type Guard para response.json() (unknown)
+      const result: unknown = await response.json();
+      
       if (!response.ok) {
+        // Validamos que result sea un objeto y tenga la propiedad message
+        const errorMessage = (result && typeof result === 'object' && 'message' in result) 
+          ? String(result.message) 
+          : `HTTP ${response.status}`;
+          
         return {
           success: false,
-          error: result.message || `HTTP ${response.status}`,
+          error: errorMessage,
         };
       }
 
-      return { success: true, data: result };
-    } catch (error: any) {
+      // REGLA 29: Casteo seguro tras validar que la respuesta es ok
+      return { success: true, data: result as T };
+    } catch (error: unknown) {
+      // Mejora: tipamos el catch como unknown para evitar 'any'
       return {
         success: false,
-        error: error.message || 'Network error',
+        error: error instanceof Error ? error.message : 'Network error',
       };
     }
   }
@@ -150,8 +159,8 @@ class ApiClient {
               resolve({ success: true, data: null as any });
               break;
           }
-        } catch (error: any) {
-          resolve({ success: false, error: error.message });
+        } catch (error: unknown) {
+          resolve({ success: false, error: error instanceof Error ? error.message : 'Error desconocido' });
         }
       }, 100);
     });
