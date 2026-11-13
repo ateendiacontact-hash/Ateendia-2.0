@@ -418,7 +418,7 @@ const fileInputRef = useRef<HTMLInputElement>(null);
     } else if (tpl && activeConv) {
       const interpolated = tpl.body
         .replace(/\{\{nombre\}\}/gi, activeConv.contactName || activeConv.clientName || 'Cliente')
-        .replace(/\{\{agente\}\}/gi, currentUser.name)
+        .replace(/\{\{agente\}\}/gi, currentUser?.name)
         .replace(/\{\{telefono\}\}/gi, activeConv.contactPhone || activeConv.clientPhone || '');
       setInboxInput(interpolated);
     }
@@ -875,7 +875,7 @@ const fileInputRef = useRef<HTMLInputElement>(null);
                     msg.direction === 'outbound' ||
                     msg.sender === 'agent' ||
                     msg.sender === 'system' ||
-                    msg.sender === currentUser.name;
+                    msg.sender === currentUser?.name;
 
                   return (
                     <div
@@ -940,7 +940,7 @@ const fileInputRef = useRef<HTMLInputElement>(null);
                           {isOutbound && (
                             <div className="flex items-center gap-1.5 text-[10px] font-bold opacity-90 border-b border-white/20 pb-1 mb-1">
                               <User className="w-3 h-3" />
-                              <span>{msg.senderName || msg.sender || currentUser.name}</span>
+                              <span>{msg.senderName || msg.sender || currentUser?.name}</span>
                               <span className="px-1.5 py-0.2 bg-black/20 rounded text-[9px]">
                                 {activeConv.account || 'WA1'}
                               </span>
@@ -967,7 +967,7 @@ const fileInputRef = useRef<HTMLInputElement>(null);
                                     'image',
                                     msg.mediaUrl!,
                                     msg.mediaName || 'Imagen WhatsApp',
-                                    isOutbound ? msg.senderName || currentUser.name : activeConv.contactName,
+                                    isOutbound ? msg.senderName || currentUser?.name : activeConv.contactName,
                                     msg.timestamp,
                                     msg.mediaSize
                                   )
@@ -980,7 +980,7 @@ const fileInputRef = useRef<HTMLInputElement>(null);
                                       'image',
                                       msg.mediaUrl!,
                                       msg.mediaName || 'Imagen WhatsApp',
-                                      isOutbound ? msg.senderName || currentUser.name : activeConv.contactName,
+                                      isOutbound ? msg.senderName || currentUser?.name : activeConv.contactName,
                                       msg.timestamp,
                                       msg.mediaSize
                                     )
@@ -1002,7 +1002,7 @@ const fileInputRef = useRef<HTMLInputElement>(null);
                                   msg.mediaType === 'gif' ? 'gif' : 'sticker',
                                   msg.mediaUrl!,
                                   msg.mediaName || 'Sticker / GIF',
-                                  isOutbound ? msg.senderName || currentUser.name : activeConv.contactName,
+                                  isOutbound ? msg.senderName || currentUser?.name : activeConv.contactName,
                                   msg.timestamp
                                 )
                               }
@@ -1059,7 +1059,7 @@ const fileInputRef = useRef<HTMLInputElement>(null);
                                   'video',
                                   msg.mediaUrl!,
                                   msg.mediaName || 'Video WhatsApp',
-                                  isOutbound ? msg.senderName || currentUser.name : activeConv.contactName,
+                                  isOutbound ? msg.senderName || currentUser?.name : activeConv.contactName,
                                   msg.timestamp,
                                   msg.mediaSize
                                 )
@@ -1083,7 +1083,7 @@ const fileInputRef = useRef<HTMLInputElement>(null);
                                   'document',
                                   msg.mediaUrl || 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
                                   msg.mediaName || 'Documento adjunto',
-                                  isOutbound ? msg.senderName || currentUser.name : activeConv.contactName,
+                                  isOutbound ? msg.senderName || currentUser?.name : activeConv.contactName,
                                   msg.timestamp,
                                   msg.mediaSize
                                 )
