@@ -28,7 +28,7 @@ export interface EvolutionInstance {
   state?: string;
   status?: string;
   ownerJid?: string;
-  profile?: any;
+  profile?: unknown; // Mejora: evitar any
 }
 
 export interface EvolutionQRResponse {
@@ -44,7 +44,7 @@ export interface EvolutionSendResponse {
     remoteJid: string;
     fromMe: boolean;
   };
-  message?: any;
+  message?: unknown; // Mejora: evitar any
   messageTimestamp?: number;
   status?: string;
 }
@@ -86,16 +86,17 @@ export async function deleteInstance(instanceName: string): Promise<boolean> {
       headers: { 'apikey': EVOLUTION_API_KEY },
     });
     return response.ok || response.status === 404;
-  } catch {
+  } catch (error: unknown) {
+    console.error('Error deleting instance:', error instanceof Error ? error.message : String(error));
     return false;
   }
 }
 
-export async function createInstance(instanceName: string): Promise<{ status: 'created' | 'exists' | 'connected' | 'error'; data?: any; needsDirectConnect?: boolean }> {
+export async function createInstance(instanceName: string): Promise<{ status: 'created' | 'exists' | 'connected' | 'error'; data?: unknown; needsDirectConnect?: boolean }> {
   try {
     await deleteInstance(instanceName);
 
-        const checkResponse = await fetch(`${EVOLUTION_API_URL}/instance/fetchInstances`, {
+    const checkResponse = await fetch(`${EVOLUTION_API_URL}/instance/fetchInstances`, {
       headers: { 'apikey': EVOLUTION_API_KEY },
     });
     
@@ -128,7 +129,7 @@ export async function createInstance(instanceName: string): Promise<{ status: 'c
       }),
     });
 
-    const data = await response.json().catch(() => ({}));
+    const data: unknown = await response.json().catch(() => ({}));
 
     if (response.status === 403 || response.status === 400) {
       return { status: 'exists', data, needsDirectConnect: true };
@@ -140,8 +141,8 @@ export async function createInstance(instanceName: string): Promise<{ status: 'c
     }
 
     return { status: 'created', data };
-  } catch (error) {
-    console.error('Exception creating instance:', error);
+  } catch (error: unknown) {
+    console.error('Exception creating instance:', error instanceof Error ? error.message : String(error));
     return { status: 'error', data: null };
   }
 }
@@ -151,9 +152,23 @@ export async function fetchQR(instanceName: string): Promise<EvolutionQRResponse
     const response = await fetch(`${EVOLUTION_API_URL}/instance/connect/${instanceName}`, {
       headers: { 'apikey': EVOLUTION_API_KEY },
     });
-    return await response.json().catch(() => null);
-  } catch (error) {
-    console.error('Error fetching QR:', error);
+
+    // REGLA 29: Type Guard para response.json() (unknown)
+    const rawData: unknown = await response.json().catch(() => null);
+    if (!rawData || typeof rawData !== 'object') {
+      return null;
+    }
+    
+    const data = rawData as Record<string, unknown>;
+    
+    return {
+      base64: typeof data.base64 === 'string' ? data.base64 : undefined,
+      code: typeof data.code === 'string' ? data.code : undefined,
+      status: typeof data.status === 'string' ? data.status : undefined,
+      pairingCode: typeof data.pairingCode === 'string' ? data.pairingCode : undefined,
+    };
+  } catch (error: unknown) {
+    console.error('Error fetching QR:', error instanceof Error ? error.message : String(error));
     return null;
   }
 }
@@ -164,7 +179,7 @@ export async function checkConnectionState(instanceName: string): Promise<{ conn
       const stateResponse = await fetch(`${EVOLUTION_API_URL}/instance/connectionState/${instanceName}`, {
         headers: { 'apikey': EVOLUTION_API_KEY },
       });
-            if (stateResponse.ok) {
+      if (stateResponse.ok) {
         const rawState: unknown = await stateResponse.json().catch(() => ({}));
         const stateData = (rawState && typeof rawState === 'object') ? rawState as EvolutionInstance : {} as EvolutionInstance;
         const status = stateData?.state || stateData?.status || stateData?.connectionStatus;
@@ -181,7 +196,7 @@ export async function checkConnectionState(instanceName: string): Promise<{ conn
       headers: { 'apikey': EVOLUTION_API_KEY },
     });
 
-        const rawData: unknown = await response.json().catch(() => null);
+    const rawData: unknown = await response.json().catch(() => null);
     if (!rawData) return { connected: false, status: 'error' };
 
     let instances: EvolutionInstance[] = [];
@@ -206,8 +221,8 @@ export async function checkConnectionState(instanceName: string): Promise<{ conn
     }
 
     return { connected: false, status: 'not_found' };
-  } catch (error) {
-    console.error('Error checking connection:', error);
+  } catch (error: unknown) {
+    console.error('Error checking connection:', error instanceof Error ? error.message : String(error));
     return { connected: false, status: 'error' };
   }
 }
@@ -223,9 +238,19 @@ export async function sendTextMessage(instanceName: string, number: string, text
       }),
     });
 
-    return await response.json().catch(() => null);
-  } catch (error) {
-    console.error('Error sending message:', error);
+    const rawData: unknown = await response.json().catch(() => null);
+    if (!rawData || typeof rawData !== 'object') return null;
+
+    const data = rawData as Record<string, unknown>;
+
+    return {
+      key: data.key as EvolutionSendResponse['key'],
+      message: data.message,
+      messageTimestamp: typeof data.messageTimestamp === 'number' ? data.messageTimestamp : undefined,
+      status: typeof data.status === 'string' ? data.status : undefined,
+    };
+  } catch (error: unknown) {
+    console.error('Error sending message:', error instanceof Error ? error.message : String(error));
     return null;
   }
 }
@@ -251,9 +276,19 @@ export async function sendMediaMessage(
       }),
     });
 
-    return await response.json().catch(() => null);
-  } catch (error) {
-    console.error('Error sending media:', error);
+    const rawData: unknown = await response.json().catch(() => null);
+    if (!rawData || typeof rawData !== 'object') return null;
+
+    const data = rawData as Record<string, unknown>;
+
+    return {
+      key: data.key as EvolutionSendResponse['key'],
+      message: data.message,
+      messageTimestamp: typeof data.messageTimestamp === 'number' ? data.messageTimestamp : undefined,
+      status: typeof data.status === 'string' ? data.status : undefined,
+    };
+  } catch (error: unknown) {
+    console.error('Error sending media:', error instanceof Error ? error.message : String(error));
     return null;
   }
 }

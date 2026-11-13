@@ -43,8 +43,8 @@ export const smtpService = {
         return { success: true, data: undefined };
       }
       return { success: true, data: records[0] as unknown as SmtpConfig };
-    } catch (e: any) {
-      return { success: false, error: e.message };
+    } catch (e: unknown) {
+      return { success: false, error: e instanceof Error ? e.message : 'Error desconocido' };
     }
   },
 
@@ -64,8 +64,8 @@ export const smtpService = {
         tenantId,
       });
       return { success: true, data: created as unknown as SmtpConfig };
-    } catch (e: any) {
-      return { success: false, error: e.message };
+    } catch (e: unknown) {
+      return { success: false, error: e instanceof Error ? e.message : 'Error desconocido' };
     }
   },
 
@@ -80,7 +80,7 @@ export const smtpService = {
         body: JSON.stringify(data),
       });
 
-            if (response.ok) {
+      if (response.ok) {
         const rawData: unknown = await response.json();
         const result = (rawData && typeof rawData === 'object') ? rawData as Record<string, unknown> : {};
         return { success: true, message: (result.message as string) || 'Conexión SMTP exitosa' };
@@ -89,8 +89,9 @@ export const smtpService = {
         const errorData = (rawData && typeof rawData === 'object') ? rawData as Record<string, unknown> : {};
         return { success: false, message: (errorData.message as string) || (errorData.error as string) || 'Error al probar conexión SMTP' };
       }
-    } catch (e: any) {
-      return { success: false, message: `Error de conexión: ${e.message}` };
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Error de conexión';
+      return { success: false, message: `Error de conexión: ${msg}` };
     }
   },
 
@@ -112,7 +113,7 @@ export const smtpService = {
         }),
       });
 
-            if (response.ok) {
+      if (response.ok) {
         const rawData: unknown = await response.json();
         const result = (rawData && typeof rawData === 'object') ? rawData as Record<string, unknown> : {};
         return { success: true, messageId: (result.messageId as string) || (result.id as string) };
@@ -122,9 +123,9 @@ export const smtpService = {
       const errorData = (rawErrorData && typeof rawErrorData === 'object') ? rawErrorData as Record<string, unknown> : {};
       const errorMsg = (errorData.message as string) || (errorData.error as string) || 'Error al enviar el correo electrónico';
       return { success: false, error: errorMsg };
-    } catch (e: any) {
-      console.error('Failed to send email:', e);
-      return { success: false, error: `Error de conexión: ${e.message}` };
+    } catch (e: unknown) {
+      console.error('Failed to send email:', e instanceof Error ? e.message : e);
+      return { success: false, error: `Error de conexión: ${e instanceof Error ? e.message : 'Desconocido'}` };
     }
   },
 
@@ -148,8 +149,8 @@ export const smtpService = {
         return { success: true, data: undefined };
       }
       return { success: true, data: records[0] as unknown as SaasSmtpConfig };
-    } catch (e: any) {
-      return { success: false, error: e.message };
+    } catch (e: unknown) {
+      return { success: false, error: e instanceof Error ? e.message : 'Error desconocido' };
     }
   },
 
@@ -162,8 +163,8 @@ export const smtpService = {
       }
       const created = await pb.collection(PB_SAAS_SMTP).create(config);
       return { success: true, data: created as unknown as SaasSmtpConfig };
-    } catch (e: any) {
-      return { success: false, error: e.message };
+    } catch (e: unknown) {
+      return { success: false, error: e instanceof Error ? e.message : 'Error desconocido' };
     }
   },
 
@@ -187,7 +188,7 @@ export const smtpService = {
         }),
       });
 
-            if (response.ok) {
+      if (response.ok) {
         const rawData: unknown = await response.json();
         const result = (rawData && typeof rawData === 'object') ? rawData as Record<string, unknown> : {};
         return { success: true, message: (result.message as string) || 'Conexión SMTP Central exitosa' };
@@ -196,8 +197,8 @@ export const smtpService = {
       const rawErrorData: unknown = await response.json();
       const errorData = (rawErrorData && typeof rawErrorData === 'object') ? rawErrorData as Record<string, unknown> : {};
       return { success: false, message: (errorData.message as string) || (errorData.error as string) || 'Error al probar conexión SMTP Central' };
-    } catch (e: any) {
-      return { success: false, message: `Error de conexión: ${e.message || 'Error de conexión SMTP Central'}` };
+    } catch (e: unknown) {
+      return { success: false, message: `Error de conexión: ${e instanceof Error ? e.message : 'Error de conexión SMTP Central'}` };
     }
   },
 
@@ -205,8 +206,8 @@ export const smtpService = {
     try {
       const records = await pb.collection('saas_notif_templates').getFullList();
       return { success: true, data: records[0] as unknown as SaasNotificationTemplates };
-    } catch (e: any) {
-      return { success: false, error: e.message };
+    } catch (e: unknown) {
+      return { success: false, error: e instanceof Error ? e.message : 'Error desconocido' };
     }
   },
 
@@ -219,8 +220,8 @@ export const smtpService = {
       }
       const created = await pb.collection('saas_notif_templates').create(templates);
       return { success: true, data: created as unknown as SaasNotificationTemplates };
-    } catch (e: any) {
-      return { success: false, error: e.message };
+    } catch (e: unknown) {
+      return { success: false, error: e instanceof Error ? e.message : 'Error desconocido' };
     }
   },
 
