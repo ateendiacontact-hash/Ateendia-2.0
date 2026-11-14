@@ -92,9 +92,9 @@ export const SuspendedCompanyLockScreen: React.FC = () => {
       await submitRenewalPaymentReceipt({
         tenantId: currentTenant.id,
         tenantName: currentTenant.name,
-        adminEmail: currentUser.email,
-        adminName: currentUser.name,
-        adminPhone: currentUser.phone,
+        adminEmail: currentUser?.email || '',
+        adminName: currentUser?.name || '',
+        adminPhone: currentUser?.phone || '',
         planId: matchingPlan.id,
         planName: matchingPlan.name,
         amount: renewalAmount,
@@ -303,7 +303,7 @@ export const SuspendedCompanyLockScreen: React.FC = () => {
           )}
 
           {/* Bottom Switch Tenant (if Admin / SuperAdmin) */}
-          {(currentUser.role === 'admin' || currentUser.isSuperAdmin) && (
+          {(currentUser?.role === 'admin' || currentUser?.isSuperAdmin) && (
             <div className="pt-4 border-t border-slate-800 flex items-center justify-between text-xs">
               <span className="text-slate-400">Modo SuperAdmin:</span>
               <select

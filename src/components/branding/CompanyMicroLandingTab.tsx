@@ -125,13 +125,11 @@ export const CompanyMicroLandingTab: React.FC = () => {
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
-  // Filter pipelines for current tenant
   const tenantPipelines = useMemo(() => {
     const list = pipelines.filter((p) => p.tenantId === currentTenant.id);
     return list.length > 0 ? list : pipelines;
   }, [pipelines, currentTenant.id]);
 
-  // Selected pipeline object
   const selectedPipeline = useMemo(() => {
     return (
       tenantPipelines.find((p) => p.id === landingConfig.leadCapturePipelineId) ||
@@ -139,7 +137,6 @@ export const CompanyMicroLandingTab: React.FC = () => {
     );
   }, [tenantPipelines, landingConfig.leadCapturePipelineId]);
 
-  // Tenant team members
   const tenantUsers = useMemo(() => {
     return users.filter((u) => u.tenantId === currentTenant.id);
   }, [users, currentTenant.id]);
@@ -200,7 +197,8 @@ export const CompanyMicroLandingTab: React.FC = () => {
 
   const handleSaveLandingConfig = (e: React.FormEvent) => {
     e.preventDefault();
-    updateTenantLandingConfig(currentTenant.id, landingConfig);
+    // Usamos Optional Chaining para evitar error si updateTenantLandingConfig es undefined
+    updateTenantLandingConfig?.(currentTenant.id, landingConfig);
     setSaveSuccess(true);
     setTimeout(() => setSaveSuccess(false), 4000);
   };
@@ -344,7 +342,6 @@ export const CompanyMicroLandingTab: React.FC = () => {
             </span>
           </div>
 
-          {/* Color Presets */}
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-2">
               Paletas Recomendadas de 1 Clic:
@@ -388,7 +385,6 @@ export const CompanyMicroLandingTab: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-            {/* Primary Color */}
             <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
               <label className="block text-xs font-bold text-slate-800 mb-1">
                 Color Primario de la Landing (Hero, Botones Principales)
@@ -413,7 +409,6 @@ export const CompanyMicroLandingTab: React.FC = () => {
               </div>
             </div>
 
-            {/* Secondary / Accent Color */}
             <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200">
               <label className="block text-xs font-bold text-slate-800 mb-1">
                 Color Secundario / Acentos (Badges, WhatsApp, Destacados)
@@ -464,7 +459,6 @@ export const CompanyMicroLandingTab: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {/* Pipeline Target */}
             <div>
               <label className="block text-xs font-bold text-slate-800 mb-1">
                 1. Pipeline de Destino
@@ -490,7 +484,6 @@ export const CompanyMicroLandingTab: React.FC = () => {
               </select>
             </div>
 
-            {/* Stage Target */}
             <div>
               <label className="block text-xs font-bold text-slate-800 mb-1">
                 2. Etapa Inicial
@@ -517,7 +510,6 @@ export const CompanyMicroLandingTab: React.FC = () => {
               </select>
             </div>
 
-            {/* Default Assigned Agent */}
             <div>
               <label className="block text-xs font-bold text-slate-800 mb-1">
                 3. Asesor Asignado por Defecto
@@ -540,7 +532,6 @@ export const CompanyMicroLandingTab: React.FC = () => {
               </select>
             </div>
 
-            {/* Default Lead Source Tag */}
             <div>
               <label className="block text-xs font-bold text-slate-800 mb-1">
                 4. Origen del Prospecto
@@ -561,7 +552,7 @@ export const CompanyMicroLandingTab: React.FC = () => {
           </div>
         </div>
 
-        {/* Row 3: Services / Coverages Offered (Independent Config) */}
+        {/* Row 3: Services / Coverages Offered */}
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
           <div className="flex items-center justify-between pb-3 border-b border-slate-100">
             <div className="flex items-center gap-2">
@@ -579,7 +570,6 @@ export const CompanyMicroLandingTab: React.FC = () => {
             Agrega o elimina los productos y tipos de seguros que tu agencia comercializa. Cada empresa puede tener su propia oferta personalizada.
           </p>
 
-          {/* Quick Presets */}
           <div className="space-y-1.5">
             <span className="text-[11px] font-bold text-slate-600 block">
               Agregar Coberturas Rápidas del Catálogo:
@@ -613,7 +603,6 @@ export const CompanyMicroLandingTab: React.FC = () => {
             </div>
           </div>
 
-          {/* Current Services List */}
           <div className="space-y-2 pt-2">
             <div className="flex items-center gap-2">
               <input
@@ -666,7 +655,7 @@ export const CompanyMicroLandingTab: React.FC = () => {
           </div>
         </div>
 
-        {/* Row 4: Carriers / Insurance Companies */}
+        {/* Row 4: Carriers */}
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
           <div className="flex items-center justify-between pb-3 border-b border-slate-100">
             <div className="flex items-center gap-2">
@@ -680,7 +669,6 @@ export const CompanyMicroLandingTab: React.FC = () => {
             </span>
           </div>
 
-          {/* Carrier Quick Presets */}
           <div className="space-y-1.5">
             <span className="text-[11px] font-bold text-slate-600 block">
               Agregar Aseguradoras Principales:
@@ -763,7 +751,7 @@ export const CompanyMicroLandingTab: React.FC = () => {
           </div>
         </div>
 
-        {/* Row 5: Commercial Copywriting & Texts */}
+        {/* Row 5: Commercial Copywriting */}
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
           <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
             <Sparkles className="w-4 h-4 text-purple-600" />
@@ -837,7 +825,7 @@ export const CompanyMicroLandingTab: React.FC = () => {
           </div>
         </div>
 
-        {/* Row 6: Direct Contact Numbers & WhatsApp */}
+        {/* Row 6: Contact Numbers & WhatsApp */}
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
           <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
             <Phone className="w-4 h-4 text-purple-600" />
@@ -966,7 +954,6 @@ export const CompanyMicroLandingTab: React.FC = () => {
         </div>
       </form>
 
-      {/* Live Preview Modal */}
       {isPreviewOpen && (
         <SaasLandingPreviewModal
           isOpen={isPreviewOpen}

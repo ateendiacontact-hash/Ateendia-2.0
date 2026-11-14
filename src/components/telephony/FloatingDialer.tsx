@@ -1,18 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
-  PhoneCall,
-  PhoneOff,
-  Mic,
-  MicOff,
-  Pause,
-  Play,
-  X,
-  Minimize2,
-  Maximize2,
-  Delete,
-  FileText,
-  User,
-  Shield
+  PhoneCall, PhoneOff, Mic, MicOff, Pause, Play, X, Minimize2, Maximize2,
+  Delete, FileText, User, Shield
 } from 'lucide-react';
 import { useTenant } from '../../context/TenantContext';
 
@@ -73,7 +62,8 @@ export const FloatingDialer: React.FC = () => {
                 activeCall?.active ? 'bg-emerald-400 animate-ping' : 'bg-slate-400'
               }`}
             ></div>
-            <span className="font-bold text-xs">Issabel Softphone (Ext. {currentUser.extension})</span>
+            {/* SOLUCIÓN: Optional chaining en currentUser */}
+            <span className="font-bold text-xs">Issabel Softphone (Ext. {currentUser?.extension || 'N/A'})</span>
           </div>
 
           <div className="flex items-center gap-1">
@@ -104,7 +94,6 @@ export const FloatingDialer: React.FC = () => {
               </div>
             </div>
 
-            {/* Controls: Mute, Hold, Transfer */}
             <div className="flex items-center justify-center gap-3 pt-2">
               <button
                 onClick={() => setIsMuted(!isMuted)}
@@ -126,7 +115,6 @@ export const FloatingDialer: React.FC = () => {
                 {isOnHold ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
               </button>
 
-              {/* Hangup Button */}
               <button
                 onClick={handleHangup}
                 className="p-3.5 rounded-full bg-rose-600 hover:bg-rose-700 text-white shadow-lg transition-transform hover:scale-105 active:scale-95"
@@ -136,7 +124,6 @@ export const FloatingDialer: React.FC = () => {
               </button>
             </div>
 
-            {/* Disposition Notes Input */}
             <div className="pt-2">
               <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">
                 Tipificación / Resumen de llamada
@@ -151,10 +138,8 @@ export const FloatingDialer: React.FC = () => {
             </div>
           </div>
         ) : (
-          /* DIALER KEYPAD VIEW */
           !isMinimized && (
             <div className="p-4 space-y-4">
-              {/* Number Display */}
               <div className="flex items-center justify-between bg-slate-800 p-2.5 rounded-xl border border-slate-700">
                 <input
                   type="text"
@@ -170,7 +155,6 @@ export const FloatingDialer: React.FC = () => {
                 )}
               </div>
 
-              {/* Dialpad Matrix (0-9, *, #) */}
               <div className="grid grid-cols-3 gap-2">
                 {['1', '2', '3', '4', '5', '6', '7', '8', '9', '*', '0', '#'].map((digit) => (
                   <button
@@ -183,7 +167,6 @@ export const FloatingDialer: React.FC = () => {
                 ))}
               </div>
 
-              {/* Call Trigger Button */}
               <button
                 onClick={handleCall}
                 disabled={!dialPadNumber}

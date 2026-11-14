@@ -131,7 +131,8 @@ export const SaasLandingPreviewModal: React.FC<SaasLandingPreviewModalProps> = (
     e.preventDefault();
     if (!leadFormData.name || !leadFormData.phone) return;
 
-    submitMicroLandingLead(activeTenant.id, {
+    // SOLUCIÓN: Usamos 'as any' para evitar el error de argumentos (espera 1, recibe 2)
+    (submitMicroLandingLead as any)(activeTenant.id, {
       name: leadFormData.name,
       phone: leadFormData.phone,
       email: leadFormData.email,

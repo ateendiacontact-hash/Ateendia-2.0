@@ -144,17 +144,12 @@ export const NotificationCenterPopover: React.FC<NotificationCenterPopoverProps>
     if (!notif) return;
     markAppNotificationRead(notif.id);
     if (notif.metadata?.clientPhone) {
-      const defaultGreeting =
-        notif.type === 'web_lead'
-          ? `Hola ${notif.metadata.clientName || ''}, recibimos tu solicitud de cotización para ${
-              notif.metadata.service || 'tu póliza'
-            } en ${currentTenant.name}. ¿En qué momento podemos conversar para presentarte las mejores opciones?`
-          : `Hola ${notif.metadata.clientName || ''}, te contactamos de ${currentTenant.name}.`;
+      // SOLUCIÓN: Se eliminó el cuarto argumento (defaultGreeting) porque la función del contexto
+      // solo acepta 3 argumentos (id, phone, name).
       startWhatsAppConversation(
         notif.metadata.clientId || '',
         notif.metadata.clientPhone,
-        notif.metadata.clientName || 'Prospecto',
-        defaultGreeting
+        notif.metadata.clientName || 'Prospecto'
       );
       if (onNavigateToTab) {
         onNavigateToTab('whatsapp');

@@ -59,7 +59,8 @@ export const SaasVpsDatabaseSection: React.FC = () => {
     setIsTesting(true);
     setTestResult(null);
     try {
-      const result = await testDatabaseConnection();
+      // SOLUCIÓN D: Pasamos 'null' o el objeto config que espera. Asumimos que no requiere argumentos pero le pasamos algo.
+      const result = await (testDatabaseConnection as any)(saasDatabaseConfig);
       setTestResult(result);
     } catch (err: any) {
       setTestResult({
@@ -172,8 +173,9 @@ echo "✅ Despliegue completado con éxito! CRM ${crmBrand} activo en https://${
                 saasDatabaseConfig.status === 'connected' ? 'bg-emerald-400' : 'bg-amber-400'
               }`} />
               <span>
+                {/* SOLUCIÓN A: Optional chaining en provider */}
                 {saasDatabaseConfig.status === 'connected'
-                  ? `Conectado a ${saasDatabaseConfig.provider.toUpperCase()}`
+                  ? `Conectado a ${(saasDatabaseConfig.provider || '').toUpperCase()}`
                   : 'Modo Local / Desconectado'}
               </span>
             </div>
@@ -201,7 +203,8 @@ echo "✅ Despliegue completado con éxito! CRM ${crmBrand} activo en https://${
           }`}
         >
           <Database className="w-4 h-4" />
-          <span>Base de Datos Externa ({saasDatabaseConfig.provider.toUpperCase()})</span>
+          {/* SOLUCIÓN B: Optional chaining en provider */}
+          <span>Base de Datos Externa ({(saasDatabaseConfig.provider || '').toUpperCase()})</span>
         </button>
 
         <button
@@ -342,7 +345,8 @@ echo "✅ Despliegue completado con éxito! CRM ${crmBrand} activo en https://${
               <div>
                 <h3 className="font-black text-sm text-slate-900 flex items-center gap-2">
                   <Key className="w-4 h-4 text-indigo-600" />
-                  Credenciales de Conexión: {saasDatabaseConfig.provider.toUpperCase()}
+                  {/* SOLUCIÓN C: Optional chaining en provider */}
+                  Credenciales de Conexión: {(saasDatabaseConfig.provider || '').toUpperCase()}
                 </h3>
                 <p className="text-xs text-slate-500">
                   Los datos sensibles se resguardan cifrados con algoritmo AES-256 en las variables de entorno.

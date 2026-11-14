@@ -49,7 +49,10 @@ export const MetaGraphService: MetaGraphService = {
         return { valid: false };
       }
 
-      const data = await response.json();
+      // REGLA 29: Type Guard
+      const rawData: unknown = await response.json();
+      const data = (rawData && typeof rawData === 'object') ? rawData as Record<string, any> : {};
+      
       return { valid: data.id !== undefined };
     } catch {
       return { valid: false };
@@ -71,7 +74,10 @@ export const MetaGraphService: MetaGraphService = {
         return { valid: false };
       }
 
-      const data = await response.json();
+      // REGLA 29: Type Guard
+      const rawData: unknown = await response.json();
+      const data = (rawData && typeof rawData === 'object') ? rawData as Record<string, any> : {};
+
       return { valid: data.id !== undefined };
     } catch {
       return { valid: false };
@@ -100,20 +106,23 @@ export const MetaGraphService: MetaGraphService = {
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
+        const rawError: unknown = await response.json().catch(() => ({}));
+        const errorData = (rawError && typeof rawError === 'object') ? rawError as Record<string, any> : {};
         const errorMsg = errorData?.error?.message || `HTTP ${response.status}`;
         console.error(`${instagramId ? 'Instagram' : 'Facebook'} Graph API error:`, errorMsg);
         return { success: false, error: errorMsg };
       }
 
-      const data = await response.json();
+      const rawData: unknown = await response.json();
+      const data = (rawData && typeof rawData === 'object') ? rawData as Record<string, any> : {};
+
       return {
         success: true,
         messageId: data.messages?.[0]?.id
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(`${instagramId ? 'Instagram' : 'Facebook'} Graph API exception:`, error);
-      return { success: false, error: error.message || 'Error de red' };
+      return { success: false, error: error instanceof Error ? error.message : 'Error de red' };
     }
   }
 };

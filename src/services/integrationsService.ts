@@ -82,10 +82,12 @@ export const integrationsService = {
       body: formData,
     });
     
-    const result = await response.json();
-    return response.ok 
-      ? { success: true, data: result }
-      : { success: false, error: result.message };
+    const result: unknown = await response.json();
+    if (response.ok) {
+      return { success: true, data: result as KnowledgeDocument };
+    }
+    const errorMsg = (result && typeof result === 'object' && 'message' in result) ? String((result as { message: unknown }).message) : 'Error al subir documento';
+    return { success: false, error: errorMsg };
   },
 
   async deleteDocument(docId: string): Promise<ApiResponse<void>> {

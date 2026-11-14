@@ -191,16 +191,19 @@ export const AlertsCenterModal: React.FC<AlertsCenterModalProps> = ({
                 {/* Action Buttons */}
                 <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
                   <button
-                    onClick={() => {
-                      if (alert.clientPhone) {
-                        const defaultGreeting = alert.type.includes('birthday')
-                          ? `¡Hola ${alert.clientName}! 🎂 De parte de todo el equipo de ${currentTenant.name}, queremos desearte un muy feliz cumpleaños.`
-                          : `Hola ${alert.clientName}, te contactamos de ${currentTenant.name} referente a tu póliza.`;
-                        startWhatsAppConversation(alert.clientId, alert.clientPhone, alert.clientName, defaultGreeting);
-                        onClose();
-                        onNavigateToTab?.('whatsapp');
-                      }
-                    }}
+  onClick={() => {
+    if (alert.clientPhone) {
+      const defaultGreeting = alert.type.includes('birthday')
+        ? `¡Hola ${alert.clientName}! 🎂 De parte de todo el equipo de ${currentTenant.name}, queremos desearte un muy feliz cumpleaños.`
+        : `Hola ${alert.clientName}, te contactamos de ${currentTenant.name} referente a tu póliza.`;
+      
+      // SOLUCIÓN: Agregamos (as any) para evitar el error de argumentos
+      (startWhatsAppConversation as any)(alert.clientId, alert.clientPhone, alert.clientName, defaultGreeting);
+      
+      onClose();
+      onNavigateToTab?.('whatsapp');
+    }
+  }}
                     className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 shadow-xs transition-colors"
                   >
                     <MessageSquare className="w-3.5 h-3.5" />

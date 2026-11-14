@@ -60,7 +60,7 @@ export const SmtpConfigModule: React.FC = () => {
       setIsLoading(true);
       setError(null);
       try {
-        const result = await smtpService.getConfig(currentTenant.id);
+        const result = await smtpService.getConfig();
         if (result.success && result.data) {
           setFormData({
             ...result.data,
@@ -132,6 +132,7 @@ export const SmtpConfigModule: React.FC = () => {
     setError(null);
 
     try {
+      // El error original estaba aquí: smtpService.testConnection espera 1 argumento (el objeto)
       const result = await smtpService.testConnection({
         toEmail: testRecipient,
         config: formData as SmtpConfig,
@@ -408,7 +409,8 @@ export const SmtpConfigModule: React.FC = () => {
         </div>
       </div>
 
-      <style jsx>{`
+      {/* Error 411 solucionado: Eliminamos jsx: true y usamos dangerouslySetInnerHTML */}
+      <style dangerouslySetInnerHTML={{ __html: `
         @keyframes slide-in {
           from {
             opacity: 0;
@@ -422,7 +424,7 @@ export const SmtpConfigModule: React.FC = () => {
         .animate-slide-in {
           animation: slide-in 0.3s ease-out;
         }
-      `}</style>
+      `}} />
     </div>
   );
 };

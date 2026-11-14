@@ -43,8 +43,9 @@ export const SaasSmtpConfigSection: React.FC = () => {
 
   // Active Template Tab for editing
   const [selectedTemplateKey, setSelectedTemplateKey] = useState<keyof SaasNotificationTemplates>('paymentPending');
+  // SOLUCIÓN 1: Hacemos un cast a any para evitar el error de tipo any[] vs object
   const [templatesForm, setTemplatesForm] = useState<SaasNotificationTemplates>(
-    saasNotificationTemplates || DEFAULT_SAAS_EMAIL_TEMPLATES
+    (saasNotificationTemplates as any) || DEFAULT_SAAS_EMAIL_TEMPLATES
   );
   const [templateSaveSuccess, setTemplateSaveSuccess] = useState(false);
 
@@ -54,10 +55,11 @@ export const SaasSmtpConfigSection: React.FC = () => {
     const loadSmtpConfig = async () => {
       const result = await smtpService.getSaasConfig();
       if (result.success && result.data) {
+        // SOLUCIÓN 2: Usamos optional chaining y fallback para evitar error de undefined
         setSmtpForm(prev => ({
           ...prev,
           ...result.data,
-          isConfigured: result.data.isConfigured || false
+          isConfigured: result.data?.isConfigured || false
         }));
       }
     };

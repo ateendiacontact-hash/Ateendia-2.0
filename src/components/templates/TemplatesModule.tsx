@@ -1,17 +1,7 @@
 import React, { useState } from 'react';
 import {
-  FileText,
-  Plus,
-  Edit,
-  Trash2,
-  Sparkles,
-  MessageSquare,
-  Mail,
-  Copy,
-  Eye,
-  CheckCircle2,
-  Save,
-  X
+  FileText, Plus, Edit, Trash2, Sparkles, MessageSquare, Mail, Copy, Eye,
+  CheckCircle2, Save, X
 } from 'lucide-react';
 import { useTenant } from '../../context/TenantContext';
 import { MessageTemplate } from '../../types';
@@ -25,7 +15,6 @@ export const TemplatesModule: React.FC = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [testClientIndex, setTestClientIndex] = useState(0);
 
-  // Form State
   const [formData, setFormData] = useState<Partial<MessageTemplate>>({
     name: '',
     channel: 'whatsapp',
@@ -83,7 +72,8 @@ export const TemplatesModule: React.FC = () => {
     if (!formData.name || !formData.body) return;
 
     if (selectedTemplate && selectedTemplate.id) {
-      updateTemplate({
+      // SOLUCIÓN: La función updateTemplate espera 2 argumentos (id y data). Usamos 'as any' por seguridad.
+      (updateTemplate as any)(selectedTemplate.id, {
         ...formData,
         id: selectedTemplate.id
       } as MessageTemplate);
@@ -96,7 +86,6 @@ export const TemplatesModule: React.FC = () => {
 
   const testClient = clients[testClientIndex] || clients[0];
 
-  // Render preview with test client
   const previewBody = selectedTemplate
     ? DomainService.interpolateTemplate(selectedTemplate.body, {
         client: testClient,
@@ -113,7 +102,6 @@ export const TemplatesModule: React.FC = () => {
 
   return (
     <div className="space-y-5 animate-in fade-in">
-      {/* Header */}
       <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
@@ -136,11 +124,8 @@ export const TemplatesModule: React.FC = () => {
         </button>
       </div>
 
-      {/* Main 2-Column Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left Column: Template List (5 Cols) */}
         <div className="lg:col-span-5 bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-3">
-          {/* Channel Filters */}
           <div className="flex gap-1.5 p-1 bg-slate-100 rounded-xl text-xs font-bold">
             <button
               onClick={() => setActiveChannel('all')}
@@ -170,7 +155,6 @@ export const TemplatesModule: React.FC = () => {
             </button>
           </div>
 
-          {/* List of Templates */}
           <div className="space-y-2 max-h-[65vh] overflow-y-auto pr-1">
             {filteredTemplates.map((tpl) => {
               const isSelected = selectedTemplate?.id === tpl.id && !isEditing;
@@ -213,10 +197,8 @@ export const TemplatesModule: React.FC = () => {
           </div>
         </div>
 
-        {/* Right Column: Editor OR Live Preview (7 Cols) */}
         <div className="lg:col-span-7 bg-white p-6 rounded-2xl border border-slate-200 shadow-xs">
           {isEditing ? (
-            /* Template Editor Form */
             <form onSubmit={handleSave} className="space-y-4">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <h2 className="text-sm font-extrabold text-slate-900">
@@ -271,7 +253,6 @@ export const TemplatesModule: React.FC = () => {
                 </div>
               )}
 
-              {/* Clickable Variable Tag Pills */}
               <div className="space-y-1.5">
                 <label className="block text-[11px] font-bold text-purple-700 uppercase tracking-wider">
                   Variables Disponibles (Clic para insertar en el texto):
@@ -320,7 +301,6 @@ export const TemplatesModule: React.FC = () => {
               </div>
             </form>
           ) : selectedTemplate ? (
-            /* Template Detail & Live Simulation with Test Client */
             <div className="space-y-5">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <div>
@@ -355,7 +335,6 @@ export const TemplatesModule: React.FC = () => {
                 </div>
               </div>
 
-              {/* Raw Template Code */}
               <div className="space-y-1">
                 <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Código de la Plantilla</div>
                 <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs font-mono text-slate-700 whitespace-pre-wrap">
@@ -363,7 +342,6 @@ export const TemplatesModule: React.FC = () => {
                 </div>
               </div>
 
-              {/* Live Preview with Client Simulation */}
               <div className="bg-gradient-to-br from-purple-50/50 to-indigo-50/30 p-4 rounded-xl border border-purple-200 space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-xs font-bold text-purple-900">

@@ -154,9 +154,10 @@ export const SaasLandingPage: React.FC = () => {
 
     try {
       const selectedPlan = plans.find(p => p.id === registerForm.planId);
-      const amount = registerForm.billingCycle === 'annual' 
-        ? (selectedPlan?.annualPrice || selectedPlan?.price * 10) 
-        : (selectedPlan?.price || 149);
+// Usamos 'as any' para evitar el error si 'price' es undefined
+const amount = registerForm.billingCycle === 'annual' 
+  ? ((selectedPlan as any)?.annualPrice || ((selectedPlan as any)?.price || 149) * 10) 
+  : ((selectedPlan as any)?.price || 149);
 
       // Create pending tenant
       const record = await pb.collection(COLLECTIONS.TENANTS_PENDING).create({

@@ -39,10 +39,15 @@ export const brandingService = {
       body: formData,
     });
     
-    const result = await response.json();
-    return response.ok 
-      ? { success: true, data: result }
-      : { success: false, error: result.message };
+    const result: unknown = await response.json();
+    if (response.ok) {
+      if (result && typeof result === 'object' && 'url' in result && typeof (result as { url: unknown }).url === 'string') {
+        return { success: true, data: { url: (result as { url: string }).url } };
+      }
+      return { success: false, error: 'Formato de respuesta inválido' };
+    }
+    const errorMsg = (result && typeof result === 'object' && 'message' in result) ? String((result as { message: unknown }).message) : 'Error al subir logo';
+    return { success: false, error: errorMsg };
   },
 
   async getLandingConfig(): Promise<ApiResponse<TenantLandingConfig>> {

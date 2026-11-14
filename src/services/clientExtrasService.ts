@@ -110,10 +110,13 @@ export const documentsService = {
       body: formData,
     });
     
-    const result = await response.json();
-    return response.ok 
-      ? { success: true, data: result }
-      : { success: false, error: result.message };
+    const result: unknown = await response.json();
+    if (response.ok) {
+      // Type guard simple: asumimos que el resultado tiene las propiedades de ClientDocument
+      return { success: true, data: result as ClientDocument };
+    }
+    const errorMsg = (result && typeof result === 'object' && 'message' in result) ? String((result as { message: unknown }).message) : 'Error al subir documento';
+    return { success: false, error: errorMsg };
   },
 
   subscribe(callback: (documents: ClientDocument[]) => void) {

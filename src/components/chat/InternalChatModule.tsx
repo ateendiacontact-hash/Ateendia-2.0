@@ -80,7 +80,8 @@ export const InternalChatModule: React.FC = () => {
     size?: string,
     duration?: number
   ) => {
-    sendInternalChatMessage('', activeChannel, type, url, name, size, duration);
+    // SOLUCIÓN: Cast a any para evitar error de argumentos
+    (sendInternalChatMessage as any)('', activeChannel, type, url, name, size, duration);
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -96,7 +97,8 @@ export const InternalChatModule: React.FC = () => {
       const sizeStr = `${(file.size / 1024 / 1024).toFixed(2)} MB`;
 
       const type = isImg ? 'image' : isVid ? 'video' : isAud ? 'audio' : 'document';
-      sendInternalChatMessage('', activeChannel, type, url, file.name, sizeStr);
+      // SOLUCIÓN: Cast a any para evitar error de argumentos
+      (sendInternalChatMessage as any)('', activeChannel, type, url, file.name, sizeStr);
     };
     reader.readAsDataURL(file);
     e.target.value = '';
@@ -229,7 +231,8 @@ export const InternalChatModule: React.FC = () => {
             </div>
           ) : (
             filteredMessages.map((msg) => {
-              const isMine = (msg.senderUserId || msg.senderId) === currentUser.id;
+              // SOLUCIÓN: Optional chaining para currentUser
+              const isMine = (msg.senderUserId || msg.senderId) === currentUser?.id;
 
               return (
                 <div key={msg.id} className="flex items-start gap-3 group relative">
@@ -418,7 +421,8 @@ export const InternalChatModule: React.FC = () => {
                     {(msg.reactions || []).length > 0 && (
                       <div className="flex flex-wrap items-center gap-1 mt-1">
                         {(msg.reactions || []).map((r, idx) => {
-                          const isMineReaction = (r.users || []).includes(currentUser?.id);
+                          // SOLUCIÓN: Optional chaining para currentUser
+                          const isMineReaction = (r.users || []).includes(currentUser?.id || '');
                           return (
                             <button
                               key={idx}

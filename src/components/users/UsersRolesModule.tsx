@@ -1,16 +1,6 @@
 import React, { useState } from 'react';
 import {
-  Users,
-  Shield,
-  Plus,
-  CheckCircle2,
-  Lock,
-  UserCheck,
-  UserX,
-  Mail,
-  Edit,
-  Save,
-  Key
+  Users, Shield, Plus, CheckCircle2, Lock, UserCheck, UserX, Mail, Edit, Save, Key
 } from 'lucide-react';
 import { useTenant } from '../../context/TenantContext';
 import { UserRole } from '../../types';
@@ -21,7 +11,6 @@ export const UsersRolesModule: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'users' | 'matrix'>('users');
   const [selectedRoleKey, setSelectedRoleKey] = useState<UserRole>('agent');
 
-  // New User Invite Form
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteName, setInviteName] = useState('');
   const [inviteEmail, setInviteEmail] = useState('');
@@ -107,7 +96,6 @@ export const UsersRolesModule: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-in fade-in max-w-6xl mx-auto">
-      {/* Header */}
       <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
@@ -153,7 +141,6 @@ export const UsersRolesModule: React.FC = () => {
         </div>
       </div>
 
-      {/* TAB 1: USERS LIST */}
       {activeTab === 'users' && (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
           <div className="overflow-x-auto">
@@ -177,7 +164,8 @@ export const UsersRolesModule: React.FC = () => {
                         {u.name.charAt(0)}
                       </div>
                       <span>
-                        {u.name} {u.id === currentUser.id && '(Tú)'}
+                        {/* SOLUCIÓN A: Optional chaining en currentUser */}
+                        {u.name} {u.id === currentUser?.id && '(Tú)'}
                       </span>
                     </td>
                     <td className="py-3 px-4 font-medium text-slate-600">{u.email}</td>
@@ -206,7 +194,8 @@ export const UsersRolesModule: React.FC = () => {
                       </span>
                     </td>
                     <td className="py-3 px-4 text-right">
-                      {u.id !== currentUser.id && (
+                      {/* SOLUCIÓN B: Optional chaining en currentUser */}
+                      {u.id !== currentUser?.id && (
                         <button
                           onClick={() => toggleUserStatus(u.id)}
                           className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-colors ${
@@ -227,7 +216,6 @@ export const UsersRolesModule: React.FC = () => {
         </div>
       )}
 
-      {/* TAB 2: EDITABLE RBAC PERMISSIONS MATRIX */}
       {activeTab === 'matrix' && (
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
@@ -238,7 +226,6 @@ export const UsersRolesModule: React.FC = () => {
               </p>
             </div>
 
-            {/* Role Switcher */}
             <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-bold">
               {roles.map((r) => (
                 <button
@@ -254,7 +241,6 @@ export const UsersRolesModule: React.FC = () => {
             </div>
           </div>
 
-          {/* Matrix Grid */}
           <div className="space-y-4">
             {modulesList.map((mod) => (
               <div
@@ -292,7 +278,6 @@ export const UsersRolesModule: React.FC = () => {
         </div>
       )}
 
-      {/* Invite Modal */}
       {showInviteModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl p-6 max-w-md w-full border border-slate-200 shadow-2xl space-y-4 animate-in fade-in">

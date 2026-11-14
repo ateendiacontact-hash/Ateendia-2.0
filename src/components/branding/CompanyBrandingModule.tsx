@@ -28,13 +28,11 @@ export const CompanyBrandingModule: React.FC = () => {
   const [timezone, setTimezone] = useState(currentTenant.timezone || 'America/New_York');
   const [currency, setCurrency] = useState(currentTenant.currency || 'USD');
 
-  // Master Catalogs State
   const [categories, setCategories] = useState<string[]>(
     currentTenant.categories || ['Seguro de Salud / ACA', 'Seguro de Vida', 'Dental & Visión', 'Medicare']
   );
   const [newCategoryInput, setNewCategoryInput] = useState('');
 
-  // Custom Fields State
   const [customFields, setCustomFields] = useState<any[]>(
     currentTenant.customFields || [
       { id: 'cf-1', label: 'Estatus Migratorio', type: 'select', required: false },
@@ -48,7 +46,8 @@ export const CompanyBrandingModule: React.FC = () => {
 
   const handleSaveAll = (e: React.FormEvent) => {
     e.preventDefault();
-    updateTenantBranding({
+    // Usamos Optional Chaining por si updateTenantBranding no está definido en el contexto
+    updateTenantBranding?.({
       name: companyName,
       primaryColor,
       accentColor,
@@ -92,7 +91,6 @@ export const CompanyBrandingModule: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-in fade-in max-w-5xl mx-auto">
-      {/* Top Header */}
       <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center font-bold">
@@ -117,7 +115,6 @@ export const CompanyBrandingModule: React.FC = () => {
         )}
       </div>
 
-      {/* Sub-Tab Navigation */}
       <div className="flex items-center gap-2 border-b border-slate-200 pb-1">
         <button
           onClick={() => setActiveSubTab('branding')}
@@ -169,9 +166,7 @@ export const CompanyBrandingModule: React.FC = () => {
             </div>
           )}
 
-          {/* Grid: Identity on Left, Master Catalogs & Fields on Right */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Left Card: Identidad Visual */}
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
           <div className="flex items-center gap-2 pb-3 border-b border-slate-100">
             <Building className="w-4 h-4 text-purple-600" />
@@ -272,9 +267,7 @@ export const CompanyBrandingModule: React.FC = () => {
           </div>
         </div>
 
-        {/* Right Side: Master Catalogs & Dynamic Custom Fields */}
         <div className="space-y-6">
-          {/* Master Categories Catalog */}
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
@@ -285,7 +278,6 @@ export const CompanyBrandingModule: React.FC = () => {
               </div>
             </div>
 
-            {/* List */}
             <div className="flex flex-wrap gap-2">
               {categories.map((cat, i) => (
                 <div
@@ -304,7 +296,6 @@ export const CompanyBrandingModule: React.FC = () => {
               ))}
             </div>
 
-            {/* Add inline */}
             <div className="flex gap-2 pt-1">
               <input
                 type="text"
@@ -324,7 +315,6 @@ export const CompanyBrandingModule: React.FC = () => {
             </div>
           </div>
 
-          {/* Dynamic Custom Fields Builder */}
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
@@ -358,7 +348,6 @@ export const CompanyBrandingModule: React.FC = () => {
               ))}
             </div>
 
-            {/* Add new field */}
             <div className="grid grid-cols-3 gap-2 pt-1">
               <input
                 type="text"

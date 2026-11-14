@@ -1,3 +1,5 @@
+// src/services/index.ts
+
 export { apiClient, initializeApiClient, type ApiConfig, type BackendMode, type ApiResponse, type PaginatedResponse } from './apiClient';
 export { clientsService, type ClientFilters, type CreateClientData, type UpdateClientData } from './clientsService';
 export { policiesService, type PolicyFilters, type CreatePolicyData, type UpdatePolicyData } from './policiesService';
@@ -15,7 +17,8 @@ export { saasService, type CreateTenantData, type UpdateTenantData, type CreateR
 export { usersService, type UserFilters, type CreateUserData, type UpdateUserData, type Toggle2FAData } from './usersService';
 export { brandingService, type UpdateBrandingData } from './brandingService';
 export { pb, COLLECTIONS, pbList, pbGetOne, pbCreate, pbUpdate, pbDelete, pbSubscribe, pbUnsubscribe, pbLogin, pbLogout, getCurrentUser, getCurrentTenantId, isSuperAdmin, getUserRole, isGlobalSuperAdmin } from './pocketbase';
-export { authService, type AuthState, type LoginCredentials, type RegisterTenantData } from './authService';
+export { authService, type AuthState, type LoginCredentials } from './authService';
+// ❌ ELIMINADA LA LÍNEA 21: export type { RegisterTenantData } from './authService';
 export { paymentService, type PaymentMethod, type ProcessPaymentData, type PaymentRecord } from './paymentService';
 export { n8nService, type N8nWebhookPayload, type N8nWorkflow } from './n8nService';
 export { pbxService, type AmiAction, type AmiResponse, type ClickToCallData, type CallResult } from './pbxService';

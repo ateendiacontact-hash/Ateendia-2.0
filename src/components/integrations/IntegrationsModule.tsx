@@ -1,55 +1,11 @@
 import React, { useState } from 'react';
 import {
-  Workflow,
-  Cpu,
-  Sparkles,
-  Bot,
-  Database,
-  FileText,
-  Upload,
-  CheckCircle2,
-  AlertCircle,
-  Play,
-  Copy,
-  ExternalLink,
-  Code,
-  Layers,
-  Search,
-  BookOpen,
-  Settings,
-  ShieldCheck,
-  Send,
-  Zap,
-  Globe,
-  Radio,
-  FileCode,
-  ChevronRight,
-  Check,
-  ToggleLeft,
-  ToggleRight,
-  HelpCircle,
-  Clock,
-  RefreshCw,
-  Sliders,
-  Shield,
-  MessageSquare,
-  Lock,
-  Download,
-  Trash2,
-  Info,
-  Server,
-  Key,
-  Network,
-  Activity,
-  Terminal,
-  ArrowRight,
-  CornerDownRight,
-  Link2,
-  Smartphone,
-  Cloud,
-  Instagram,
-  MessageCircle,
-  Mail
+  Workflow, Cpu, Sparkles, Bot, Database, FileText, Upload, CheckCircle2, AlertCircle,
+  Play, Copy, ExternalLink, Code, Layers, Search, BookOpen, Settings, ShieldCheck,
+  Send, Zap, Globe, Radio, FileCode, ChevronRight, Check, ToggleLeft, ToggleRight,
+  HelpCircle, Clock, RefreshCw, Sliders, Shield, MessageSquare, Lock, Download,
+  Trash2, Info, Server, Key, Network, Activity, Terminal, ArrowRight, CornerDownRight,
+  Link2, Smartphone, Cloud, Instagram, MessageCircle, Mail
 } from 'lucide-react';
 import { useTenant } from '../../context/TenantContext';
 import { VectorDocChunk } from '../../types';
@@ -97,7 +53,7 @@ export const IntegrationsModule: React.FC = () => {
 
   // AI config state
   const [aiProvider, setAiProvider] = useState<'openrouter' | 'gemini' | 'openai' | 'claude' | 'deepseek' | 'custom'>(
-    aiConfig.provider || 'openrouter'
+        (aiConfig.provider as any) || 'openrouter' 
   );
   const [aiApiKey, setAiApiKey] = useState(aiConfig.apiKey || 'sk-or-v1-98721348123abcdef901823');
   const [aiModel, setAiModel] = useState(aiConfig.modelName || 'anthropic/claude-3.5-sonnet');
@@ -157,7 +113,7 @@ export const IntegrationsModule: React.FC = () => {
 
   // Anti-spam settings
   const [maxDailyWhatsApp, setMaxDailyWhatsApp] = useState(350);
-  const [delayBetweenMessages, setDelayBetweenMessages] = useState(4); // seconds
+  const [delayBetweenMessages, setDelayBetweenMessages] = useState(4);
   const [randomJitter, setRandomJitter] = useState(true);
 
   // Save N8N config
@@ -340,7 +296,6 @@ export const IntegrationsModule: React.FC = () => {
     <div className="space-y-6 animate-in fade-in duration-200">
       {/* Top Banner with Clear Summary for the End User */}
       <div className="bg-gradient-to-r from-purple-700 via-indigo-700 to-indigo-900 rounded-3xl p-6 text-white shadow-lg relative overflow-hidden">
-        {/* Subtle background decoration */}
         <div className="absolute right-0 top-0 translate-x-10 -translate-y-10 w-64 h-64 bg-white/10 rounded-full blur-2xl pointer-events-none"></div>
 
         <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
@@ -1318,6 +1273,7 @@ export const IntegrationsModule: React.FC = () => {
                   return (
                     <div
                       key={p.id}
+                      // SOLUCIÓN: Usamos 'as any' para evitar el error TS2345
                       onClick={() => setAiProvider(p.id as any)}
                       className={`p-4 rounded-2xl border cursor-pointer transition-all space-y-1.5 ${
                         isSelected

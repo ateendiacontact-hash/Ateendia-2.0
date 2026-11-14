@@ -1,37 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
-  MessageSquare,
-  Send,
-  User,
-  Smartphone,
-  Sparkles,
-  Search,
-  Paperclip,
-  Smile,
-  Mic,
-  Play,
-  Pause,
-  Download,
-  Eye,
-  FileText,
-  CheckCheck,
-  MoreVertical,
-  Sliders,
-  Settings,
-  Phone,
-  ArrowRight,
-  Filter,
-  CheckCircle2,
-  RefreshCw,
-  ExternalLink,
-  Layers,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  AlertCircle,
-  Instagram,
-  Facebook,
-  SendIcon
+  MessageSquare, Send, User, Smartphone, Sparkles, Search, Paperclip, Smile,
+  Mic, Play, Pause, Download, Eye, FileText, CheckCheck, MoreVertical, Sliders,
+  Settings, Phone, ArrowRight, Filter, CheckCircle2, RefreshCw, ExternalLink,
+  Layers, ChevronDown, ChevronLeft, ChevronRight, AlertCircle, Instagram, Facebook, SendIcon
 } from 'lucide-react';
 import { useTenant } from '../../context/TenantContext';
 import { DomainService } from '../../domain/domainService';
@@ -45,7 +17,7 @@ import { useWhatsAppSocket } from '../../services/whatsappSocketService';
 interface WhatsAppModuleProps {
   onNavigateToTab?: (tab: string) => void;
 }
-// --- INICIO: Configuración de Evolution API ---
+
 const EVOLUTION_API_URL = import.meta.env.VITE_WHATSAPP_API_URL || 'http://13.140.37.155:8080';
 const EVOLUTION_API_KEY = import.meta.env.VITE_EVOLUTION_API_KEY || 'evolution2026';
 
@@ -68,7 +40,6 @@ const checkWhatsAppConnection = async (instanceName: string) => {
     }
     const instance = instances.find((inst: any) => inst.name === instanceName || inst.instanceName === instanceName);
     if (!instance) return 'disconnected';
-    // VALIDACIÓN ESTRICTA: Solo connectionStatus === 'open' = connected
     if (instance.connectionStatus === 'open') return 'connected';
     if (instance.connectionStatus === 'connecting') return 'qr';
     return 'disconnected';
@@ -77,7 +48,6 @@ const checkWhatsAppConnection = async (instanceName: string) => {
   }
 };
 
-// Función para obtener el QR de Evolution API - consumo directo de GET /instance/connect/:instanceName
 const getWhatsAppQR = async (instanceName: string): Promise<string | null> => {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 10000);
@@ -114,41 +84,25 @@ const sendEvolutionMessage = async (instanceName: string, phone: string, text: s
     console.error('Error enviando mensaje:', error);
   }
 };
-// --- FIN: Configuración de Evolution API ---
+
 export const WhatsAppModule: React.FC<WhatsAppModuleProps> = ({ onNavigateToTab }) => {
   const {
-    currentTenant,
-    currentUser,
-    whatsAppConfig,
-    conversations,
-    activeConversationId,
-    setActiveConversationId,
-    sendWhatsAppMessage,
-    startWhatsAppConversation,
-    toggleWhatsAppReaction,
-    templates,
-    clients
+    currentTenant, currentUser, whatsAppConfig, conversations, activeConversationId,
+    setActiveConversationId, sendWhatsAppMessage, startWhatsAppConversation,
+    toggleWhatsAppReaction, templates, clients
   } = useTenant();
 
-  // Channel filter: 'ALL' | 'WA1' | 'WA2' | 'instagram' | 'facebook' | 'landing'
   const [selectedChannelFilter, setSelectedChannelFilter] = useState<'ALL' | 'WA1' | 'WA2' | 'instagram' | 'facebook' | 'landing'>('ALL');
-  // Estados para controlar el QR y la conexión
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected' | 'qr'>('disconnected');
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [showQRModal, setShowQRModal] = useState(false);
   const [qrModalTab, setQrModalTab] = useState<'WA1' | 'WA2'>('WA1');
-  // Estados para timeout y reintentos de QR
   const [isWaitingQr, setIsWaitingQr] = useState<boolean>(false);
   const [qrRetryCount, setQrRetryCount] = useState<number>(0);
   const qrTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Search filter
   const [inboxSearch, setInboxSearch] = useState('');
-
-  // Composer inputs
   const [inboxInput, setInboxInput] = useState('');
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
-
-  // Rich Media & Reaction states
   const [activeReactionMsgId, setActiveReactionMsgId] = useState<string | null>(null);
   const [showComposerEmojiPicker, setShowComposerEmojiPicker] = useState<boolean>(false);
   const [showStickerPicker, setShowStickerPicker] = useState<boolean>(false);
@@ -157,12 +111,11 @@ export const WhatsAppModule: React.FC<WhatsAppModuleProps> = ({ onNavigateToTab 
   const [isViewerOpen, setIsViewerOpen] = useState<boolean>(false);
   const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
 
-const fileInputRef = useRef<HTMLInputElement>(null);
-   const messagesEndRef = useRef<HTMLDivElement>(null);
-   const scrollContainerRef = useRef<HTMLDivElement>(null);
-   const [showScrollButtons, setShowScrollButtons] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [showScrollButtons, setShowScrollButtons] = useState(false);
 
-   // Conversations filtered by channel & account line & search keyword
   const filteredConversations = (conversations || []).filter((c) => {
     const channelSource = (c.channelSource || 'whatsapp') as 'whatsapp' | 'instagram' | 'facebook' | 'landing';
     const account = (c.account || 'WA1') as 'WA1' | 'WA2';
@@ -197,7 +150,6 @@ const fileInputRef = useRef<HTMLInputElement>(null);
     return nameMatch || phoneMatch || lastMsgMatch;
   });
 
-  // Current active conversation
   const activeConv: WhatsAppConversation | undefined =
     (conversations || []).find((c) => c.id === activeConversationId) ||
     filteredConversations[0] ||
@@ -205,7 +157,6 @@ const fileInputRef = useRef<HTMLInputElement>(null);
 
   const activeClient = clients.find((c) => c.id === activeConv?.clientId);
 
-  // Ensure active conversation matches view on deep-linking
   useEffect(() => {
     if (activeConversationId) {
       const conv = conversations.find((c) => c.id === activeConversationId);
@@ -239,12 +190,10 @@ const fileInputRef = useRef<HTMLInputElement>(null);
     }
   }, [activeConversationId]);
 
-  // Scroll to bottom on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [activeConv?.messages]);
 
-  // Detectar si el contenedor de canales tiene contenido desbordante
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
@@ -259,11 +208,9 @@ const fileInputRef = useRef<HTMLInputElement>(null);
     return () => window.removeEventListener('resize', checkOverflow);
   }, []);
 
-  // Socket-based real-time connection status updates (with polling fallback)
   const socketService = useWhatsAppSocket();
 
   useEffect(() => {
-    // Conectar al socket al montar
     socketService?.connect();
 
     const account: 'WA1' | 'WA2' = selectedChannelFilter === 'WA2' ? 'WA2' : 'WA1';
@@ -272,14 +219,12 @@ const fileInputRef = useRef<HTMLInputElement>(null);
     const unsubscribeConnection = socketService?.on('connection.update', (data: any) => {
       const { connectionStatus } = data;
       
-      // Actualizar estado local inmediatamente sin polling
       if (connectionStatus === 'open' || connectionStatus === 'connected') {
         setConnectionStatus('connected');
         console.log(`✅ ${account} conectado vía Socket.io`);
       } else if (connectionStatus === 'close' || connectionStatus === 'disconnected' || connectionStatus === 'logged_out') {
         setConnectionStatus('disconnected');
         alert(`La sesión de WhatsApp ${account} ha sido desconectada. Por favor vuelve a escanear el código QR.`);
-        // Mostrar modal de QR automáticamente
         setShowQRModal(true);
         setQrModalTab(account);
         console.log(`⚠️ ${account} desconectado vía Socket.io`);
@@ -295,7 +240,6 @@ const fileInputRef = useRef<HTMLInputElement>(null);
         setQrCode(qrCode);
         setConnectionStatus('qr');
         if (showQRModal && qrModalTab !== 'WA1' && qrModalTab !== 'WA2') {
-          // Auto-open modal if user is viewing QR section
           const tab = selectedChannelFilter === 'WA2' ? 'WA2' : 'WA1';
           setQrModalTab(tab);
           setShowQRModal(true);
@@ -303,7 +247,6 @@ const fileInputRef = useRef<HTMLInputElement>(null);
       }
     });
 
-    // Fallback polling cada 30 segundos (reduced from 10s)
     const pollInterval = setInterval(async () => {
       const status = await checkWhatsAppConnection(instanceName);
       if (status !== connectionStatus) {
@@ -321,23 +264,19 @@ const fileInputRef = useRef<HTMLInputElement>(null);
     };
   }, [selectedChannelFilter, currentTenant.id, socketService, connectionStatus, showQRModal, qrModalTab, checkWhatsAppConnection]);
 
-  // Initialize connection state on mount / tab change - NO auto-generate QR
   useEffect(() => {
     const checkStatus = async () => {
-      // Check based on selected channel filter, default to WA1 for WA1/WA2 filters
       if (selectedChannelFilter === 'WA1' || selectedChannelFilter === 'WA2') {
         const account: 'WA1' | 'WA2' = selectedChannelFilter === 'WA2' ? 'WA2' : 'WA1';
         const instanceName = getInstanceName(currentTenant.id, account);
         const status = await checkWhatsAppConnection(instanceName);
         setConnectionStatus(status);
-        // NO abrir modal automáticamente; el usuario decide vincular manualmente
       } else {
-        // For non-WhatsApp channels, show disconnected status
         setConnectionStatus('disconnected');
       }
     };
     checkStatus();
-    const interval = setInterval(checkStatus, 30000); // Revisa cada 30 segundos
+    const interval = setInterval(checkStatus, 30000);
     return () => clearInterval(interval);
   }, [selectedChannelFilter, currentTenant.id, checkWhatsAppConnection]);
 
@@ -364,13 +303,11 @@ const fileInputRef = useRef<HTMLInputElement>(null);
     e.preventDefault();
     if (!inboxInput.trim() || !activeConv) return;
     
-    // 1. Enviar al VPS (Evolution API) usando la instancia correcta por cuenta
     const account: 'WA1' | 'WA2' = activeConv.account || 'WA1';
     const instanceName = getInstanceName(currentTenant.id, account);
     const phone = activeConv.contactPhone || activeConv.clientPhone || '';
     await sendEvolutionMessage(instanceName, phone, inboxInput);
     
-    // 2. Actualizar la pantalla localmente
     sendWhatsAppMessage(activeConv.id, inboxInput);
     setInboxInput('');
   };
@@ -383,7 +320,6 @@ const fileInputRef = useRef<HTMLInputElement>(null);
     duration?: number
   ) => {
     if (!activeConv) return;
-    // Usamos (sendWhatsAppMessage as any) para evitar el conflicto de tipos.
     (sendWhatsAppMessage as any)(activeConv.id, '', type, url, name, size, duration);
   };
 
@@ -416,9 +352,10 @@ const fileInputRef = useRef<HTMLInputElement>(null);
       });
       setInboxInput(interpolated);
     } else if (tpl && activeConv) {
+      // SOLUCIÓN A: Usar currentUser?.name || '' para evitar error de string | undefined
       const interpolated = tpl.body
         .replace(/\{\{nombre\}\}/gi, activeConv.contactName || activeConv.clientName || 'Cliente')
-        .replace(/\{\{agente\}\}/gi, currentUser?.name)
+        .replace(/\{\{agente\}\}/gi, currentUser?.name || '')
         .replace(/\{\{telefono\}\}/gi, activeConv.contactPhone || activeConv.clientPhone || '');
       setInboxInput(interpolated);
     }
@@ -443,7 +380,6 @@ const fileInputRef = useRef<HTMLInputElement>(null);
     setIsViewerOpen(true);
   };
 
-  // Get count stats
   const wa1Count = (conversations || []).filter((c) => (c.account || 'WA1') === 'WA1' && (c.channelSource || 'whatsapp') === 'whatsapp').length;
   const wa2Count = (conversations || []).filter((c) => c.account === 'WA2' && (c.channelSource || 'whatsapp') === 'whatsapp').length;
   const totalConversations = (conversations || []).length;
@@ -451,7 +387,6 @@ const fileInputRef = useRef<HTMLInputElement>(null);
 
   return (
     <div className="space-y-4 animate-in fade-in">
-      {/* Top Header Bar */}
       <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold shadow-xs">
@@ -471,7 +406,6 @@ const fileInputRef = useRef<HTMLInputElement>(null);
           </div>
         </div>
 
-        {/* Action: Quick Jump to WhatsApp Config in Integrations */}
         <div className="flex items-center gap-2">
           <button
             id="btn-goto-wa-integrations"
@@ -489,16 +423,9 @@ const fileInputRef = useRef<HTMLInputElement>(null);
         </div>
       </div>
 
-      {/* Main Unified Inbox Layout */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs h-[calc(100vh-230px)] min-h-[580px] flex flex-col md:flex-row overflow-hidden">
-        
-        {/* Left Sidebar: Line Switcher & Conversation Threads */}
         <div className="w-full md:w-84 border-r border-slate-200 flex flex-col shrink-0 bg-slate-50/60">
-          
-          {/* Barra de Canales con "Todas" Fija y Scroll en Canales */}
           <div className="flex items-center gap-2 bg-slate-100 p-1.5 rounded-xl mb-4 w-full">
-            
-            {/* 1. BOTÓN "TODAS" FIJO A LA IZQUIERDA */}
             <button
               type="button"
               onClick={() => {
@@ -516,10 +443,8 @@ const fileInputRef = useRef<HTMLInputElement>(null);
               </span>
             </button>
 
-{/* DIVISOR DE SEPARACIÓN */}
             <div className="h-4 w-[1px] bg-slate-300 shrink-0" />
 
-            {/* Botón navegación izquierda - ChevronLeft */}
             <button
               type="button"
               className={`shrink-0 p-1 rounded-md hover:bg-slate-100 transition-colors flex items-center justify-center ${
@@ -533,7 +458,6 @@ const fileInputRef = useRef<HTMLInputElement>(null);
               <ChevronLeft className="w-3.5 h-3.5 text-slate-400" />
             </button>
 
-            {/* 2. CONTENEDOR CON SCROLL HORIZONTAL PARA LOS CANALES */}
             <div
               ref={scrollContainerRef}
               className="flex-1 flex items-center gap-2 overflow-x-auto scrollbar-none py-0.5 min-w-0"
@@ -553,8 +477,6 @@ const fileInputRef = useRef<HTMLInputElement>(null);
                 e.currentTarget.style.cursor = 'grab';
               }}
             >
-              
-              {/* WA1 */}
               <button
                 type="button"
                 onClick={() => {
@@ -573,7 +495,6 @@ const fileInputRef = useRef<HTMLInputElement>(null);
                 </span>
               </button>
 
-              {/* WA2 */}
               <button
                 type="button"
                 onClick={() => {
@@ -592,7 +513,6 @@ const fileInputRef = useRef<HTMLInputElement>(null);
                 </span>
               </button>
 
-              {/* INSTAGRAM */}
               <button
                 type="button"
                 onClick={() => {
@@ -611,7 +531,6 @@ const fileInputRef = useRef<HTMLInputElement>(null);
                 </span>
               </button>
 
-              {/* FACEBOOK */}
               <button
                 type="button"
                 onClick={() => {
@@ -630,7 +549,6 @@ const fileInputRef = useRef<HTMLInputElement>(null);
                 </span>
               </button>
 
-              {/* WEB CHAT */}
               <button
                 type="button"
                 onClick={() => {
@@ -647,11 +565,9 @@ const fileInputRef = useRef<HTMLInputElement>(null);
                 <span className="bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded-full text-[10px]">
                   {(conversations || []).filter(c => c.channelSource === 'landing').length}
                 </span>
-</button>
-
+              </button>
             </div>
 
-            {/* Botón navegación derecha - ChevronRight */}
             <button
               type="button"
               className={`shrink-0 p-1 rounded-md hover:bg-slate-100 transition-colors flex items-center justify-center ${
@@ -664,9 +580,8 @@ const fileInputRef = useRef<HTMLInputElement>(null);
             >
               <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
             </button>
-
           </div>
-          {/* Search Box */}
+
           <div className="p-2.5 border-b border-slate-200 bg-white">
             <div className="relative">
               <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
@@ -680,7 +595,6 @@ const fileInputRef = useRef<HTMLInputElement>(null);
             </div>
           </div>
 
-          {/* Conversation List */}
           <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
             {filteredConversations.length === 0 ? (
               <div className="p-6 text-center text-slate-400 text-xs">
@@ -705,7 +619,6 @@ const fileInputRef = useRef<HTMLInputElement>(null);
                         : 'hover:bg-slate-100/70'
                     }`}
                   >
-                    {/* Avatar with status */}
                     <div className="relative shrink-0">
                       <div className={`w-10 h-10 rounded-full font-bold flex items-center justify-center text-xs shadow-xs ${
                         accountType === 'WA2' ? 'bg-purple-100 text-purple-800' : 'bg-emerald-100 text-emerald-800'
@@ -719,7 +632,6 @@ const fileInputRef = useRef<HTMLInputElement>(null);
                       </span>
                     </div>
 
-                    {/* Thread Details */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
                         <span className="font-bold text-xs text-slate-900 truncate">
@@ -754,14 +666,12 @@ const fileInputRef = useRef<HTMLInputElement>(null);
                       </p>
                     </div>
 
-                    {/* Unread badge */}
                     {(conv.unreadCount || 0) > 0 && (
                       <div className="absolute right-3 bottom-3 w-5 h-5 rounded-full bg-emerald-600 text-white text-[10px] font-bold flex items-center justify-center">
                         {conv.unreadCount}
                       </div>
                     )}
 
-                    {/* Channel source badge */}
                     {(conv.channelSource || 'whatsapp') && (
                       <div className="absolute right-6 bottom-3 flex items-center gap-1 text-[8px] font-bold rounded px-1.5 py-0.5 ${
                         (conv.channelSource || 'whatsapp') === 'whatsapp'
@@ -788,11 +698,8 @@ const fileInputRef = useRef<HTMLInputElement>(null);
           </div>
         </div>
 
-        {/* Right Panel: Active Chat Messages Body & Composer */}
         {activeConv ? (
           <div className="flex-1 flex flex-col bg-slate-50/40 min-w-0">
-            
-            {/* Active Chat Header */}
             <div className="p-3.5 border-b border-slate-200 bg-white flex items-center justify-between shadow-xs">
               <div className="flex items-center gap-3 min-w-0">
                 <div className={`w-10 h-10 rounded-full font-bold flex items-center justify-center text-xs shadow-xs shrink-0 ${
@@ -844,7 +751,6 @@ const fileInputRef = useRef<HTMLInputElement>(null);
                 </div>
               </div>
 
-              {/* Header Actions & Quick Template Picker */}
               <div className="flex items-center gap-2 shrink-0">
                 <select
                   value={selectedTemplateId}
@@ -863,7 +769,6 @@ const fileInputRef = useRef<HTMLInputElement>(null);
               </div>
             </div>
 
-            {/* Message Bubble Feed */}
             <div className="flex-1 overflow-y-auto p-4 space-y-3 relative">
               {(activeConv?.messages || []).length === 0 ? (
                 <div className="h-full flex items-center justify-center text-slate-400 text-xs">
@@ -882,10 +787,7 @@ const fileInputRef = useRef<HTMLInputElement>(null);
                       key={msg.id}
                       className={`flex flex-col group ${isOutbound ? 'items-end' : 'items-start'}`}
                     >
-                      {/* Message Bubble Container */}
                       <div className="relative max-w-[85%] sm:max-w-md">
-                        
-                        {/* Quick Emoji Reaction bar on hover */}
                         <div
                           className={`absolute -top-7 z-10 hidden group-hover:flex items-center gap-1 bg-white px-2 py-1 rounded-full shadow-lg border border-slate-200 ${
                             isOutbound ? 'right-0' : 'left-0'
@@ -914,7 +816,6 @@ const fileInputRef = useRef<HTMLInputElement>(null);
                           </button>
                         </div>
 
-                        {/* Emoji Picker popup */}
                         {activeReactionMsgId === msg.id && (
                           <EmojiPickerPopup
                             onSelectEmoji={(emoji) => {
@@ -926,7 +827,6 @@ const fileInputRef = useRef<HTMLInputElement>(null);
                           />
                         )}
 
-                        {/* Main Message Bubble */}
                         <div
                           className={`rounded-2xl px-4 py-2.5 text-xs shadow-xs space-y-1.5 ${
                             isOutbound
@@ -936,7 +836,6 @@ const fileInputRef = useRef<HTMLInputElement>(null);
                               : 'bg-white text-slate-800 border border-slate-200 rounded-bl-none'
                           }`}
                         >
-                          {/* Outbound Attribution */}
                           {isOutbound && (
                             <div className="flex items-center gap-1.5 text-[10px] font-bold opacity-90 border-b border-white/20 pb-1 mb-1">
                               <User className="w-3 h-3" />
@@ -947,14 +846,12 @@ const fileInputRef = useRef<HTMLInputElement>(null);
                             </div>
                           )}
 
-                          {/* Inbound Attribution */}
                           {!isOutbound && (
                             <div className="text-[10px] font-black text-emerald-700 mb-0.5">
                               {activeConv.contactName || activeConv.clientName || 'Cliente'}
                             </div>
                           )}
 
-                          {/* Media: Image */}
                           {msg.mediaType === 'image' && msg.mediaUrl && (
                             <div className="rounded-xl overflow-hidden border border-black/10 relative group/media cursor-pointer">
                               <img
@@ -993,7 +890,6 @@ const fileInputRef = useRef<HTMLInputElement>(null);
                             </div>
                           )}
 
-                          {/* Media: Sticker or GIF */}
                           {(msg.mediaType === 'sticker' || msg.mediaType === 'gif') && msg.mediaUrl && (
                             <div
                               className="rounded-xl overflow-hidden cursor-pointer hover:scale-105 transition-transform max-w-[200px]"
@@ -1016,7 +912,6 @@ const fileInputRef = useRef<HTMLInputElement>(null);
                             </div>
                           )}
 
-                          {/* Media: Audio Voice Note */}
                           {msg.mediaType === 'audio' && (
                             <div className="flex items-center gap-3 p-2 bg-black/10 rounded-xl">
                               <button
@@ -1050,7 +945,6 @@ const fileInputRef = useRef<HTMLInputElement>(null);
                             </div>
                           )}
 
-                          {/* Media: Video */}
                           {msg.mediaType === 'video' && msg.mediaUrl && (
                             <div
                               className="relative rounded-xl overflow-hidden bg-black cursor-pointer group/video"
@@ -1074,7 +968,6 @@ const fileInputRef = useRef<HTMLInputElement>(null);
                             </div>
                           )}
 
-                          {/* Media: Document */}
                           {msg.mediaType === 'document' && (
                             <div
                               className="flex items-center gap-3 p-2.5 bg-black/10 rounded-xl cursor-pointer hover:opacity-90 transition-opacity"
@@ -1100,12 +993,10 @@ const fileInputRef = useRef<HTMLInputElement>(null);
                             </div>
                           )}
 
-                          {/* Text Body */}
                           {msg.content && (
                             <p className="whitespace-pre-wrap leading-relaxed">{msg.content || msg.text}</p>
                           )}
 
-                          {/* Timestamp & Checkmarks */}
                           <div
                             className={`text-[10px] text-right font-mono flex items-center justify-end gap-1 ${
                               isOutbound ? 'text-white/80' : 'text-slate-400'
@@ -1116,7 +1007,6 @@ const fileInputRef = useRef<HTMLInputElement>(null);
                           </div>
                         </div>
 
-                        {/* Reaction Badges */}
                         {(msg.reactions || []).length > 0 && (
                           <div
                             className={`flex flex-wrap items-center gap-1 mt-1 ${
@@ -1124,7 +1014,8 @@ const fileInputRef = useRef<HTMLInputElement>(null);
                             }`}
                           >
                             {(msg.reactions || []).map((r, idx) => {
-                              const isMine = (r.users || []).includes(currentUser?.id);
+                              // SOLUCIÓN B: currentUser?.id || ''
+                              const isMine = (r.users || []).includes(currentUser?.id || '');
                               return (
                                 <button
                                   key={idx}
@@ -1152,10 +1043,8 @@ const fileInputRef = useRef<HTMLInputElement>(null);
               <div ref={messagesEndRef} />
             </div>
 
-            {/* Message Composer Area */}
             <div className="p-3 bg-white border-t border-slate-200 relative">
-              {/* Sticker / GIF Picker */}
-                            {showStickerPicker && (
+              {showStickerPicker && (
                 <StickerGifPicker
                   onSelectMedia={(type, url, name) => {
                     handleSendMedia(type, url, name);
@@ -1165,7 +1054,6 @@ const fileInputRef = useRef<HTMLInputElement>(null);
                 />
               )}
 
-              {/* Composer Emoji Picker */}
               {showComposerEmojiPicker && (
                 <EmojiPickerPopup
                   onSelectEmoji={(emoji) => {
@@ -1177,8 +1065,7 @@ const fileInputRef = useRef<HTMLInputElement>(null);
                 />
               )}
 
-              {/* Voice Recorder */}
-                            {showVoiceRecorder ? (
+              {showVoiceRecorder ? (
                 <VoiceAudioRecorder
                   onSendAudio={(audioUrl, duration) => {
                     handleSendMedia('audio', audioUrl, 'Nota de Voz WhatsApp', '120 KB', duration);
@@ -1188,7 +1075,6 @@ const fileInputRef = useRef<HTMLInputElement>(null);
                 />
               ) : (
                 <form onSubmit={handleSendInboxMessage} className="flex items-center gap-2">
-                  {/* Hidden File Input */}
                   <input
                     type="file"
                     ref={fileInputRef}
@@ -1197,7 +1083,6 @@ const fileInputRef = useRef<HTMLInputElement>(null);
                     accept="image/*,video/*,audio/*,.pdf,.doc,.docx"
                   />
 
-                  {/* Attachment Button */}
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
@@ -1207,7 +1092,6 @@ const fileInputRef = useRef<HTMLInputElement>(null);
                     <Paperclip className="w-4 h-4" />
                   </button>
 
-                  {/* Stickers / GIFs */}
                   <button
                     type="button"
                     onClick={() => setShowStickerPicker(!showStickerPicker)}
@@ -1217,7 +1101,6 @@ const fileInputRef = useRef<HTMLInputElement>(null);
                     <Sparkles className="w-4 h-4" />
                   </button>
 
-                  {/* Emoji Picker */}
                   <button
                     type="button"
                     onClick={() => setShowComposerEmojiPicker(!showComposerEmojiPicker)}
@@ -1227,7 +1110,6 @@ const fileInputRef = useRef<HTMLInputElement>(null);
                     <Smile className="w-4 h-4" />
                   </button>
 
-                  {/* Voice Note */}
                   <button
                     type="button"
                     onClick={() => setShowVoiceRecorder(true)}
@@ -1237,7 +1119,6 @@ const fileInputRef = useRef<HTMLInputElement>(null);
                     <Mic className="w-4 h-4" />
                   </button>
 
-                  {/* Main Text Input */}
                   <input
                     type="text"
                     value={inboxInput}
@@ -1246,7 +1127,6 @@ const fileInputRef = useRef<HTMLInputElement>(null);
                     className="flex-1 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   />
 
-                  {/* Send Button */}
                   <button
                     type="submit"
                     className={`px-4 py-2 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-xs shrink-0 transition-colors ${
@@ -1272,7 +1152,6 @@ const fileInputRef = useRef<HTMLInputElement>(null);
         )}
       </div>
 
-{/* Discreet Session Status Banner (WhatsApp channels only) */}
       {connectionStatus === 'qr' && (selectedChannelFilter === 'WA1' || selectedChannelFilter === 'WA2') && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-2.5 flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -1296,14 +1175,12 @@ const fileInputRef = useRef<HTMLInputElement>(null);
         </div>
       )}
 
-      {/* Global Media Viewer Modal */}
       <MediaViewerModal
         isOpen={isViewerOpen}
         onClose={() => setIsViewerOpen(false)}
         item={viewerItem}
       />
 
-      {/* Manual QR Modal (only on user request) */}
       {showQRModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl text-center">

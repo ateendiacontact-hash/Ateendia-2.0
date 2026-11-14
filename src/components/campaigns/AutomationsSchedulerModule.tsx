@@ -36,21 +36,20 @@ export const AutomationsSchedulerModule: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<'rules' | 'antispam' | 'queue'>('rules');
 
-  // Anti-spam configuration local states
-  const [maxDailyWhatsApp, setMaxDailyWhatsApp] = useState(antiSpamSettings.maxDailyWhatsApp || 50);
-  const [maxDailyEmail, setMaxDailyEmail] = useState(antiSpamSettings.maxDailyEmail || 150);
-  const [minIntervalSeconds, setMinIntervalSeconds] = useState(antiSpamSettings.minIntervalSeconds || 25);
-  const [randomJitter, setRandomJitter] = useState(antiSpamSettings.randomJitter || true);
-  const [alertOnSpamRisk, setAlertOnSpamRisk] = useState(antiSpamSettings.alertOnSpamRisk || true);
+  // Aquí aplicamos el tipo <boolean> para evitar el error TS2345
+  const [maxDailyWhatsApp, setMaxDailyWhatsApp] = useState<number>(antiSpamSettings.maxDailyWhatsApp || 50);
+  const [maxDailyEmail, setMaxDailyEmail] = useState<number>(antiSpamSettings.maxDailyEmail || 150);
+  const [minIntervalSeconds, setMinIntervalSeconds] = useState<number>(antiSpamSettings.minIntervalSeconds || 25);
+  const [randomJitter, setRandomJitter] = useState<boolean>(antiSpamSettings.randomJitter || true);
+  const [alertOnSpamRisk, setAlertOnSpamRisk] = useState<boolean>(antiSpamSettings.alertOnSpamRisk || true);
 
-  // New Rule Form Modal / Inline
-  const [showAddRule, setShowAddRule] = useState(false);
-  const [newRuleName, setNewRuleName] = useState('');
+  const [showAddRule, setShowAddRule] = useState<boolean>(false);
+  const [newRuleName, setNewRuleName] = useState<string>('');
   const [newRuleType, setNewRuleType] = useState<'birthday' | 'doc_expiry' | 'payment_due'>('birthday');
   const [newRuleChannel, setNewRuleChannel] = useState<'whatsapp' | 'email' | 'both'>('whatsapp');
-  const [newRuleDays, setNewRuleDays] = useState(0);
-  const [newRuleTime, setNewRuleTime] = useState('09:00');
-  const [newRuleTemplateId, setNewRuleTemplateId] = useState(templates[0]?.id || 'tpl-2');
+  const [newRuleDays, setNewRuleDays] = useState<number>(0);
+  const [newRuleTime, setNewRuleTime] = useState<string>('09:00');
+  const [newRuleTemplateId, setNewRuleTemplateId] = useState<string>(templates[0]?.id || 'tpl-2');
 
   const handleToggleRule = (ruleId: string) => {
     const updated = scheduledRules.map((r) => {
@@ -105,7 +104,6 @@ export const AutomationsSchedulerModule: React.FC = () => {
     alert('¡Nueva regla automatizada creada con éxito!');
   };
 
-  // Mock calculation of daily usage
   const whatsAppUsedToday = 18;
   const emailUsedToday = 42;
   const whatsAppPercent = Math.min(Math.round((whatsAppUsedToday / maxDailyWhatsApp) * 100), 100);
@@ -113,7 +111,6 @@ export const AutomationsSchedulerModule: React.FC = () => {
 
   return (
     <div className="space-y-5 animate-in fade-in">
-      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-5 rounded-2xl border border-slate-200 shadow-xs">
         <div className="flex items-center gap-2">
           <div className="p-2 rounded-xl bg-purple-100 text-purple-700">
@@ -127,7 +124,6 @@ export const AutomationsSchedulerModule: React.FC = () => {
           </div>
         </div>
 
-        {/* Tab Controls */}
         <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-bold gap-1">
           <button
             onClick={() => setActiveTab('rules')}
@@ -150,9 +146,7 @@ export const AutomationsSchedulerModule: React.FC = () => {
         </div>
       </div>
 
-      {/* Prominent Anti-Spam Live HUD Status Card */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* WhatsApp Quota HUD */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -164,7 +158,6 @@ export const AutomationsSchedulerModule: React.FC = () => {
             </span>
           </div>
 
-          {/* Progress Bar */}
           <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
             <div
               className={`h-full transition-all rounded-full ${
@@ -179,7 +172,6 @@ export const AutomationsSchedulerModule: React.FC = () => {
           </div>
         </div>
 
-        {/* Email Quota HUD */}
         <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs space-y-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -191,7 +183,6 @@ export const AutomationsSchedulerModule: React.FC = () => {
             </span>
           </div>
 
-          {/* Progress Bar */}
           <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
             <div
               className="h-full bg-purple-600 transition-all rounded-full"
@@ -205,7 +196,6 @@ export const AutomationsSchedulerModule: React.FC = () => {
         </div>
       </div>
 
-      {/* TAB 1: SCHEDULED RULES */}
       {activeTab === 'rules' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
@@ -227,7 +217,6 @@ export const AutomationsSchedulerModule: React.FC = () => {
             </button>
           </div>
 
-          {/* Add Rule Form Inline */}
           {showAddRule && (
             <form onSubmit={handleAddRule} className="bg-white p-5 rounded-2xl border border-purple-200 shadow-sm space-y-4">
               <div className="text-xs font-black text-purple-950 uppercase tracking-wider">
@@ -332,7 +321,6 @@ export const AutomationsSchedulerModule: React.FC = () => {
             </form>
           )}
 
-          {/* Rules Cards List */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {scheduledRules.map((rule) => {
               const tpl = templates.find((t) => t.id === rule.templateId);
@@ -417,10 +405,8 @@ export const AutomationsSchedulerModule: React.FC = () => {
         </div>
       )}
 
-      {/* TAB 2: ANTI-SPAM SAFETY & WARNINGS */}
       {activeTab === 'antispam' && (
         <div className="space-y-5">
-          {/* Critical Anti-Spam Warning Banner */}
           <div className="bg-amber-500/10 border-2 border-amber-500/30 p-5 rounded-2xl space-y-3">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-xl bg-amber-500 text-slate-950 font-bold">
@@ -460,7 +446,6 @@ export const AutomationsSchedulerModule: React.FC = () => {
             </div>
           </div>
 
-          {/* Form Settings */}
           <form onSubmit={handleSaveAntiSpam} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs space-y-5">
             <h3 className="font-black text-sm text-slate-900 border-b border-slate-100 pb-3">
               Límites Operativos Diarios Configurables

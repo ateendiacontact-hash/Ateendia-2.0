@@ -1,23 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  Smartphone,
-  CheckCircle2,
-  XCircle,
-  AlertCircle,
-  Send,
-  Save,
-  RefreshCw,
-  Copy,
-  Check,
-  ExternalLink,
-  Globe,
-  Key,
-  MessageSquare,
-  Zap,
-  Shield,
-  Activity,
-  Eye,
-  EyeOff
+  Smartphone, CheckCircle2, XCircle, AlertCircle, Send, Save, RefreshCw, Copy,
+  Check, ExternalLink, Globe, Key, MessageSquare, Zap, Shield, Activity, Eye, EyeOff
 } from 'lucide-react';
 import { useTenant } from '../../context/TenantContext';
 import { whatsAppCloudService } from '../../services/whatsAppCloudService';
@@ -25,12 +9,7 @@ import { whatsAppCloudService } from '../../services/whatsAppCloudService';
 const META_API_VERSION = 'v20.0';
 
 export const WhatsAppCloudSection: React.FC = () => {
-  const {
-    currentTenant,
-    whatsAppConfig,
-    saveWhatsAppConfig,
-    recordAudit
-  } = useTenant();
+  const { currentTenant, whatsAppConfig, saveWhatsAppConfig, recordAudit } = useTenant();
 
   const [phoneNumberId, setPhoneNumberId] = useState<string>(whatsAppConfig.phoneNumberId || '');
   const [wabaId, setWabaId] = useState<string>(whatsAppConfig.wabaId || '');
@@ -62,7 +41,6 @@ export const WhatsAppCloudSection: React.FC = () => {
   const [isConfigured, setIsConfigured] = useState<boolean>(false);
 
   useEffect(() => {
-    // Cargar configuración real desde PocketBase asociada al tenant activo
     const loadConfig = async () => {
       const pbToken = JSON.parse(localStorage.getItem('pb_auth') || '{}').token;
       try {
@@ -70,7 +48,8 @@ export const WhatsAppCloudSection: React.FC = () => {
           headers: { 'Authorization': `Bearer ${pbToken || ''}` }
         });
         if (response.ok) {
-          const data = await response.json();
+          // SOLUCIÓN A: Casteamos a any
+          const data: any = await response.json();
           const config = data.data || data;
           if (config.tenantId === currentTenant.id || config.tenantId === undefined) {
             setIsConfigured(whatsAppCloudService.isConfigured(config));
@@ -81,7 +60,6 @@ export const WhatsAppCloudSection: React.FC = () => {
           }
         }
       } catch (e) {
-        // Si no hay backend, usar configuración local
         setIsConfigured(whatsAppCloudService.isConfigured(whatsAppConfig));
         if (whatsAppConfig.phoneNumberId) setPhoneNumberId(whatsAppConfig.phoneNumberId);
         if (whatsAppConfig.wabaId) setWabaId(whatsAppConfig.wabaId);
@@ -124,7 +102,8 @@ export const WhatsAppCloudSection: React.FC = () => {
         body: JSON.stringify(configWithTenant)
       });
       if (response.ok) {
-        const data = await response.json();
+        // SOLUCIÓN B: Casteamos a any
+        const data: any = await response.json();
         setIsConfigured(whatsAppCloudService.isConfigured(data));
       }
     } catch (e) {
@@ -200,7 +179,6 @@ export const WhatsAppCloudSection: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center gap-3">
         <div className="p-2 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-md">
           <Smartphone className="w-5 h-5 text-white" />
@@ -224,7 +202,6 @@ export const WhatsAppCloudSection: React.FC = () => {
         </div>
       </div>
 
-      {/* Connection Status */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-gradient-to-br from-slate-50 to-slate-100 rounded-2xl p-4 border border-slate-200">
           <div className="flex items-center gap-2 mb-2">
@@ -258,7 +235,6 @@ export const WhatsAppCloudSection: React.FC = () => {
         </div>
       </div>
 
-      {/* Configuration Form */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="p-4 bg-gradient-to-r from-slate-50 to-slate-100 border-b border-slate-200">
           <h4 className="font-bold text-slate-800 flex items-center gap-2">
@@ -267,19 +243,13 @@ export const WhatsAppCloudSection: React.FC = () => {
           </h4>
           <p className="text-xs text-slate-500 mt-1">
             Obtén estas credenciales desde tu app de Meta for Developers en{' '}
-            <a
-              href="https://developers.facebook.com/apps/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-600 hover:underline inline-flex items-center gap-1"
-            >
+            <a href="https://developers.facebook.com/apps/" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline inline-flex items-center gap-1">
               developers.facebook.com <ExternalLink className="w-3 h-3" />
             </a>
           </p>
         </div>
 
         <div className="p-5 space-y-4">
-          {/* Phone Number ID */}
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1.5">
               Phone Number ID <span className="text-red-500">*</span>
@@ -296,7 +266,6 @@ export const WhatsAppCloudSection: React.FC = () => {
             </p>
           </div>
 
-          {/* WABA ID */}
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1.5">
               WhatsApp Business Account ID (WABA)
@@ -313,7 +282,6 @@ export const WhatsAppCloudSection: React.FC = () => {
             </p>
           </div>
 
-          {/* Access Token */}
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1.5">
               Token Permanente <span className="text-red-500">*</span>
@@ -339,7 +307,6 @@ export const WhatsAppCloudSection: React.FC = () => {
             </p>
           </div>
 
-          {/* Verify Credentials Button */}
           <div className="flex items-center gap-3">
             <button
               onClick={verifyCredentials}
@@ -347,33 +314,19 @@ export const WhatsAppCloudSection: React.FC = () => {
               className="flex items-center gap-2 px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl text-xs font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isVerifyingCredentials ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  Verificando...
-                </>
+                <><RefreshCw className="w-4 h-4 animate-spin" /> Verificando...</>
               ) : (
-                <>
-                  <Zap className="w-4 h-4" />
-                  Verificar Credenciales
-                </>
+                <><Zap className="w-4 h-4" /> Verificar Credenciales</>
               )}
             </button>
             {credentialsValid !== null && (
               <span className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold ${
-                credentialsValid
-                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                  : 'bg-red-50 text-red-700 border border-red-200'
+                credentialsValid ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'
               }`}>
                 {credentialsValid ? (
-                  <>
-                    <CheckCircle2 className="w-3.5 h-3.5" />
-                    Credenciales Válidas
-                  </>
+                  <><CheckCircle2 className="w-3.5 h-3.5" /> Credenciales Válidas</>
                 ) : (
-                  <>
-                    <XCircle className="w-3.5 h-3.5" />
-                    Credenciales Inválidas
-                  </>
+                  <><XCircle className="w-3.5 h-3.5" /> Credenciales Inválidas</>
                 )}
               </span>
             )}
@@ -381,7 +334,6 @@ export const WhatsAppCloudSection: React.FC = () => {
         </div>
       </div>
 
-      {/* Webhook Configuration */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="p-4 bg-gradient-to-r from-slate-50 to-slate-100 border-b border-slate-200">
           <h4 className="font-bold text-slate-800 flex items-center gap-2">
@@ -394,7 +346,6 @@ export const WhatsAppCloudSection: React.FC = () => {
         </div>
 
         <div className="p-5 space-y-4">
-          {/* Webhook URL */}
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1.5">URL del Webhook</label>
             <div className="flex items-center gap-2">
@@ -419,7 +370,6 @@ export const WhatsAppCloudSection: React.FC = () => {
             </div>
           </div>
 
-          {/* Verify Token */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="text-xs font-bold text-slate-700">Verify Token</label>
@@ -457,7 +407,6 @@ export const WhatsAppCloudSection: React.FC = () => {
         </div>
       </div>
 
-      {/* Test Message Section */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="p-4 bg-gradient-to-r from-blue-50 to-blue-100 border-b border-blue-200">
           <h4 className="font-bold text-blue-800 flex items-center gap-2">
@@ -470,7 +419,6 @@ export const WhatsAppCloudSection: React.FC = () => {
         </div>
 
         <div className="p-5 space-y-4">
-          {/* Test Phone Number */}
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1.5">Número de Destino</label>
             <input
@@ -482,7 +430,6 @@ export const WhatsAppCloudSection: React.FC = () => {
             />
           </div>
 
-          {/* Test Message */}
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1.5">Mensaje</label>
             <textarea
@@ -493,7 +440,6 @@ export const WhatsAppCloudSection: React.FC = () => {
             />
           </div>
 
-          {/* Send Button */}
           <div className="flex items-center gap-3">
             <button
               onClick={handleSendTestMessage}
@@ -501,29 +447,17 @@ export const WhatsAppCloudSection: React.FC = () => {
               className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
             >
               {isSending ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  Enviando...
-                </>
+                <><RefreshCw className="w-4 h-4 animate-spin" /> Enviando...</>
               ) : (
-                <>
-                  <Send className="w-4 h-4" />
-                  Enviar Mensaje de Prueba
-                </>
+                <><Send className="w-4 h-4" /> Enviar Mensaje de Prueba</>
               )}
             </button>
 
             {sendResult && (
               <span className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold ${
-                sendResult.success
-                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                  : 'bg-red-50 text-red-700 border border-red-200'
+                sendResult.success ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-red-50 text-red-700 border border-red-200'
               }`}>
-                {sendResult.success ? (
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                ) : (
-                  <XCircle className="w-3.5 h-3.5" />
-                )}
+                {sendResult.success ? <CheckCircle2 className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
                 {sendResult.message}
               </span>
             )}
@@ -531,32 +465,20 @@ export const WhatsAppCloudSection: React.FC = () => {
         </div>
       </div>
 
-      {/* Save Button */}
       <div className="flex items-center justify-end gap-3 pt-2">
         <button
           onClick={handleSave}
           disabled={isSaving}
           className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${
-            saved
-              ? 'bg-emerald-100 text-emerald-700 border border-emerald-300'
-              : 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm'
+            saved ? 'bg-emerald-100 text-emerald-700 border border-emerald-300' : 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm'
           } disabled:opacity-50`}
         >
           {isSaving ? (
-            <>
-              <RefreshCw className="w-4 h-4 animate-spin" />
-              Guardando...
-            </>
+            <><RefreshCw className="w-4 h-4 animate-spin" /> Guardando...</>
           ) : saved ? (
-            <>
-              <CheckCircle2 className="w-4 h-4" />
-              Guardado
-            </>
+            <><CheckCircle2 className="w-4 h-4" /> Guardado</>
           ) : (
-            <>
-              <Save className="w-4 h-4" />
-              Guardar Configuración
-            </>
+            <><Save className="w-4 h-4" /> Guardar Configuración</>
           )}
         </button>
       </div>

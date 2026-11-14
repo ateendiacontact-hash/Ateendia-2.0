@@ -100,8 +100,7 @@ export const whatsAppCloudService = {
     }
 
     const phoneNumber = toPhoneNumber.replace(/\D/g, '');
-    const formattedNumber = phoneNumber.startsWith('1') ? `${phoneNumber}@c.us` : `1${phoneNumber}@c.us`;
-
+    
     try {
       const response = await fetch(
         `https://graph.facebook.com/${META_API_VERSION}/${creds.phoneNumberId}/messages`,
@@ -123,21 +122,26 @@ export const whatsAppCloudService = {
         }
       );
 
+      // REGLA 29: Type Guard para respuesta de error
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
+        const rawError: unknown = await response.json().catch(() => ({}));
+        const errorData = (rawError && typeof rawError === 'object') ? rawError as Record<string, any> : {};
         const errorMsg = errorData?.error?.message || `HTTP ${response.status}`;
         console.error('WhatsApp Cloud API error:', errorMsg);
         return { success: false, error: errorMsg };
       }
 
-      const data = await response.json();
+      // REGLA 29: Type Guard para respuesta exitosa
+      const rawData: unknown = await response.json();
+      const data = (rawData && typeof rawData === 'object') ? rawData as Record<string, any> : {};
+      
       return {
         success: true,
         messageId: data.messages?.[0]?.id
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('WhatsApp Cloud API exception:', error);
-      return { success: false, error: error.message || 'Error de red' };
+      return { success: false, error: error instanceof Error ? error.message : 'Error de red' };
     }
   },
 
@@ -182,20 +186,23 @@ export const whatsAppCloudService = {
       );
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
+        const rawError: unknown = await response.json().catch(() => ({}));
+        const errorData = (rawError && typeof rawError === 'object') ? rawError as Record<string, any> : {};
         const errorMsg = errorData?.error?.message || `HTTP ${response.status}`;
         console.error('WhatsApp Cloud Template API error:', errorMsg);
         return { success: false, error: errorMsg };
       }
 
-      const data = await response.json();
+      const rawData: unknown = await response.json();
+      const data = (rawData && typeof rawData === 'object') ? rawData as Record<string, any> : {};
+
       return {
         success: true,
         messageId: data.messages?.[0]?.id
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('WhatsApp Cloud Template API exception:', error);
-      return { success: false, error: error.message || 'Error de red' };
+      return { success: false, error: error instanceof Error ? error.message : 'Error de red' };
     }
   },
 
@@ -238,15 +245,18 @@ export const whatsAppCloudService = {
       );
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
+        const rawError: unknown = await response.json().catch(() => ({}));
+        const errorData = (rawError && typeof rawError === 'object') ? rawError as Record<string, any> : {};
         const errorMsg = errorData?.error?.message || `HTTP ${response.status}`;
         return { success: false, error: errorMsg };
       }
 
-      const data = await response.json();
+      const rawData: unknown = await response.json();
+      const data = (rawData && typeof rawData === 'object') ? rawData as Record<string, any> : {};
+      
       return { success: true, messageId: data.messages?.[0]?.id };
-    } catch (error: any) {
-      return { success: false, error: error.message || 'Error de red' };
+    } catch (error: unknown) {
+      return { success: false, error: error instanceof Error ? error.message : 'Error de red' };
     }
   },
 
@@ -265,7 +275,9 @@ export const whatsAppCloudService = {
         return { valid: false };
       }
 
-      const data = await response.json();
+      const rawData: unknown = await response.json();
+      const data = (rawData && typeof rawData === 'object') ? rawData as Record<string, any> : {};
+      
       return {
         valid: true,
         displayPhoneNumber: data.display_phone_number,

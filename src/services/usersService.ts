@@ -51,7 +51,7 @@ export const usersService = {
         data = data.filter(u => 
           u.name.toLowerCase().includes(term) ||
           u.email.toLowerCase().includes(term) ||
-          u.phone.includes(filters.search!)
+          (u.phone && u.phone.toLowerCase().includes(term))
         );
       }
     }

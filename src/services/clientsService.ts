@@ -10,7 +10,7 @@ export interface ClientFilters {
   assignedAgentId?: string;
   pipelineId?: string;
   stageId?: string;
-  leadSource?: string; // whatsapp, instagram, facebook, landing, manual
+  leadSource?: string;
 }
 
 export interface CreateClientData {
@@ -37,7 +37,7 @@ export interface CreateClientData {
   pipelineId?: string;
   stageId?: string;
   dealValue?: number;
-  leadSource?: string; // Capta el canal de origen (WhatsApp, Instagram, Facebook, MicroLanding)
+  leadSource?: string;
   customFields?: Record<string, any>;
   tenantId: string;
 }
@@ -47,7 +47,6 @@ export interface UpdateClientData extends Partial<CreateClientData> {
 }
 
 export const clientsService = {
-  // Obtener clientes filtrados directamente desde D1
   async getAll(tenantId: string = 'tenant-demo', filters?: ClientFilters): Promise<ApiResponse<Client[]>> {
     try {
       const response = await fetch(`${ENDPOINT}?tenantId=${encodeURIComponent(tenantId)}`);
@@ -63,7 +62,7 @@ export const clientsService = {
           data = data.filter(c =>
             `${c.firstName} ${c.lastName}`.toLowerCase().includes(term) ||
             c.email?.toLowerCase().includes(term) ||
-            c.phone.includes(filters.search) ||
+            c.phone.includes(filters.search!) ||
             c.idNumber?.toLowerCase().includes(term)
           );
         }
@@ -96,7 +95,6 @@ export const clientsService = {
     return apiClient.get<Client>(`clients/${id}`);
   },
 
-  // Crear cliente en D1 (Origen: Manual, WhatsApp, Instagram, Facebook o MicroLanding)
   async create(data: CreateClientData): Promise<ApiResponse<Client>> {
     try {
       const response = await fetch(ENDPOINT, {
@@ -118,11 +116,16 @@ export const clientsService = {
         throw new Error('Error al registrar cliente en Cloudflare D1');
       }
 
-      const resData = await response.json();
+      const resData: unknown = await response.json();
+      let newId = '';
+      if (resData && typeof resData === 'object' && 'id' in resData) {
+        newId = String((resData as { id: unknown }).id);
+      }
+      
       return {
         success: true,
         data: {
-          id: resData.id,
+          id: newId,
           ...data,
           status: data.status || 'Lead',
           category: data.category || 'Regular',
